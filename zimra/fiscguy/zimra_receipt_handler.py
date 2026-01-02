@@ -7,19 +7,18 @@ Inherits from base ZIMRA class.
 import os
 from collections import defaultdict
 from datetime import datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from io import BytesIO
 
 import qrcode
-from apps.finance.models import Invoice
-from apps.settings.models import OfflineReceipt
-from apps.zimra.models import FiscalCounter, FiscalDay, Receipt
 from django.core.files.base import ContentFile
-from django.utils.timezone import now
 from loguru import logger
 
-from .base import ZIMRA
-from .crypto_utils import ZIMRACrypto
+from fiscguy.utils.datetime_now import datetime_now_isoformat as timestamp
+
+from .models import FiscalCounter, FiscalDay, Receipt
+from .zimra_base import ZIMRA
+from .zimra_crypto import ZIMRACrypto
 
 
 class ZIMRAReceiptHandler(ZIMRA):
@@ -41,54 +40,39 @@ class ZIMRAReceiptHandler(ZIMRA):
         self.crypto = ZIMRACrypto()
         logger.info("ZIMRAReceiptHandler initialized")
 
-    def get_last_receipt_number(self):
+    def _get_receipt_global_number(self):
         """
-        Fetch the last receiptGlobalNo from offline receipts.
+        Fetch the last receiptGlobalNo from Receipts.
 
         Returns:
-            int: Last global receipt number, or 0 if no receipts exist
+            int: new global receipt number, or 0 if no receipts exist
         """
-        last_receipt = OfflineReceipt.objects.order_by("-id").first()
+        last_receipt = Receipt.objects.order_by("-id").first()
+        last_global_no = last_receipt.global_no if last_receipt else 0
+        new_global_no = int(last_global_no) + 1
 
-        logger.info(f"Last receipt: {last_receipt}")
+        return new_global_no
 
-        last_global_no = (
-            last_receipt.receipt_data["receiptGlobalNo"] if last_receipt else 0
-        )
-
-        logger.info(f"Last receiptGlobalNo: {last_global_no}")
-
-        return last_global_no
-
-    def generate_receipt_data(self, invoice, invoice_items, request):
+    def generate_receipt_data(self, receipt, receipt_items, request):
         """
         Transform invoice data to ZIMRA receipt format.
 
         Args:
-            invoice: Invoice object
-            invoice_items: QuerySet of InvoiceItem objects
+            invoice: Receipt object
+            invoice_items: QuerySet of ReceiptLine objects
             request: Django request object
 
         Returns:
             tuple: (signature_string, receipt_data) or (error_message, None)
         """
         try:
-            logger.info(f"Processing Invoice: {invoice.invoice_number}")
 
             # Get fiscal day
             fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+
+            # check if fiscal day is open
             if not fiscal_day:
-                raise ValueError("No open fiscal day found")
-
-            logger.info(f"Fiscal day {fiscal_day.day_no}")
-
-            # Get previous zimra receipt for hash chaining
-            previous_receipt = Receipt.objects.order_by("-id").first()
-
-            # Get next receipt number
-            last_global_no = previous_receipt.global_no if previous_receipt else 0
-            new_receipt_global_no = int(last_global_no) + 1
-            logger.info(f"Global number: {new_receipt_global_no}")
+                return {"message: no fiscal day open"}
 
             # Build receipt lines and calculate taxes
             receipt_lines = []
@@ -96,37 +80,28 @@ class ZIMRAReceiptHandler(ZIMRA):
                 lambda: {"taxAmount": 0.00, "salesAmountWithTax": 0.00}
             )
 
-            logger.info(f"Previous invoice: {previous_receipt}")
-
-            for index, item in enumerate(invoice_items, start=1):
+            for index, item in enumerate(receipt_items, start=1):
                 line_total = float(item.unit_price) * item.quantity
 
                 # Determine tax details
-                tax_id = item.item.tax_type.tax_id
-                tax_percent = (
-                    float(item.item.tax_type.tax_percent)
-                    if item.item.tax_type.tax_percent
-                    else None
-                )
+                tax_id = item.tax_type.tax_id
+                tax_percent = float(item.item.tax_type.tax_percent)
                 tax_code = item.item.tax_type.code
+                tax_name = item.item.tax_type.name.lower()
 
                 logger.info(
                     f"Tax ID: {tax_id}, Tax Percent: {tax_percent}, Tax Code: {tax_code}"
                 )
 
                 # Calculate tax amount
-                try:
-                    if tax_percent:
-                        tax_amount = line_total * (tax_percent / (100 + tax_percent))
-                    else:
-                        tax_amount = 0.00
-                    logger.info(f"Tax Amount: {tax_amount}")
-                except Exception as e:
-                    logger.error(f"Error calculating tax amount: {e}")
-                    raise
+                if tax_name == "exempt" or tax_name == "zero-rated":
+                    tax_amount = 0.00
+
+                elif item.tax_type.name.lower() == "standard 15%":
+                    tax_amount = line_total * (tax_percent / (100 + tax_percent))
 
                 # Accumulate tax group totals
-                key = (tax_id, tax_percent, tax_code)
+                key = (tax_id, tax_percent, tax_code, tax_name)
                 tax_group_totals[key]["taxAmount"] += tax_amount
                 tax_group_totals[key]["salesAmountWithTax"] += line_total
 
@@ -152,7 +127,12 @@ class ZIMRAReceiptHandler(ZIMRA):
 
             # Construct receiptTaxes from actual usage
             receipt_taxes = []
-            for (tax_id, tax_percent, tax_code), totals in tax_group_totals.items():
+            for (
+                tax_id,
+                tax_percent,
+                tax_code,
+                tax_name,
+            ), totals in tax_group_totals.items():
                 tax_obj = {
                     "taxID": tax_id,
                     "taxCode": tax_code,
@@ -160,36 +140,35 @@ class ZIMRAReceiptHandler(ZIMRA):
                     "salesAmountWithTax": round(totals["salesAmountWithTax"], 2),
                 }
 
-                if tax_id != 1 and tax_percent is not None:
+                if tax_name != "exempt":
                     tax_obj["taxPercent"] = float(tax_percent)
 
                 receipt_taxes.append(tax_obj)
 
             logger.info(f"Receipt taxes: {receipt_taxes}")
-            logger.info(f"Receipt counter: {fiscal_day.receipt_count + 1}")
 
             # Build complete receipt data
             receipt_data = {
-                "receiptType": "FiscalInvoice",
-                "receiptCurrency": invoice.currency.name.upper(),
+                "receiptType": receipt.receipt_type,
+                "receiptCurrency": receipt.currency.name.upper(),
                 "receiptCounter": fiscal_day.receipt_count + 1,
-                "receiptGlobalNo": new_receipt_global_no,
-                "invoiceNo": f"{invoice.branch.name}{new_receipt_global_no}",
+                "receiptGlobalNo": self._get_receipt_global_number(),
+                "invoiceNo": f"{receipt.receipt_number}",
                 "receiptNotes": "Thank you for shopping with us!",
-                "receiptDate": datetime.now().replace(microsecond=0).isoformat(),
+                "receiptDate": timestamp(),
                 "receiptLinesTaxInclusive": True,
                 "receiptLines": receipt_lines,
                 "receiptTaxes": receipt_taxes,
                 "receiptPayments": [
                     {
-                        "moneyTypeCode": invoice.payment_terms,
-                        "paymentAmount": float(invoice.amount),
+                        "moneyTypeCode": receipt.payment_terms,
+                        "paymentAmount": float(receipt.amount),
                     }
                 ],
-                "receiptTotal": float(invoice.amount),
+                "receiptTotal": float(receipt.amount),
                 "receiptPrintForm": "Receipt48",
                 "previousReceiptHash": (
-                    "" if fiscal_day.receipt_count == 0 else previous_receipt.hash_value
+                    "" if fiscal_day.receipt_count == 0 else receipt.hash_value
                 ),
             }
 
@@ -215,16 +194,13 @@ class ZIMRAReceiptHandler(ZIMRA):
             logger.error(f"Error generating receipt data: {e}")
             return f"Error generating receipt: {e}", None
 
-    def submit_receipt_with_storage(
-        self, request, receipt_data, credit_note, hash_value, signature, invoice_id
-    ):
+    def submit_receipt(self, request, receipt_data, hash_value, signature):
         """
         Submit receipt to ZIMRA and handle offline storage, QR code generation, and fiscal counters.
 
         Args:
             request: Django request object
             receipt_data (dict): Receipt data
-            credit_note (dict): Credit note data
             hash_value (str): Receipt hash
             signature (str): Receipt signature
             invoice_id (int): Invoice ID
@@ -236,64 +212,54 @@ class ZIMRAReceiptHandler(ZIMRA):
             # Submit to ZIMRA
             response = self.submit_receipt(
                 {"receipt": receipt_data},
-                {"receipt": credit_note},
                 hash_value,
                 signature,
             )
+
             logger.info(f"Receipt submission response: {response.json()}")
 
-            response = response.json()
-
-            receipt_id = response.get("receiptID")
-            logger.info(f"ZIMRA receipt ID: {receipt_id}")
-
             if response:
-                # Get invoice
-                invoice = (
-                    Invoice.objects.filter(branch=request.user.branch)
+                response = response.json()
+                receipt_id = response.get("receiptID")
+
+                # Get receipt
+                receipt = (
+                    Receipt.objects.filter(branch=request.user.branch)
                     .order_by("-id")
                     .first()
                 )
 
-                if not invoice:
-                    logger.error("Invoice not found")
-                    return response
-
                 # Update invoice with signature and hash
-                invoice.receiptServerSignature = signature
-                invoice.receipt_hash = hash_value
+                receipt.signature = signature
+                receipt.hash_value = hash_value
 
                 # create receipt record
                 fiscal_day = FiscalDay.objects.filter(is_open=True).first()
-                receipt = self._create_receipt_record(
-                    receipt_data, hash_value, signature, fiscal_day, receipt_id
-                )
 
                 # Generate QR code
-                self._generate_qr_code(invoice, receipt, receipt_data, signature)
+                self._generate_qr_code(receipt, receipt_data, signature)
 
                 # Update fiscal day
                 if fiscal_day:
                     fiscal_day.receipt_count += 1
-                    fiscal_day.global_count += 1
-                    fiscal_day.total_sales += invoice.amount
                     fiscal_day.save()
+
                     logger.info("Fiscal day updated.")
 
                     # Update invoice with fiscal day info
-                    invoice.fiscal_day = fiscal_day.day_no
-                    invoice.invoice_number = (
-                        f"{invoice.branch.name[:3]}-{receipt_data['receiptGlobalNo']}"
+                    receipt.fiscal_day = fiscal_day.day_no
+                    receipt.invoice_number = (
+                        f"{receipt.branch.name[:3]}-{receipt_data['receiptGlobalNo']}"
                     )
 
                     if receipt_id:
-                        invoice.zimra_inv_id = receipt_id
+                        receipt.zimra_inv_id = receipt_id
 
-                    invoice.save()
-                    logger.info(f"Invoice saved: {invoice}")
+                    receipt.save()
+                    logger.info(f"Invoice saved: {receipt}")
 
                     # Update fiscal counters
-                    self._update_fiscal_counters(receipt_data, invoice, fiscal_day)
+                    self._update_fiscal_counters(receipt_data, receipt, fiscal_day)
 
             return response
 
@@ -306,14 +272,14 @@ class ZIMRAReceiptHandler(ZIMRA):
         Generate and save QR code for invoice.
 
         Args:
-            invoice: Invoice object
+            receipt: Receipt object
             receipt_data (dict): Receipt data
             signature (str): Receipt signature
         """
         try:
-            base_url = "https://fdmstest.zimra.co.zw"
 
-            device_id = f'00000{os.getenv("DEVICE_ID")}'
+            base_url = ZIMRA.config.url
+            device_id = f"00000{ZIMRA.device_id}"
             receipt_date = datetime.strptime(
                 receipt_data["receiptDate"], "%Y-%m-%dT%H:%M:%S"
             ).strftime("%d%m%Y")
@@ -335,35 +301,33 @@ class ZIMRAReceiptHandler(ZIMRA):
             qr_io.seek(0)
 
             # Save QR code to invoice
-            invoice.qr_code.save(
-                f"qr_{invoice.invoice_number}.png",
+            receipt.qr_code.save(
+                f"qr_{invoice.receipt_number}.png",
                 ContentFile(qr_io.getvalue()),
                 save=False,
             )
 
             # save qr code to receipt | more to the customized system
             receipt.qr_code.save(
-                f"qr_{invoice.invoice_number}.png",
+                f"qr_{invoice.receipt_number}.png",
                 ContentFile(qr_io.getvalue()),
                 save=False,
             )
 
             # Generate and save verification code
             code = self.crypto.generate_verification_code(signature)
-            invoice.code = code
             receipt.code = code
             receipt.save()
-            invoice.save()
 
             logger.info(
-                f"QR code and verification code saved for invoice {invoice.invoice_number}"
+                f"QR code and verification code saved for invoice {receipt.receipt_number}"
             )
 
         except Exception as e:
             logger.error(f"Error generating QR code: {e}")
             raise
 
-    def _update_fiscal_counters(self, receipt_data, invoice, fiscal_day):
+    def _update_fiscal_counters(self, receipt_data, receipt, fiscal_day):
         """
         Update fiscal counters based on receipt data.
 
@@ -385,7 +349,7 @@ class ZIMRAReceiptHandler(ZIMRA):
                 sale_by_tax_counter, created_sbt = FiscalCounter.objects.get_or_create(
                     fiscal_counter_type="SaleByTax",
                     created_at__date=datetime.today(),
-                    fiscal_counter_currency=invoice.currency.name.lower(),
+                    fiscal_counter_currency=receipt.currency.name.lower(),
                     fiscal_counter_tax_id=tax_id,
                     fiscal_counter_tax_percent=tax_percent,
                     fiscal_counter_money_type=receipt_data["receiptPayments"][0][
@@ -402,7 +366,6 @@ class ZIMRAReceiptHandler(ZIMRA):
                         sales_amount_with_tax
                     )
                     sale_by_tax_counter.save()
-                    logger.info(f"Updated SaleByTax counter: {sale_by_tax_counter}")
 
                 # SaleTaxByTax counter (only if tax percent is not 0)
                 if tax_percent and tax_percent != 0.00:
@@ -410,7 +373,7 @@ class ZIMRAReceiptHandler(ZIMRA):
                         FiscalCounter.objects.get_or_create(
                             fiscal_counter_type="SaleTaxByTax",
                             created_at__date=datetime.today(),
-                            fiscal_counter_currency=invoice.currency.name.lower(),
+                            fiscal_counter_currency=receipt.currency.name.lower(),
                             fiscal_counter_tax_id=tax_id,
                             fiscal_counter_tax_percent=tax_percent,
                             fiscal_counter_money_type=None,
@@ -426,64 +389,25 @@ class ZIMRAReceiptHandler(ZIMRA):
                             tax_amount
                         )
                         sale_tax_by_tax_counter.save()
-                        logger.info(
-                            f"Updated SaleTaxByTax counter: {sale_tax_by_tax_counter}"
-                        )
 
             # Balance By Money Type counter
             fiscal_counter_bal_obj, created_bal = FiscalCounter.objects.get_or_create(
                 fiscal_counter_type="Balancebymoneytype",
                 created_at__date=datetime.today(),
-                fiscal_counter_currency=invoice.currency.name.lower(),
+                fiscal_counter_currency=receipt.currency.name.lower(),
                 fiscal_day=fiscal_day,
                 defaults={
                     "fiscal_counter_tax_percent": None,
-                    "fiscal_counter_tax_id": 1,
-                    "fiscal_counter_money_type": invoice.payment_terms,
-                    "fiscal_counter_value": invoice.amount,
+                    "fiscal_counter_tax_id": tax_id,
+                    "fiscal_counter_money_type": receipt.payment_terms,
+                    "fiscal_counter_value": receipt.amount,
                 },
             )
 
             if not created_bal:
-                fiscal_counter_bal_obj.fiscal_counter_value += invoice.amount
+                fiscal_counter_bal_obj.fiscal_counter_value += receipt.amount
                 fiscal_counter_bal_obj.save()
-                logger.info(f"Updated Balance counter: {fiscal_counter_bal_obj}")
 
         except Exception as e:
             logger.error(f"Error updating fiscal counters: {e}")
-            raise
-
-    def _create_receipt_record(
-        self, receipt_data, hash_value, signature, fiscal_day, receipt_id
-    ):
-        """
-        Create and save Receipt record in the database.
-
-        Args:
-            receipt_data (dict): Receipt data
-            hash_value (str): Receipt hash
-            signature (str): Receipt signature
-            fiscal_day: FiscalDay object
-
-        Returns:
-            Receipt: Created Receipt object
-        """
-        try:
-            receipt = Receipt(
-                receipt_type=receipt_data["receiptType"],
-                receipt_currency=receipt_data["receiptCurrency"],
-                receipt_date=datetime.fromisoformat(receipt_data["receiptDate"]).date(),
-                receipt_number=receipt_data["invoiceNo"],
-                receipt_id=receipt_id,
-                code="",
-                global_no=receipt_data["receiptGlobalNo"],
-                hash_value=hash_value,
-                signature_value=signature,
-                fiscal_day=fiscal_day,
-            )
-            receipt.save()
-            logger.info(f"Receipt record created: {receipt}")
-            return receipt
-        except Exception as e:
-            logger.error(f"Error creating receipt record: {e}")
             raise

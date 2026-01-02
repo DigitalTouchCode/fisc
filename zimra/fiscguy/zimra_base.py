@@ -10,12 +10,13 @@ import os
 from time import sleep
 
 import requests
-from celery import shared_task
 from django.conf import settings
 from dotenv import load_dotenv
 from loguru import logger
 
-from .models import Certs, Configuration, FiscalDay
+from fiscguy.utils.datetime_now import datetime_now_isoformat as timestamp
+
+from .models import Certs, Configuration, Device, FiscalDay
 
 load_dotenv()
 
@@ -35,12 +36,12 @@ class ZIMRA:
     """
 
     # global
-    device_id = int(os.getenv("DEVICE_ID"))
-    all_certificates = Certs.objects.first()
-    config = Configuration.objects.first()
+    device_id = Device.objects.first().device_id
 
-    def __init__(self, certs, config):
+    def __init__(self):
         """Initialize ZIMRA instance with configuration from environment variables"""
+        config = Configuration.objects.first()
+        certs = Certs.objects.first()
         self.activation_key = config.activation_key
         self.device_model_name = config.device_model_name
         self.device_model_version = config.device_model_verrsion
@@ -199,7 +200,7 @@ class ZIMRA:
             logger.error(f"Error getting config: {e}")
             return None
 
-    def submit_receipt(self, receipt_data, credit_note_data, hash_value, signature):
+    def submit_receipt(self, receipt_data, hash_value, signature):
         """
         Submit a receipt to ZIMRA FDMS.
 
@@ -248,6 +249,19 @@ class ZIMRA:
         """
         headers = self._get_headers()
 
+        active_day = FiscalDay.objects.filter(is_open=True).first()
+
+        if active_day:
+            return {
+                "success": True,
+                "message": f"Fiscal Day {active_day.day_no} is already open.",
+            }
+
+        last_day = FiscalDay.objects.order_by("-created_at").first()
+        next_day_no = (last_day.day_no + 1) if last_day else 1
+
+        payload = {"fiscalDayOpened": timestamp(), "fiscalDayNo": next_day_no}
+
         try:
             response = requests.post(
                 f"{self.base_url}/openDay",
@@ -273,8 +287,8 @@ class ZIMRA:
             return
 
         logger.info(f"signature: {signature}")
-        logger.info(f"signature: {hash}")
-        logger.info(f"signature: {counters}")
+        logger.info(f"hash: {hash}")
+        logger.info(f"counters: {counters}")
 
         sale_by_tax_counter = []
         sale_tax_by_tax_counter = []

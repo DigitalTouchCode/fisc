@@ -1,3 +1,6 @@
 from django.contrib import admin
 
-# Register your models here.
+from fiscguy.models import Certs, Configuration
+
+admin.site.register(Certs)
+admin.site.register(Configuration)

@@ -8,11 +8,14 @@ import binascii
 import hashlib
 import os
 
+from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.x509.oid import NameOID
 from dotenv import load_dotenv
 from loguru import logger
+from fiscguy.models import Certs
 
 load_dotenv()
 
@@ -111,11 +114,9 @@ class ZIMRACrypto:
             dict: Dictionary with 'hash' and 'signature' keys
         """
         try:
-            # Generate hash
             hash_value = self.get_hash(signature_string)
             logger.info(f"Generated hash: {hash_value}")
 
-            # Generate signature
             signature = self.sign_data(signature_string)
             logger.info(f"Generated signature: {signature}")
 
@@ -226,6 +227,67 @@ class ZIMRACrypto:
 
         return signature_string
 
+    @staticmethod
+    def _create_private_key(env):
+        
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+
+        cert = Certs.objects.first()
+        if not cert:
+            cert = Certs.objects.create(
+                certificate_key=pem.decode('utf-8'),
+                certificate="",  
+                production=env
+            )
+            print(f"Cert key created for {'production' if env else 'test'} environment (id={cert.id})")
+        else:
+            if cert.production != env:
+                logger.info(f"Switching cert key to {'production' if env else 'test'} environment")
+                cert.production = env
+         
+            cert.certificate_key = pem.decode('utf-8')
+            cert.save()
+            print(f"Cert key updated for {'production' if env else 'test'} environment (id={cert.id})")
+        
+        return cert.certificate_key
+
+    @staticmethod
+    def _create_csr(private_key, device_sn, device_id):
+
+        device_id = int(device_id)
+
+        common_name = f"ZIMRA-{device_sn}-{device_id:010d}"
+
+        private_key = serialization.load_pem_private_key(
+            private_key.encode("utf-8"),
+            password=None,
+            backend=default_backend()
+        )
+
+        attributes = [x509.NameAttribute(NameOID.COMMON_NAME, common_name)]
+
+        csr = (
+            x509.CertificateSigningRequestBuilder()
+            .subject_name(x509.Name(attributes))
+            .sign(private_key, hashes.SHA256())
+        )
+
+        csr_pem = csr.public_bytes(serialization.Encoding.PEM).decode("utf-8")
+
+        cert = Certs.objects.first()
+        cert.csr = csr_pem
+        cert.save()
+
+        print(csr_pem)
 
 # Convenience function for backward compatibility
 def run(signature_string):

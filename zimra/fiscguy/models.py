@@ -1,6 +1,20 @@
 from django.db import models
 
 
+class Device(models.Model):
+    org_name = models.CharField(max_length=255)
+    activation_key = models.CharField(max_length=255)
+    device_id = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    device_model_name = models.CharField(max_length=255, null=True)
+    device_serial_number = models.CharField(max_length=255, null=True)
+    device_model_version = models.CharField(max_length=255, null=True)
+    production = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.org_name} - {self.device_id}"
+
+
 class Configuration(models.Model):
     """
     Zimra taxpayer configuration
@@ -8,6 +22,17 @@ class Configuration(models.Model):
 
     tax_payer_name = models.CharField(max_length=255)
     tax_inclusive = models.BooleanField(default=True)
+    tin_number = models.CharField(max_length=20)
+    vat_number = models.CharField(max_length=20)
+    address = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=20)
+    email = models.EmailField()
+    url = models.URLField(
+        null=True, blank=True
+    )  # for zimra either testing or production
+
+    def __str__(self):
+        return self.tax_payer_name
 
 
 class Certs(models.Model):
@@ -16,6 +41,7 @@ class Certs(models.Model):
     divided between production and testing certs
     """
 
+    csr = models.TextField()
     certificate = models.TextField()
     certificate_key = models.TextField()
     production = models.BooleanField(default=False)
@@ -47,6 +73,7 @@ class FiscalDay(models.Model):
     day_no = models.IntegerField()
     receipt_counter = models.IntegerField()
     is_open = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Day No: {self.day_no} | Open: {self.is_open}"
@@ -116,23 +143,49 @@ class Receipt(models.Model):
     Receiipt model
     """
 
-    class ReceiptType:
-        fiscalinvoice = "Fiscal invoice"
-        creditnote = "Creditnote"
-        debitnote = "Debitnote"
+    class ReceiptType(models.TextChoices):
+        FISCAL_INVOICE = "fiscalinvoice", "Fiscal Invoice"
+        CREDIT_NOTE = "creditnote", "Creditnote"
+        DEBIT_NOTE = "debitnote", "Debitnote"
 
-    receipt_number = models.CharField(unique=True, max_length=255)
+    receipt_number = models.CharField(
+        unique=True, max_length=255, null=True, blank=True
+    )
     receipt_type = models.CharField(
-        choices=ReceiptType, default=ReceiptType.fiscalinvoice, max_length=10
+        choices=ReceiptType, default=ReceiptType.FISCAL_INVOICE, max_length=255
     )
     total_amount = models.FloatField()
-    qr_code = models.ImageField(upload_to="Zimra_qr_codes")
-    code = models.CharField(max_length=20)
+    qr_code = models.ImageField(upload_to="Zimra_qr_codes", null=True, blank=True)
+    code = models.CharField(max_length=20, null=True, blank=True)
+    currency = models.CharField(
+        max_length=255, choices=[("USD", "usd"), ("ZWG", "zwg")], default="USD"
+    )
 
-    global_number = models.IntegerField()
+    global_number = models.IntegerField(null=True, blank=True)
+    hash_value = models.CharField(max_length=255, null=True, blank=True)
+    signature = models.CharField(max_length=255, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now_add=True)
+
+    buyer = models.ForeignKey(
+        "Buyer",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="receipts",
+    )
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+
+        if is_new and not self.receipt_number:
+            self.receipt_number = f"R-{self.id:06d}"
+            super().save(update_fields=["receipt_number"])
+
+    def __str__(self):
+        return f"Receipt No: {self.receipt_number} | Type: {self.receipt_type} | Total: {self.total_amount}"
 
 
 class ReceiptLine(models.Model):
@@ -140,13 +193,16 @@ class ReceiptLine(models.Model):
     Receipt lines model, (product can vary with different taxes)
     """
 
-    receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE)
+    receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name="lines")
     product = models.CharField(max_length=255)
     quantity = models.IntegerField()
     unit_price = models.FloatField()
     line_total = models.FloatField()
     tax_amount = models.FloatField()
-    tax_id = models.IntegerField()
+    tax_type = models.ForeignKey(Taxes, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.product} - {self.line_total}"
 
 
 class Buyer(models.Model):
