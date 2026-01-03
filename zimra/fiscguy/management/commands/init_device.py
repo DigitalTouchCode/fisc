@@ -2,7 +2,7 @@ import requests
 from django.core.management.base import BaseCommand
 from loguru import logger
 
-from fiscguy.models import Configuration, Device
+from fiscguy.models import Certs, Configuration, Device
 from fiscguy.zimra_crypto import ZIMRACrypto
 
 crypto = ZIMRACrypto()
@@ -10,6 +10,8 @@ crypto = ZIMRACrypto()
 
 class Command(BaseCommand):
     help = "Interactive registration of a new ZIMRA device"
+
+    cert = Certs.objects.first()
 
     def handle(self, *args, **options):
 
@@ -85,57 +87,26 @@ class Command(BaseCommand):
         cert_key = crypto._create_private_key(env)
         csr = crypto._create_csr(cert_key, device_sn, device_id)
 
-        print(f"\n{csr}\n")
+        # register the device and get signed certificate from ZIMRA
+        self.register_device(
+            device_id, activation_key, model_name, model_version, env, csr, device_sn
+        )
 
-        return
-
+        # get zimra configurations for the provided device
         zimra_config = self.get_config(
             device_id, model_name, model_version, device.production
         )
-
         print(zimra_config)
 
-        config = Configuration.objects.first()
-        if not config:
-            self.stdout.write(
-                "No configuration found. Creating default ZIMRA configuration..."
-            )
-            config = Configuration.objects.create(
-                tax_payer_name="DEFAULT TAXPAYER",
-                tax_inclusive=True,
-                device_model_name="POS-DEFAULT",
-                device_model_version="v1.0",
-                url="zimra.gov.zw",
-                activation_key="",  # will set after asking
-            )
-        self.stdout.write(f"Using configuration for device {device_id}.")
+    def get_config(self, device_id, model_name, model_version, env):
+        logger.info(f"Fetching device: {device_id} configurations")
 
-        # Step 3: Ask for activation key
-        activation_key = input("Enter ZIMRA activation key: ").strip()
-        if not activation_key:
-            self.stdout.write(self.style.ERROR("Activation key cannot be empty."))
-            return
-
-        # Update config with activation key
-        config.activation_key = activation_key
-        config.save()
-
-        # Step 4: Register the device
-        device = manager.register_device(
-            org_name=config.tax_payer_name,
-            activation_key=activation_key,
-            device_id=device_id,
+        url = (
+            f"https://fdmsapi.zimra.co.zw/Device/v1/{device_id}"
+            if env
+            else f"https://fdmsapitest.zimra.co.zw/Device/v1/{device_id}"
         )
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Device {device.device_id} registered successfully for {device.org_name}"
-            )
-        )
-
-    def get_conif(self, device_id, model_name, model_version, env):
-
-        url = "" if env else ""
         headers = {
             "Content-Type": "application/json",
             "deviceModelName": model_name,
@@ -146,11 +117,71 @@ class Command(BaseCommand):
             response = requests.get(
                 f"{url}/getConfig",
                 headers=headers,
-                cert=(self.certificate_path, self.certificate_key),
+                cert=(self.cert.certificate, self.cert.certificate_key),
             )
             response.raise_for_status()
-            logger.info(f"GetConfig Response: {response.json()}")
+            logger.info(f"response: {response}")
+            return
+
+            config = Configuration.objects.first()
+            if not config:
+                self.stdout.write(
+                    "No configuration found. Creating default ZIMRA configuration..."
+                )
+                config = Configuration.objects.create(
+                    tax_payer_name="DEFAULT TAXPAYER",
+                    tax_inclusive=True,
+                    device_model_name="POS-DEFAULT",
+                    device_model_version="v1.0",
+                    url="zimra.gov.zw",
+                    activation_key="",
+                )
+            self.stdout.write(f"Using configuration for device {device_id}.")
+
             return response.json()
         except requests.exceptions.RequestException as e:
             logger.error(f"Error getting config: {e}")
             return None
+
+    def register_device(
+        self, device_id, activation_key, model_name, model_version, env, csr, device_sn
+    ):
+        logger.info(f"Registering device: {device_id}")
+        url = (
+            f"https://fdmsapi.zimra.co.zw/Public/v1/{device_id}"
+            if env
+            else f"https://fdmsapitest.zimra.co.zw/Public/v1/{device_id}"
+        )
+
+        csr = csr.replace("\n", "")
+
+        payload = {
+            "activationKey": activation_key,
+            "deviceSerial": device_sn,
+            "certificateRequest": csr,
+        }
+
+        headers = headers = {
+            "Content-Type": "application/json",
+            "deviceModelName": model_name,
+            "deviceModelVersion": model_version,
+        }
+
+        try:
+            response = requests.post(
+                f"{url}/RegisterDevice", json=payload, headers=headers
+            )
+            response.raise_for_status()
+
+            signed_certificate = response.json().get("certificate")
+
+            if signed_certificate:
+
+                self.cert.csr = signed_certificate
+                self.cert.save()
+
+                logger.info(f"Device {device_id} registered successfully.")
+                return signed_certificate
+        except Exception as e:
+            logger.error(f"Device registration failed: {e}")
+            return

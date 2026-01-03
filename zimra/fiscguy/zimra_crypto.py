@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.x509.oid import NameOID
 from dotenv import load_dotenv
 from loguru import logger
+
 from fiscguy.models import Certs
 
 load_dotenv()
@@ -229,7 +230,7 @@ class ZIMRACrypto:
 
     @staticmethod
     def _create_private_key(env):
-        
+
         private_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048,
@@ -244,20 +245,24 @@ class ZIMRACrypto:
         cert = Certs.objects.first()
         if not cert:
             cert = Certs.objects.create(
-                certificate_key=pem.decode('utf-8'),
-                certificate="",  
-                production=env
+                certificate_key=pem.decode("utf-8"), certificate="", production=env
             )
-            print(f"Cert key created for {'production' if env else 'test'} environment (id={cert.id})")
+            print(
+                f"Cert key created for {'production' if env else 'test'} environment (id={cert.id})"
+            )
         else:
             if cert.production != env:
-                logger.info(f"Switching cert key to {'production' if env else 'test'} environment")
+                logger.info(
+                    f"Switching cert key to {'production' if env else 'test'} environment"
+                )
                 cert.production = env
-         
-            cert.certificate_key = pem.decode('utf-8')
+
+            cert.certificate_key = pem.decode("utf-8")
             cert.save()
-            print(f"Cert key updated for {'production' if env else 'test'} environment (id={cert.id})")
-        
+            print(
+                f"Cert key updated for {'production' if env else 'test'} environment (id={cert.id})"
+            )
+
         return cert.certificate_key
 
     @staticmethod
@@ -268,9 +273,7 @@ class ZIMRACrypto:
         common_name = f"ZIMRA-{device_sn}-{device_id:010d}"
 
         private_key = serialization.load_pem_private_key(
-            private_key.encode("utf-8"),
-            password=None,
-            backend=default_backend()
+            private_key.encode("utf-8"), password=None, backend=default_backend()
         )
 
         attributes = [x509.NameAttribute(NameOID.COMMON_NAME, common_name)]
@@ -287,7 +290,8 @@ class ZIMRACrypto:
         cert.csr = csr_pem
         cert.save()
 
-        print(csr_pem)
+        return csr_pem
+
 
 # Convenience function for backward compatibility
 def run(signature_string):
