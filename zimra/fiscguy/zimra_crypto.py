@@ -8,11 +8,14 @@ import binascii
 import hashlib
 import os
 
+import OpenSSL.crypto as crypto
+
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives.asymmetric import ec
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -227,70 +230,68 @@ class ZIMRACrypto:
         logger.info(f"Generated signature string: {signature_string}")
 
         return signature_string
-
+    
     @staticmethod
-    def _create_private_key(env):
+    def generate_key_and_csr(device_sn: str, device_id: int, env: bool = True):
+        """
+        Generates a new RSA private key and a CSR, stores both in the Certs table.
 
-        private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-        )
+        Args:
+            device_sn (str): Device serial number
+            device_id (int): Device ID
+            env (bool): True for production, False for test
 
-        pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
+        Returns:
+            tuple: (private_key_pem, csr_pem)
+        """
+        # ---- validate or create Cert record ----
+        cert_record, created = Certs.objects.get_or_create(production=env)
 
-        cert = Certs.objects.first()
-        if not cert:
-            cert = Certs.objects.create(
-                certificate_key=pem.decode("utf-8"), certificate="", production=env
+        if cert_record.certificate_key and cert_record.csr:
+            logger.info("Private key and CSR already exist – reusing them")
+            return cert_record.certificate_key, cert_record.csr
+
+        # ---- generate 2048-bit RSA key ----
+        keypair = crypto.PKey()
+        keypair.generate_key(crypto.TYPE_RSA, 2048)
+        private_key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, keypair).decode("utf-8")
+
+        # ---- build CSR ----
+        common_name = f"ZIMRA-{device_sn}-{int(device_id):010d}"
+
+        csr_request = crypto.X509Req()
+        subject = csr_request.get_subject()
+
+        # Subject fields (ZIMRA style)
+        subject.C = "ZW"
+        subject.ST = "Zimbabwe"
+        subject.L = "Harare"
+        subject.O = "Zimbabwe Revenue Authority"
+        subject.OU = "FDMS"
+        subject.CN = common_name
+
+        # Add SAN (optional, here CN only)
+        csr_request.add_extensions([
+            crypto.X509Extension(
+                b"subjectAltName",
+                False,
+                f"DNS:{common_name}".encode("utf-8")
             )
-            print(
-                f"Cert key created for {'production' if env else 'test'} environment (id={cert.id})"
-            )
-        else:
-            if cert.production != env:
-                logger.info(
-                    f"Switching cert key to {'production' if env else 'test'} environment"
-                )
-                cert.production = env
+        ])
 
-            cert.certificate_key = pem.decode("utf-8")
-            cert.save()
-            print(
-                f"Cert key updated for {'production' if env else 'test'} environment (id={cert.id})"
-            )
+        csr_request.set_pubkey(keypair)
+        csr_request.sign(keypair, "sha256")
 
-        return cert.certificate_key
+        csr_pem = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csr_request).decode("utf-8")
 
-    @staticmethod
-    def _create_csr(private_key, device_sn, device_id):
+        # ---- save to DB ----
+        cert_record.certificate_key = private_key_pem
+        cert_record.csr = csr_pem
+        cert_record.save()
 
-        device_id = int(device_id)
+        logger.info(f"Generated new RSA private key and CSR for {'production' if env else 'test'} environment")
 
-        common_name = f"ZIMRA-{device_sn}-{device_id:010d}"
-
-        private_key = serialization.load_pem_private_key(
-            private_key.encode("utf-8"), password=None, backend=default_backend()
-        )
-
-        attributes = [x509.NameAttribute(NameOID.COMMON_NAME, common_name)]
-
-        csr = (
-            x509.CertificateSigningRequestBuilder()
-            .subject_name(x509.Name(attributes))
-            .sign(private_key, hashes.SHA256())
-        )
-
-        csr_pem = csr.public_bytes(serialization.Encoding.PEM).decode("utf-8")
-
-        cert = Certs.objects.first()
-        cert.csr = csr_pem
-        cert.save()
-
-        return csr_pem
+        return private_key_pem, csr_pem
 
 
 # Convenience function for backward compatibility

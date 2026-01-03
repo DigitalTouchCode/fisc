@@ -1,9 +1,16 @@
 import requests
+import json
+import tempfile
+import shutil
+from pathlib import Path
+import threading
+
 from django.core.management.base import BaseCommand
 from loguru import logger
 
 from fiscguy.models import Certs, Configuration, Device
 from fiscguy.zimra_crypto import ZIMRACrypto
+
 
 crypto = ZIMRACrypto()
 
@@ -84,13 +91,23 @@ class Command(BaseCommand):
                 device.save()
                 print(f"Device {device.device_id} updated for current environment.")
 
-        cert_key = crypto._create_private_key(env)
-        csr = crypto._create_csr(cert_key, device_sn, device_id)
+        # self.get_config(device_id, model_name, model_version, env)
 
-        # register the device and get signed certificate from ZIMRA
-        self.register_device(
-            device_id, activation_key, model_name, model_version, env, csr, device_sn
-        )
+        # return
+        # cert_key, csr = crypto.generate_key_and_csr(device_sn, device_id, env)
+      
+
+        # # register the device and get signed certificate from ZIMRA
+        # self.register_device(
+        #     device_id, 
+        #     activation_key,
+        #     model_name, 
+        #     model_version, 
+        #     env, 
+        #     csr, 
+        #     device_sn
+        # )
+
 
         # get zimra configurations for the provided device
         zimra_config = self.get_config(
@@ -98,7 +115,7 @@ class Command(BaseCommand):
         )
         print(zimra_config)
 
-    def get_config(self, device_id, model_name, model_version, env):
+    def get_config(self, device_id, model_name, model_version, env=True):
         logger.info(f"Fetching device: {device_id} configurations")
 
         url = (
@@ -113,14 +130,35 @@ class Command(BaseCommand):
             "deviceModelVersion": model_version,
         }
 
+        # ---- create temporary cert and key files separately ----
+        temp_dir = Path(tempfile.mkdtemp(prefix="zimra_fdms_"))
+        cert_path = temp_dir / "client_cert.pem"
+        key_path = temp_dir / "client_key.pem"
+
+        from  fiscguy.models import Certs
+        cert = Certs.objects.first()
+        cert_path.write_text(cert.certificate)
+        key_path.write_text(cert.certificate_key)
+
         try:
             response = requests.get(
                 f"{url}/getConfig",
                 headers=headers,
-                cert=(self.cert.certificate, self.cert.certificate_key),
+                cert=(str(cert_path), str(key_path)),  
+                timeout=30,
             )
             response.raise_for_status()
-            logger.info(f"response: {response}")
+            print(f"results: {response.json()}")
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"Error fetching config: {e}")
+            return None
+        finally:
+            # clean up temp files
+            cert_path.unlink(missing_ok=True)
+            key_path.unlink(missing_ok=True)
+            temp_dir.rmdir()
+
             return
 
             config = Configuration.objects.first()
@@ -139,9 +177,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Using configuration for device {device_id}.")
 
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error getting config: {e}")
-            return None
+        
 
     def register_device(
         self, device_id, activation_key, model_name, model_version, env, csr, device_sn
@@ -152,8 +188,9 @@ class Command(BaseCommand):
             if env
             else f"https://fdmsapitest.zimra.co.zw/Public/v1/{device_id}"
         )
-
+        print(csr)
         csr = csr.replace("\n", "")
+        print(csr)
 
         payload = {
             "activationKey": activation_key,
@@ -173,12 +210,15 @@ class Command(BaseCommand):
             )
             response.raise_for_status()
 
+            logger.info(response.json())
+
             signed_certificate = response.json().get("certificate")
 
             if signed_certificate:
-
-                self.cert.certificate = signed_certificate
-                self.cert.save()
+                from  fiscguy.models import Certs
+                cert = Certs.objects.first()
+                cert.certificate = signed_certificate
+                cert.save()
 
                 logger.info(f"Device {device_id} registered successfully.")
                 return signed_certificate
