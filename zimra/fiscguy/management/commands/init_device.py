@@ -177,7 +177,7 @@ class Command(BaseCommand):
 
             if signed_certificate:
 
-                self.cert.csr = signed_certificate
+                self.cert.certificate = signed_certificate
                 self.cert.save()
 
                 logger.info(f"Device {device_id} registered successfully.")
