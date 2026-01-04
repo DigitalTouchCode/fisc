@@ -1,7 +1,7 @@
-import tempfile
 import shutil
-from pathlib import Path 
+import tempfile
 import threading
+from pathlib import Path
 
 
 class CertTempManager:
@@ -10,7 +10,7 @@ class CertTempManager:
     Thread-safe and reusable accross FDMS requests
     """
 
-    def __init__(self, cert_pem:str, key_pem:str):
+    def __init__(self, cert_pem: str, key_pem: str):
         self._lock = threading.Lock()
         self._temp_dir = Path(tempfile.makdtemp(prefix="zimra_dms_"))
         self._pem_path = self._temp_dir / "client.pem"
@@ -21,12 +21,12 @@ class CertTempManager:
         @property
         def cert_path(self) -> str:
             return str(self._pem_path)
-        
+
         def close(self):
             with self._lock:
                 if not self._closed:
                     shutil.rmtree(self._temp_dir, ignore_errors=True)
-                    self._closed =True
-        
+                    self._closed = True
+
         def __del__(self):
             self.close()

@@ -1,7 +1,21 @@
 from django.urls import path
 
-from .views import ReceiptView
+from .views import (
+    ReceiptView, 
+    ConfigurationView, 
+    TaxView, 
+    GetStatusView,
+    OpenDayView,
+    CloseDayView
+)
 
 app_name = "fiscguy"
 
-urlpatterns = [path("receipts", ReceiptView.as_view(), name="receipts")]
+urlpatterns = [
+    path("taxes/", TaxView.as_view(), name="taxes"),
+    path("open-day/", OpenDayView.as_view(), name="open"),
+    path("get-status/", GetStatusView.as_view(), name="status"),
+    path("receipts/", ReceiptView.as_view(), name="receipts"),
+    path("configuration/", ConfigurationView.as_view(), name="configuration")
+]
+

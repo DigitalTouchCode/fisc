@@ -12,7 +12,7 @@ class ConfigurationSerializer(serializers.ModelSerializer):
         model = Configuration
         fields = [
             "id",
-            "taxpayer_name",
+            "tax_payer_name",
             "tin_number",
             "vat_number",
             "address",
@@ -21,7 +21,7 @@ class ConfigurationSerializer(serializers.ModelSerializer):
         ]
 
 
-class TaxesSerializer(serializers.ModelSerializer):
+class TaxSerializer(serializers.ModelSerializer):
     """
     Zimra official taxes
     """

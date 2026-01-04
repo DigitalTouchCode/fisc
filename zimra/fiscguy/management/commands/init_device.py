@@ -7,15 +7,49 @@ import threading
 
 from django.core.management.base import BaseCommand
 from loguru import logger
+from django.db import transaction
 
-from fiscguy.models import Certs, Configuration, Device
+from fiscguy.models import Certs, Configuration, Device, Taxes
 from fiscguy.zimra_crypto import ZIMRACrypto
+
+"""
+Management command to register a ZIMRA fiscal device and fetch its
+configuration from the ZIMRA FDMS API.
+
+Primary responsibilities:
+- Interactively collect device registration details from the user.
+- Generate CSR and register the device to obtain a signed certificate.
+- Fetch device configuration using the signed certificate and persist
+    the taxpayer configuration and applicable taxes into local models.
+
+This command intentionally writes/updates a single `Configuration` row
+and replaces the `Taxes` table contents with the `applicableTaxes`
+returned from ZIMRA. Database writes are wrapped in a transaction to
+avoid partial updates.
+
+Note: network calls to ZIMRA use client certificates stored in the
+`Certs` model. Temporary files are created for the requests library
+and removed afterwards.
+"""
 
 
 crypto = ZIMRACrypto()
 
 
 class Command(BaseCommand):
+    """Django management command for device registration.
+
+    Usage (interactive): run `python manage.py init_device` and follow
+    the prompts. The command will:
+    - create/update a `Device` record
+    - generate a CSR and register the device to obtain a signed cert
+    - fetch and persist configuration and taxes from ZIMRA's FDMS
+
+    The class keeps operations small and logs failures rather than
+    raising unhandled exceptions so it can be used in ad-hoc admin
+    workflows.
+    """
+
     help = "Interactive registration of a new ZIMRA device"
 
     cert = Certs.objects.first()
@@ -92,22 +126,19 @@ class Command(BaseCommand):
                 print(f"Device {device.device_id} updated for current environment.")
 
         # self.get_config(device_id, model_name, model_version, env)
-
-        # return
-        # cert_key, csr = crypto.generate_key_and_csr(device_sn, device_id, env)
+        cert_key, csr = crypto.generate_key_and_csr(device_sn, device_id, env)
       
 
-        # # register the device and get signed certificate from ZIMRA
-        # self.register_device(
-        #     device_id, 
-        #     activation_key,
-        #     model_name, 
-        #     model_version, 
-        #     env, 
-        #     csr, 
-        #     device_sn
-        # )
-
+        # register the device and get signed certificate from ZIMRA
+        self.register_device(
+            device_id, 
+            activation_key,
+            model_name, 
+            model_version, 
+            env, 
+            csr, 
+            device_sn
+        )
 
         # get zimra configurations for the provided device
         zimra_config = self.get_config(
@@ -115,7 +146,30 @@ class Command(BaseCommand):
         )
         print(zimra_config)
 
-    def get_config(self, device_id, model_name, model_version, env=True):
+    def get_config(self, 
+        device_id: str, 
+        model_name: str, 
+        model_version: str, 
+        env: bool) -> dict:
+
+        """Fetch device configuration from ZIMRA and persist locally.
+
+        Args:
+            device_id (str): Device identifier supplied by ZIMRA.
+            model_name (str): Device model name header required by FDMS.
+            model_version (str): Device model version header.
+            env (bool): True for production FDMS endpoint, False for test.
+
+        Returns:
+            dict | None: Parsed JSON response from FDMS on success, or
+            None when the HTTP request fails.
+
+        Side effects:
+            - Creates/updates a single `Configuration` row.
+            - Replaces all rows in `Taxes` with the `applicableTaxes`
+              returned by the FDMS response.
+        """
+
         logger.info(f"Fetching device: {device_id} configurations")
 
         url = (
@@ -130,7 +184,10 @@ class Command(BaseCommand):
             "deviceModelVersion": model_version,
         }
 
-        # ---- create temporary cert and key files separately ----
+    # ---- create temporary cert and key files separately ----
+    # The requests library doesn't accept certificate contents directly
+    # so we write the cert/key to a secure temporary directory and
+    # pass the file paths to requests.
         temp_dir = Path(tempfile.mkdtemp(prefix="zimra_fdms_"))
         cert_path = temp_dir / "client_cert.pem"
         key_path = temp_dir / "client_key.pem"
@@ -148,35 +205,82 @@ class Command(BaseCommand):
                 timeout=30,
             )
             response.raise_for_status()
-            print(f"results: {response.json()}")
-            return response.json()
+            res = response.json()
+
+            # persist configuration and taxes to the local DB
+            try:
+                with transaction.atomic():
+                    config = Configuration.objects.first()
+
+                    # build address string from available address fields
+                    branch_addr = res.get("deviceBranchAddress") or {}
+                    addr_parts = []
+                    for k in ("houseNo", "street", "city", "province"):
+                        v = branch_addr.get(k)
+                        if v:
+                            addr_parts.append(str(v))
+                    address_str = ", ".join(addr_parts) if addr_parts else ""
+
+                    # contact details are optional in the FDMS response
+                    contacts = res.get("deviceBranchContacts") or {}
+
+                    # Create a single configuration record if none exists,
+                    # otherwise update the existing one in-place.
+                    if not config:
+                        config = Configuration.objects.create(
+                            tax_payer_name=res.get("taxPayerName", "DEFAULT TAXPAYER"),
+                            tax_inclusive=True,
+                            tin_number=res.get("taxPayerTIN", ""),
+                            vat_number=res.get("vatNumber", ""),
+                            address=address_str,
+                            phone_number=contacts.get("phoneNo", ""),
+                            email=contacts.get("email", ""),
+                            url=res.get("qrUrl", None),
+                        )
+                    else:
+                        config.tax_payer_name = res.get("taxPayerName", config.tax_payer_name)
+                        config.tin_number = res.get("taxPayerTIN", config.tin_number)
+                        config.vat_number = res.get("vatNumber", config.vat_number)
+                        config.address = address_str or config.address
+                        config.phone_number = contacts.get("phoneNo", config.phone_number)
+                        config.email = contacts.get("email", config.email)
+                        config.url = res.get("qrUrl", config.url)
+                        config.save()
+
+                    # Replace existing taxes with the list returned by FDMS.
+                    # Deleting and recreating ensures the local DB matches
+                    # the authoritative source. If the FDMS omits fields we
+                    # fall back to safe defaults (percent=0.0).
+                    Taxes.objects.all().delete()
+                    for tax in res.get("applicableTaxes", []):
+                        tax_id = tax.get("taxID") or 0
+                        percent = tax.get("taxPercent")
+                        if percent is None:
+                            # e.g. 'Exempt' entries may have no percent
+                            percent = 0.0
+                        try:
+                            Taxes.objects.create(
+                                code=str(tax_id)[:10],
+                                name=tax.get("taxName", ""),
+                                tax_id=int(tax_id),
+                                percent=float(percent),
+                            )
+                        except Exception:
+                            # log individual failures but continue creating
+                            # remaining tax records so one bad entry doesn't
+                            # prevent the whole update.
+                            logger.exception(f"Error creating tax record for: {tax}")
+            except Exception:
+                logger.exception("Failed to persist configuration and taxes")
+
+            return res
         except requests.RequestException as e:
             logger.error(f"Error fetching config: {e}")
             return None
         finally:
-            # clean up temp files
             cert_path.unlink(missing_ok=True)
             key_path.unlink(missing_ok=True)
             temp_dir.rmdir()
-
-            return
-
-            config = Configuration.objects.first()
-            if not config:
-                self.stdout.write(
-                    "No configuration found. Creating default ZIMRA configuration..."
-                )
-                config = Configuration.objects.create(
-                    tax_payer_name="DEFAULT TAXPAYER",
-                    tax_inclusive=True,
-                    device_model_name="POS-DEFAULT",
-                    device_model_version="v1.0",
-                    url="zimra.gov.zw",
-                    activation_key="",
-                )
-            self.stdout.write(f"Using configuration for device {device_id}.")
-
-            return response.json()
         
 
     def register_device(

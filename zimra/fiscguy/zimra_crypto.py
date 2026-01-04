@@ -9,13 +9,11 @@ import hashlib
 import os
 
 import OpenSSL.crypto as crypto
-
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.x509.oid import NameOID
-from cryptography.hazmat.primitives.asymmetric import ec
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -230,7 +228,7 @@ class ZIMRACrypto:
         logger.info(f"Generated signature string: {signature_string}")
 
         return signature_string
-    
+
     @staticmethod
     def generate_key_and_csr(device_sn: str, device_id: int, env: bool = True):
         """
@@ -254,7 +252,9 @@ class ZIMRACrypto:
         # ---- generate 2048-bit RSA key ----
         keypair = crypto.PKey()
         keypair.generate_key(crypto.TYPE_RSA, 2048)
-        private_key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, keypair).decode("utf-8")
+        private_key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, keypair).decode(
+            "utf-8"
+        )
 
         # ---- build CSR ----
         common_name = f"ZIMRA-{device_sn}-{int(device_id):010d}"
@@ -271,25 +271,29 @@ class ZIMRACrypto:
         subject.CN = common_name
 
         # Add SAN (optional, here CN only)
-        csr_request.add_extensions([
-            crypto.X509Extension(
-                b"subjectAltName",
-                False,
-                f"DNS:{common_name}".encode("utf-8")
-            )
-        ])
+        csr_request.add_extensions(
+            [
+                crypto.X509Extension(
+                    b"subjectAltName", False, f"DNS:{common_name}".encode("utf-8")
+                )
+            ]
+        )
 
         csr_request.set_pubkey(keypair)
         csr_request.sign(keypair, "sha256")
 
-        csr_pem = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csr_request).decode("utf-8")
+        csr_pem = crypto.dump_certificate_request(
+            crypto.FILETYPE_PEM, csr_request
+        ).decode("utf-8")
 
         # ---- save to DB ----
         cert_record.certificate_key = private_key_pem
         cert_record.csr = csr_pem
         cert_record.save()
 
-        logger.info(f"Generated new RSA private key and CSR for {'production' if env else 'test'} environment")
+        logger.info(
+            f"Generated new RSA private key and CSR for {'production' if env else 'test'} environment"
+        )
 
         return private_key_pem, csr_pem
 

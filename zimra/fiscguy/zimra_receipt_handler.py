@@ -86,11 +86,10 @@ class ZIMRAReceiptHandler(ZIMRA):
                 # Determine tax details
                 tax_id = item.tax_type.tax_id
                 tax_percent = float(item.item.tax_type.tax_percent)
-                tax_code = item.item.tax_type.code
                 tax_name = item.item.tax_type.name.lower()
 
                 logger.info(
-                    f"Tax ID: {tax_id}, Tax Percent: {tax_percent}, Tax Code: {tax_code}"
+                    f"Tax ID: {tax_id}, Tax Percent: {tax_percent}"
                 )
 
                 # Calculate tax amount
@@ -101,7 +100,7 @@ class ZIMRAReceiptHandler(ZIMRA):
                     tax_amount = line_total * (tax_percent / (100 + tax_percent))
 
                 # Accumulate tax group totals
-                key = (tax_id, tax_percent, tax_code, tax_name)
+                key = (tax_id, tax_percent, tax_name)
                 tax_group_totals[key]["taxAmount"] += tax_amount
                 tax_group_totals[key]["salesAmountWithTax"] += line_total
 
@@ -117,7 +116,6 @@ class ZIMRAReceiptHandler(ZIMRA):
                     "receiptLineQuantity": item.quantity,
                     "receiptLineTotal": line_total,
                     "taxID": tax_id,
-                    "taxCode": tax_code,
                 }
 
                 if tax_percent is not None:
@@ -130,12 +128,10 @@ class ZIMRAReceiptHandler(ZIMRA):
             for (
                 tax_id,
                 tax_percent,
-                tax_code,
                 tax_name,
             ), totals in tax_group_totals.items():
                 tax_obj = {
                     "taxID": tax_id,
-                    "taxCode": tax_code,
                     "taxAmount": round(totals["taxAmount"], 2),
                     "salesAmountWithTax": round(totals["salesAmountWithTax"], 2),
                 }
