@@ -14,11 +14,13 @@ from fiscguy.serializers import (
 
 )
 from fiscguy.zimra_base import ZIMRAClient
+from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 
 from loguru import logger 
 from easy_pagination import NoPagination, StandardPagination
 
 client = ZIMRAClient(Device.objects.first())
+receipt_handler = ZIMRAReceiptHandler()
 
 class ReceiptView(generics.GenericAPIView):
     serializer_class = ReceiptSerializer
@@ -38,6 +40,7 @@ class ReceiptView(generics.GenericAPIView):
         serializer = ReceiptSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+            receipt_handler.generate_receipt_data()
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 

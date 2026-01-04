@@ -14,14 +14,14 @@ import qrcode
 from django.core.files.base import ContentFile
 from loguru import logger
 
-from fiscguy.utils.datetime_now import datetime_now_isoformat as timestamp
+from fiscguy.utils.datetime_now import datetime_now as timestamp
 
 from .models import FiscalCounter, FiscalDay, Receipt
-from .zimra_base import ZIMRA
+from .zimra_base import ZIMRAClient
 from .zimra_crypto import ZIMRACrypto
 
 
-class ZIMRAReceiptHandler(ZIMRA):
+class ZIMRAReceiptHandler(ZIMRAClient):
     """
     Extended ZIMRA class that handles receipt generation, signing, and submission.
 
@@ -53,7 +53,7 @@ class ZIMRAReceiptHandler(ZIMRA):
 
         return new_global_no
 
-    def generate_receipt_data(self, receipt, receipt_items, request):
+    def generate_receipt_data(self, receipt: Receipt, receipt_items: list):
         """
         Transform invoice data to ZIMRA receipt format.
 
@@ -237,15 +237,15 @@ class ZIMRAReceiptHandler(ZIMRA):
 
                 # Update fiscal day
                 if fiscal_day:
-                    fiscal_day.receipt_count += 1
+                    fiscal_day.receipt_counter += 1
                     fiscal_day.save()
 
                     logger.info("Fiscal day updated.")
 
                     # Update invoice with fiscal day info
                     receipt.fiscal_day = fiscal_day.day_no
-                    receipt.invoice_number = (
-                        f"{receipt.branch.name[:3]}-{receipt_data['receiptGlobalNo']}"
+                    receipt.receipt_number = (
+                        f"{receipt_data['receiptGlobalNo']:06d}"
                     )
 
                     if receipt_id:

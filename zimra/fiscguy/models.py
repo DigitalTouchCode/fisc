@@ -168,6 +168,8 @@ class Receipt(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now_add=True)
 
+    zimra_inv_id = models.CharField(max_length=255, null=True)
+
     buyer = models.ForeignKey(
         "Buyer",
         on_delete=models.CASCADE,

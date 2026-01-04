@@ -1,7 +1,11 @@
 from rest_framework import serializers
 
 from fiscguy.models import Buyer, Configuration, Receipt, ReceiptLine, Taxes
+from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 
+from loguru import logger 
+
+receipt_handler = ZIMRAReceiptHandler()
 
 class ConfigurationSerializer(serializers.ModelSerializer):
     """
@@ -96,4 +100,12 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
 
         for line_data in lines_data:
             ReceiptLine.objects.create(receipt=receipt, **line_data)
+
+
+        hash_value, signature = receipt_handler.generate_receipt_data(
+            receipt,
+            lines_data
+        )
+
+        
         return receipt
