@@ -10,9 +10,10 @@ import requests
 from django.utils import timezone
 from loguru import logger
 
-from .models import Certs, Configuration, Device, FiscalDay
 from fiscguy.utils.datetime_now import date_today as today
 from fiscguy.utils.datetime_now import datetime_now as timestamp
+
+from .models import Certs, Configuration, Device, FiscalDay
 
 
 class ZIMRAClient:
@@ -33,10 +34,16 @@ class ZIMRAClient:
         # URLs
         if self.certs.production:
             self.base_url = f"https://fdmsapi.zimra.co.zw/Device/v1/{device.device_id}"
-            self.public_url = f"https://fdmsapi.zimra.co.zw/Public/v1/{device.device_id}"
+            self.public_url = (
+                f"https://fdmsapi.zimra.co.zw/Public/v1/{device.device_id}"
+            )
         else:
-            self.base_url = f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
-            self.public_url = f"https://fdmsapitest.zimra.co,.zw/Public/v1/{device.device_id}"
+            self.base_url = (
+                f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
+            )
+            self.public_url = (
+                f"https://fdmsapitest.zimra.co,.zw/Public/v1/{device.device_id}"
+            )
 
         # temp cert handling
         self._lock = threading.Lock()
@@ -102,11 +109,7 @@ class ZIMRAClient:
 
         response = self._request("POST", "openDay", json=payload).json()
 
-        FiscalDay.objects.create(
-            day_no=next_day_no,
-            is_open=True,
-            receipt_counnter=0
-        )
+        FiscalDay.objects.create(day_no=next_day_no, is_open=True, receipt_counnter=0)
 
         return response
 
@@ -131,9 +134,9 @@ class ZIMRAClient:
         active_day.is_open = False
         active_day.save()
 
-        sleep(5)  
+        sleep(5)
         return self.get_status()
-    
+
     def submit_receipt(
         self, receipt_payload: dict, hash_value: str, signature: str
     ) -> dict:

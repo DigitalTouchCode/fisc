@@ -1,13 +1,13 @@
-import requests
 import json
-import tempfile
 import shutil
-from pathlib import Path
+import tempfile
 import threading
+from pathlib import Path
 
+import requests
 from django.core.management.base import BaseCommand
-from loguru import logger
 from django.db import transaction
+from loguru import logger
 
 from fiscguy.models import Certs, Configuration, Device, Taxes
 from fiscguy.zimra_crypto import ZIMRACrypto
@@ -127,17 +127,10 @@ class Command(BaseCommand):
 
         # self.get_config(device_id, model_name, model_version, env)
         cert_key, csr = crypto.generate_key_and_csr(device_sn, device_id, env)
-      
 
         # register the device and get signed certificate from ZIMRA
         self.register_device(
-            device_id, 
-            activation_key,
-            model_name, 
-            model_version, 
-            env, 
-            csr, 
-            device_sn
+            device_id, activation_key, model_name, model_version, env, csr, device_sn
         )
 
         # get zimra configurations for the provided device
@@ -146,12 +139,9 @@ class Command(BaseCommand):
         )
         print(zimra_config)
 
-    def get_config(self, 
-        device_id: str, 
-        model_name: str, 
-        model_version: str, 
-        env: bool) -> dict:
-
+    def get_config(
+        self, device_id: str, model_name: str, model_version: str, env: bool
+    ) -> dict:
         """Fetch device configuration from ZIMRA and persist locally.
 
         Args:
@@ -184,15 +174,16 @@ class Command(BaseCommand):
             "deviceModelVersion": model_version,
         }
 
-    # ---- create temporary cert and key files separately ----
-    # The requests library doesn't accept certificate contents directly
-    # so we write the cert/key to a secure temporary directory and
-    # pass the file paths to requests.
+        # ---- create temporary cert and key files separately ----
+        # The requests library doesn't accept certificate contents directly
+        # so we write the cert/key to a secure temporary directory and
+        # pass the file paths to requests.
         temp_dir = Path(tempfile.mkdtemp(prefix="zimra_fdms_"))
         cert_path = temp_dir / "client_cert.pem"
         key_path = temp_dir / "client_key.pem"
 
-        from  fiscguy.models import Certs
+        from fiscguy.models import Certs
+
         cert = Certs.objects.first()
         cert_path.write_text(cert.certificate)
         key_path.write_text(cert.certificate_key)
@@ -201,7 +192,7 @@ class Command(BaseCommand):
             response = requests.get(
                 f"{url}/getConfig",
                 headers=headers,
-                cert=(str(cert_path), str(key_path)),  
+                cert=(str(cert_path), str(key_path)),
                 timeout=30,
             )
             response.raise_for_status()
@@ -238,11 +229,15 @@ class Command(BaseCommand):
                             url=res.get("qrUrl", None),
                         )
                     else:
-                        config.tax_payer_name = res.get("taxPayerName", config.tax_payer_name)
+                        config.tax_payer_name = res.get(
+                            "taxPayerName", config.tax_payer_name
+                        )
                         config.tin_number = res.get("taxPayerTIN", config.tin_number)
                         config.vat_number = res.get("vatNumber", config.vat_number)
                         config.address = address_str or config.address
-                        config.phone_number = contacts.get("phoneNo", config.phone_number)
+                        config.phone_number = contacts.get(
+                            "phoneNo", config.phone_number
+                        )
                         config.email = contacts.get("email", config.email)
                         config.url = res.get("qrUrl", config.url)
                         config.save()
@@ -281,7 +276,6 @@ class Command(BaseCommand):
             cert_path.unlink(missing_ok=True)
             key_path.unlink(missing_ok=True)
             temp_dir.rmdir()
-        
 
     def register_device(
         self, device_id, activation_key, model_name, model_version, env, csr, device_sn
@@ -319,7 +313,8 @@ class Command(BaseCommand):
             signed_certificate = response.json().get("certificate")
 
             if signed_certificate:
-                from  fiscguy.models import Certs
+                from fiscguy.models import Certs
+
                 cert = Certs.objects.first()
                 cert.certificate = signed_certificate
                 cert.save()

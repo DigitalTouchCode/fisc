@@ -1,11 +1,11 @@
+from loguru import logger
 from rest_framework import serializers
 
 from fiscguy.models import Buyer, Configuration, Receipt, ReceiptLine, Taxes
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 
-from loguru import logger 
-
 receipt_handler = ZIMRAReceiptHandler()
+
 
 class ConfigurationSerializer(serializers.ModelSerializer):
     """
@@ -40,6 +40,7 @@ class ReceiptLineSerializer(serializers.ModelSerializer):
     Receipt lines
     """
 
+    # Read-only representation for responses: show the tax name/code
     tax_type = serializers.StringRelatedField()
 
     class Meta:
@@ -51,7 +52,25 @@ class ReceiptLineSerializer(serializers.ModelSerializer):
             "unit_price",
             "line_total",
             "tax_amount",
-            "tax_type",
+        ]
+
+
+class ReceiptLineCreateSerializer(serializers.ModelSerializer):
+    """
+        Writable serializer for receipt lines used when creating receipts.
+    """
+
+    tax_name = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = ReceiptLine
+        fields = [
+            "product",
+            "quantity",
+            "unit_price",
+            "line_total",
+            "tax_amount",
+            "tax_name"
         ]
 
 
@@ -81,7 +100,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
 
 class ReceiptCreateSerializer(serializers.ModelSerializer):
-    lines = ReceiptLineSerializer(many=True)
+    lines = ReceiptLineCreateSerializer(many=True)
 
     class Meta:
         model = Receipt
@@ -90,22 +109,28 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
             "total_amount",
             "currency",
             "buyer",
-            "lines",
+            "lines"
         ]
 
     def create(self, validated_data):
         lines_data = validated_data.pop("lines")
 
         receipt = Receipt.objects.create(**validated_data)
+        for idx, line_data in enumerate(lines_data):
+            tax_name = line_data.pop("tax_name", None)
 
-        for line_data in lines_data:
+            if tax_name:
+                tax = Taxes.objects.filter(name__iexact=tax_name.strip()).first()
+                if not tax:
+                    tax = Taxes.objects.filter(name__icontains=tax_name.strip()).first()
+
+                if not tax:
+                    raise serializers.ValidationError(
+                        {"lines": {idx: f"Tax with name '{tax_name}' not found"}}
+                    )
+
+                line_data["tax_type"] = tax
+
             ReceiptLine.objects.create(receipt=receipt, **line_data)
 
-
-        hash_value, signature = receipt_handler.generate_receipt_data(
-            receipt,
-            lines_data
-        )
-
-        
         return receipt

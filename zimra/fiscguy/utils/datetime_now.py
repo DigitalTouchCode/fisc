@@ -11,5 +11,6 @@ def datetime_now():
 
     return timestamp
 
+
 def date_today():
     return datetime.now(ZoneInfo("Africa/Harare")).date().isoformat()

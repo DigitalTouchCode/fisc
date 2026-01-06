@@ -177,6 +177,7 @@ class Receipt(models.Model):
         blank=True,
         related_name="receipts",
     )
+    payment_terms = models.CharField(max_length=200)
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -201,7 +202,7 @@ class ReceiptLine(models.Model):
     unit_price = models.FloatField()
     line_total = models.FloatField()
     tax_amount = models.FloatField()
-    tax_type = models.ForeignKey(Taxes, on_delete=models.CASCADE)
+    tax_type = models.ForeignKey(Taxes, on_delete=models.CASCADE, null=True)
 
     def __str__(self):
         return f"{self.product} - {self.line_total}"

@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from fiscguy.models import Certs
+from fiscguy.utils.cert_temp_manager import CertTempManager
+
 
 load_dotenv()
 
@@ -35,9 +37,9 @@ class ZIMRACrypto:
             private_key_path (str): Path to private key file
             password (str): Password for private key (if encrypted)
         """
-        self.private_key_path = private_key_path or os.getenv(
-            "DEVICE_PRIVATE_KEY_PATH", "device_private_key.pem"
-        )
+        c = Certs.objects.first()
+        cert_manager = CertTempManager(c.certificate, c.certificate_key)
+        self.private_key_path = cert_manager._key_path
         self.password = password
         self._private_key = None
 
@@ -48,9 +50,6 @@ class ZIMRACrypto:
         Returns:
             RSAPrivateKey: Loaded private key object
         """
-        if self._private_key:
-            return self._private_key
-
         try:
             with open(self.private_key_path, "rb") as key_file:
                 self._private_key = serialization.load_pem_private_key(
@@ -81,19 +80,17 @@ class ZIMRACrypto:
         hash_obj = hashlib.sha256(data.encode())
         return base64.b64encode(hash_obj.digest()).decode()
 
-    def sign_data(self, data, private_key=None):
+    def sign_data(self, data):
         """
         Sign data using RSA private key with SHA-256.
 
         Args:
             data (str): Data to sign
-            private_key: Private key object (optional, will load if not provided)
 
         Returns:
             str: Base64 encoded signature
         """
-        if private_key is None:
-            private_key = self.load_private_key()
+        private_key = self.load_private_key()
 
         try:
             signature = private_key.sign(
@@ -117,15 +114,12 @@ class ZIMRACrypto:
         """
         try:
             hash_value = self.get_hash(signature_string)
-            logger.info(f"Generated hash: {hash_value}")
-
             signature = self.sign_data(signature_string)
-            logger.info(f"Generated signature: {signature}")
-
+           
             return {"hash": hash_value, "signature": signature}
         except Exception as e:
             logger.error(f"Error generating hash and signature: {e}")
-            raise
+            return
 
     @staticmethod
     def generate_verification_code(base64_signature):
@@ -199,7 +193,7 @@ class ZIMRACrypto:
             tax_amount_cents = int(tax["taxAmount"] * 100)
             sales_amount_cents = int(tax["salesAmountWithTax"] * 100)
 
-            return f"{tax.get('taxCode')}{tax_percent}{tax_amount_cents}{sales_amount_cents}"
+            return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
 
         # Sort taxes by taxID and taxCode
         sorted_taxes = sorted(
@@ -242,21 +236,21 @@ class ZIMRACrypto:
         Returns:
             tuple: (private_key_pem, csr_pem)
         """
-        # ---- validate or create Cert record ----
+        # validate or create Cert record
         cert_record, created = Certs.objects.get_or_create(production=env)
 
         if cert_record.certificate_key and cert_record.csr:
             logger.info("Private key and CSR already exist – reusing them")
             return cert_record.certificate_key, cert_record.csr
 
-        # ---- generate 2048-bit RSA key ----
+        # generate 2048-bit RSA key
         keypair = crypto.PKey()
         keypair.generate_key(crypto.TYPE_RSA, 2048)
         private_key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, keypair).decode(
             "utf-8"
         )
 
-        # ---- build CSR ----
+        # build CSR
         common_name = f"ZIMRA-{device_sn}-{int(device_id):010d}"
 
         csr_request = crypto.X509Req()
@@ -270,7 +264,6 @@ class ZIMRACrypto:
         subject.OU = "FDMS"
         subject.CN = common_name
 
-        # Add SAN (optional, here CN only)
         csr_request.add_extensions(
             [
                 crypto.X509Extension(
@@ -286,7 +279,7 @@ class ZIMRACrypto:
             crypto.FILETYPE_PEM, csr_request
         ).decode("utf-8")
 
-        # ---- save to DB ----
+        # save to DB
         cert_record.certificate_key = private_key_pem
         cert_record.csr = csr_pem
         cert_record.save()

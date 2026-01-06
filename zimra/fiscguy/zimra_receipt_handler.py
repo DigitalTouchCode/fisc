@@ -14,14 +14,18 @@ import qrcode
 from django.core.files.base import ContentFile
 from loguru import logger
 
+from fiscguy.models import Certs, Device
 from fiscguy.utils.datetime_now import datetime_now as timestamp
 
-from .models import FiscalCounter, FiscalDay, Receipt
+from .models import FiscalCounter, FiscalDay, Receipt, Taxes
 from .zimra_base import ZIMRAClient
 from .zimra_crypto import ZIMRACrypto
 
+device = Device.objects.first()
+certs = Certs.objects.first()
 
-class ZIMRAReceiptHandler(ZIMRAClient):
+
+class ZIMRAReceiptHandler:
     """
     Extended ZIMRA class that handles receipt generation, signing, and submission.
 
@@ -48,8 +52,8 @@ class ZIMRAReceiptHandler(ZIMRAClient):
             int: new global receipt number, or 0 if no receipts exist
         """
         last_receipt = Receipt.objects.order_by("-id").first()
-        last_global_no = last_receipt.global_no if last_receipt else 0
-        new_global_no = int(last_global_no) + 1
+        last_global_no = last_receipt.global_number if last_receipt else 0
+        new_global_no = int(last_global_no or 0) + 1
 
         return new_global_no
 
@@ -67,12 +71,15 @@ class ZIMRAReceiptHandler(ZIMRAClient):
         """
         try:
 
+            logger.info(receipt_items.values())
+            tax_amount = 0
+
             # Get fiscal day
             fiscal_day = FiscalDay.objects.filter(is_open=True).first()
 
             # check if fiscal day is open
             if not fiscal_day:
-                return {"message: no fiscal day open"}
+                return {"error: no fiscal day open"}
 
             # Build receipt lines and calculate taxes
             receipt_lines = []
@@ -85,19 +92,18 @@ class ZIMRAReceiptHandler(ZIMRAClient):
 
                 # Determine tax details
                 tax_id = item.tax_type.tax_id
-                tax_percent = float(item.item.tax_type.tax_percent)
-                tax_name = item.item.tax_type.name.lower()
+                tax_percent = float(item.tax_type.percent)
+                tax_name = item.tax_type.name.lower()
 
-                logger.info(
-                    f"Tax ID: {tax_id}, Tax Percent: {tax_percent}"
-                )
+                logger.info(f"Tax ID: {tax_id}, Tax Percent: {tax_percent}")
 
                 # Calculate tax amount
-                if tax_name == "exempt" or tax_name == "zero-rated":
+                if tax_name == "exempt" or tax_name == "zero rated 0%":
                     tax_amount = 0.00
 
-                elif item.tax_type.name.lower() == "standard 15%":
+                elif tax_name == "standard rated 15.5%":
                     tax_amount = line_total * (tax_percent / (100 + tax_percent))
+                    print("ax: ", tax_amount)
 
                 # Accumulate tax group totals
                 key = (tax_id, tax_percent, tax_name)
@@ -111,7 +117,7 @@ class ZIMRAReceiptHandler(ZIMRAClient):
                     "receiptLineType": "Sale",
                     "receiptLineNo": index,
                     "receiptLineHSCode": "01010101",
-                    "receiptLineName": item.item.name,
+                    "receiptLineName": item.product,
                     "receiptLinePrice": float(item.unit_price),
                     "receiptLineQuantity": item.quantity,
                     "receiptLineTotal": line_total,
@@ -146,8 +152,8 @@ class ZIMRAReceiptHandler(ZIMRAClient):
             # Build complete receipt data
             receipt_data = {
                 "receiptType": receipt.receipt_type,
-                "receiptCurrency": receipt.currency.name.upper(),
-                "receiptCounter": fiscal_day.receipt_count + 1,
+                "receiptCurrency": receipt.currency.upper(),
+                "receiptCounter": fiscal_day.receipt_counter + 1,
                 "receiptGlobalNo": self._get_receipt_global_number(),
                 "invoiceNo": f"{receipt.receipt_number}",
                 "receiptNotes": "Thank you for shopping with us!",
@@ -158,13 +164,13 @@ class ZIMRAReceiptHandler(ZIMRAClient):
                 "receiptPayments": [
                     {
                         "moneyTypeCode": receipt.payment_terms,
-                        "paymentAmount": float(receipt.amount),
+                        "paymentAmount": float(receipt.total_amount),
                     }
                 ],
-                "receiptTotal": float(receipt.amount),
+                "receiptTotal": float(receipt.total_amount),
                 "receiptPrintForm": "Receipt48",
                 "previousReceiptHash": (
-                    "" if fiscal_day.receipt_count == 0 else receipt.hash_value
+                    "" if fiscal_day.receipt_counter == 0 else receipt.hash_value
                 ),
             }
 
@@ -172,7 +178,7 @@ class ZIMRAReceiptHandler(ZIMRAClient):
 
             # Generate signature string
             signature_string = self.crypto.generate_receipt_signature_string(
-                device_id=os.getenv("DEVICE_ID"),
+                device_id=device.device_id,
                 receipt_type=receipt_data["receiptType"],
                 receipt_currency=receipt_data["receiptCurrency"],
                 receipt_global_no=receipt_data["receiptGlobalNo"],
@@ -184,11 +190,14 @@ class ZIMRAReceiptHandler(ZIMRAClient):
 
             logger.info(f"Signature string: {signature_string}")
 
-            return signature_string, receipt_data
+            return {
+                "receipt_string":signature_string, 
+                "receipt_data":receipt_data
+            }
 
         except Exception as e:
             logger.error(f"Error generating receipt data: {e}")
-            return f"Error generating receipt: {e}", None
+            return f"Error generating receipt: {e}"
 
     def submit_receipt(self, request, receipt_data, hash_value, signature):
         """
@@ -244,9 +253,7 @@ class ZIMRAReceiptHandler(ZIMRAClient):
 
                     # Update invoice with fiscal day info
                     receipt.fiscal_day = fiscal_day.day_no
-                    receipt.receipt_number = (
-                        f"{receipt_data['receiptGlobalNo']:06d}"
-                    )
+                    receipt.receipt_number = f"{receipt_data['receiptGlobalNo']:06d}"
 
                     if receipt_id:
                         receipt.zimra_inv_id = receipt_id
@@ -263,7 +270,7 @@ class ZIMRAReceiptHandler(ZIMRAClient):
             logger.error(f"Error in submit_receipt_with_storage: {e}")
             return {"error": str(e)}
 
-    def _generate_qr_code(self, invoice, receipt, receipt_data, signature):
+    def _generate_qr_code(self, receipt, receipt_data, signature):
         """
         Generate and save QR code for invoice.
 
@@ -274,8 +281,13 @@ class ZIMRAReceiptHandler(ZIMRAClient):
         """
         try:
 
-            base_url = ZIMRA.config.url
-            device_id = f"00000{ZIMRA.device_id}"
+            base_url = (
+                f"https://fdmsapi.zimra.co.zw/Device/v1/{device.device_id}"
+                if certs.production
+                else f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
+            )
+
+            device_id = f"00000{device.device_id}"
             receipt_date = datetime.strptime(
                 receipt_data["receiptDate"], "%Y-%m-%dT%H:%M:%S"
             ).strftime("%d%m%Y")
@@ -298,14 +310,7 @@ class ZIMRAReceiptHandler(ZIMRAClient):
 
             # Save QR code to invoice
             receipt.qr_code.save(
-                f"qr_{invoice.receipt_number}.png",
-                ContentFile(qr_io.getvalue()),
-                save=False,
-            )
-
-            # save qr code to receipt | more to the customized system
-            receipt.qr_code.save(
-                f"qr_{invoice.receipt_number}.png",
+                f"qr_{receipt.receipt_number}.png",
                 ContentFile(qr_io.getvalue()),
                 save=False,
             )
