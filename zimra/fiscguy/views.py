@@ -11,7 +11,7 @@ from fiscguy.models import Configuration, Device, FiscalDay, Receipt, Taxes
 from fiscguy.serializers import (ConfigurationSerializer,
                                  ReceiptCreateSerializer, ReceiptSerializer,
                                  TaxSerializer)
-from fiscguy.utils.datetime_now import datetime_now as timestamp
+from fiscguy.utils.datetime_now import date_today as today
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 
@@ -148,7 +148,8 @@ class CloseDayView(APIView):
     def get(self, request):
         device = Device.objects.first()
         tax_map = {tax.tax_id: tax.name for tax in Taxes.objects.all()}
-        fiscal_counters = FiscalDay.objects.filter(is_open=True).first().counters.all()
+        fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+        fiscal_counters = fiscal_day.counters.all()
 
         salebytax = []
         saletaxbytax = []
@@ -167,7 +168,6 @@ class CloseDayView(APIView):
             intial_string = counter_name + currency
 
             if counter_name == "salebytax":
-
                 if tax_map.get(tax_id).lower().__contains__("standard"):
                     salebytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
                 elif tax_map.get(tax_id).lower().__contains__("zero"):
@@ -183,8 +183,10 @@ class CloseDayView(APIView):
                     f"{intial_string}{money_type}{int(value*100)}"
                 )
         # concatinate final string
-        closing_string = f"{device.device_id}{timestamp()}" + \
+        closing_string = (
+            f"{device.device_id}{fiscal_day.day_no}{today()}" + \
             "".join(salebytax) + "".join(saletaxbytax) + "".join(balancebymoneytype)
+        ).upper()
         
         # closing hash value and signature
         closing_hash_signature = receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
@@ -200,4 +202,4 @@ class CloseDayView(APIView):
         # )
 
         print(closing_string.upper())
-        return Response(closing_hash_signature)
+        return Response(closing_string)
