@@ -20,7 +20,6 @@ from loguru import logger
 from fiscguy.models import Certs
 from fiscguy.utils.cert_temp_manager import CertTempManager
 
-
 load_dotenv()
 
 
@@ -115,7 +114,7 @@ class ZIMRACrypto:
         try:
             hash_value = self.get_hash(signature_string)
             signature = self.sign_data(signature_string)
-           
+
             return {"hash": hash_value, "signature": signature}
         except Exception as e:
             logger.error(f"Error generating hash and signature: {e}")

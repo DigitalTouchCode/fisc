@@ -23,7 +23,7 @@ class CertTempManager:
         @property
         def cert_path(self) -> str:
             return str(self._pem_path)
-        
+
         @property
         def key_path(self) -> str:
             return str(self._key_path)

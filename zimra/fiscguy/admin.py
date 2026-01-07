@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from fiscguy.models import Certs, Configuration, Device, FiscalDay, Taxes, Receipt
+from fiscguy.models import (Certs, Configuration, Device, FiscalDay, Receipt,
+                            Taxes)
 
 admin.site.register(Certs)
 admin.site.register(Configuration)

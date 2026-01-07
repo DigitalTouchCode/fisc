@@ -6,13 +6,22 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
-
-from fiscguy.models import Configuration, Device, Receipt, Taxes
-from fiscguy.serializers import (ConfigurationSerializer,
-                                 ReceiptLineSerializer, ReceiptSerializer,
-                                 TaxSerializer, ReceiptCreateSerializer)
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
+
+from fiscguy.models import (
+    Configuration, 
+    Device, 
+    Receipt, 
+    Taxes
+)
+
+from fiscguy.serializers import (
+    ConfigurationSerializer,
+    ReceiptCreateSerializer,
+    ReceiptSerializer,
+    TaxSerializer
+)
 
 client = ZIMRAClient(Device.objects.first())
 receipt_handler = ZIMRAReceiptHandler()
@@ -20,7 +29,6 @@ receipt_handler = ZIMRAReceiptHandler()
 
 class ReceiptView(generics.GenericAPIView):
     serializer_class = ReceiptSerializer
-    # pagination_class = StandardPagination
     # permission_classes = [
     #     IsAuthenticated,
     # ]
@@ -31,34 +39,56 @@ class ReceiptView(generics.GenericAPIView):
         return Response(data)
 
     def post(self, request):
+        
         serializer = ReceiptCreateSerializer(data=request.data)
-        logger.info(serializer)
+    
         if serializer.is_valid():
             receipt = serializer.save()
-            receipt = Receipt.objects.select_related('buyer').prefetch_related('lines').get(id=receipt.id)
-            receipt_items = receipt.lines.all()
-            
-            # zimra formatted string and receipt data
-            data = receipt_handler.generate_receipt_data(
-                receipt,
-                receipt_items
+            receipt = (
+                Receipt.objects.select_related("buyer")
+                .prefetch_related("lines")
+                .get(id=receipt.id)
             )
+            receipt_items = receipt.lines.all()
 
-            logger.info(f'data: {data}')
+            # zimra formatted string and receipt data
+            receipt_data = receipt_handler.generate_receipt_data(receipt, receipt_items)
 
             # receipt hash and signature
-            hash_sig_data = receipt_handler.crypto.generate_receipt_hash_and_signature(data["receipt_string"])
-
-            # assign qr_code to the receipt and md5 code
-            receipt_handler._generate_qr_code(
-                receipt, 
-                data["receipt_data"], 
-                hash_sig_data["signature"]
+            hash_sig_data = receipt_handler.crypto.generate_receipt_hash_and_signature(
+                receipt_data["receipt_string"]
             )
-            
-            logger.info(data)
+
+            # assign hash and signature values to the receipt
+            receipt.hash_value = hash_sig_data["hash"]
+            receipt.signature = hash_sig_data["signature"]
+
+            # assign qr_code to the receipt and 16 character md5 code
+            receipt_handler._generate_qr_code(
+                receipt, receipt_data["receipt_data"], hash_sig_data["signature"]
+            )
+
+            # assign receipt global number
+            receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
+
+            # update receipt counters
+            update_counter_res = receipt_handler._update_fiscal_counters(
+                receipt, receipt_data["reeceipt_data"]
+            )
+
+            # submiit receipt to zimra
+            submission_res = receipt_handler.submit_receipt(
+                hash_sig_data["hash"],
+                hash_sig_data["signature"],
+                receipt_data["reeceipt_data"],
+            )
+
+            # save receipt
+            receipt.save()
+
             return Response(ReceiptSerializer(receipt).data, status=201)
         return Response(serializer.errors, status=400)
+
 
 class ReceiptDetailView(generics.RetrieveAPIView):
     queryset = Receipt.objects.all().select_related("receipt_lines", "buyer")
@@ -95,16 +125,26 @@ class TaxView(APIView):
 
 
 class GetStatusView(APIView):
+    """
+    Shows the fiscal day status either open or closed(with errors or not)
+    """
     def get(self, request):
         res = client.get_status()
         return Response(res, status=status.HTTP_200_OK)
 
 
 class OpenDayView(APIView):
+    """
+    View to open a fiscal day
+    """
     def get(self, request):
         res = client.open_day()
         return Response(res, status=status.HTTP_200_OK)
 
 
 class CloseDayView(APIView):
+    """
+    View to close a day.
+    Computes the closing day fdms string from the fiscal counters to a hash and signature.
+    """
     pass

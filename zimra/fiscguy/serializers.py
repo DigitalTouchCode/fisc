@@ -40,9 +40,6 @@ class ReceiptLineSerializer(serializers.ModelSerializer):
     Receipt lines
     """
 
-    # Read-only representation for responses: show the tax name/code
-    tax_type = serializers.StringRelatedField()
-
     class Meta:
         model = ReceiptLine
         fields = [
@@ -57,7 +54,7 @@ class ReceiptLineSerializer(serializers.ModelSerializer):
 
 class ReceiptLineCreateSerializer(serializers.ModelSerializer):
     """
-        Writable serializer for receipt lines used when creating receipts.
+    Writable serializer for receipt lines used when creating receipts.
     """
 
     tax_name = serializers.CharField(write_only=True, required=False)
@@ -70,7 +67,7 @@ class ReceiptLineCreateSerializer(serializers.ModelSerializer):
             "unit_price",
             "line_total",
             "tax_amount",
-            "tax_name"
+            "tax_name",
         ]
 
 
@@ -109,7 +106,8 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
             "total_amount",
             "currency",
             "buyer",
-            "lines"
+            "lines",
+            "payment_terms",
         ]
 
     def create(self, validated_data):
