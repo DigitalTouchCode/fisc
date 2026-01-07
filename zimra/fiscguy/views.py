@@ -6,22 +6,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
+
+from fiscguy.models import Configuration, Device, FiscalDay, Receipt, Taxes
+from fiscguy.serializers import (ConfigurationSerializer,
+                                 ReceiptCreateSerializer, ReceiptSerializer,
+                                 TaxSerializer)
+from fiscguy.utils.datetime_now import datetime_now as timestamp
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
-
-from fiscguy.models import (
-    Configuration, 
-    Device, 
-    Receipt, 
-    Taxes
-)
-
-from fiscguy.serializers import (
-    ConfigurationSerializer,
-    ReceiptCreateSerializer,
-    ReceiptSerializer,
-    TaxSerializer
-)
 
 client = ZIMRAClient(Device.objects.first())
 receipt_handler = ZIMRAReceiptHandler()
@@ -39,9 +31,9 @@ class ReceiptView(generics.GenericAPIView):
         return Response(data)
 
     def post(self, request):
-        
+
         serializer = ReceiptCreateSerializer(data=request.data)
-    
+
         if serializer.is_valid():
             receipt = serializer.save()
             receipt = (
@@ -53,6 +45,8 @@ class ReceiptView(generics.GenericAPIView):
 
             # zimra formatted string and receipt data
             receipt_data = receipt_handler.generate_receipt_data(receipt, receipt_items)
+
+            logger.info(receipt_data)
 
             # receipt hash and signature
             hash_sig_data = receipt_handler.crypto.generate_receipt_hash_and_signature(
@@ -73,16 +67,17 @@ class ReceiptView(generics.GenericAPIView):
 
             # update receipt counters
             update_counter_res = receipt_handler._update_fiscal_counters(
-                receipt, receipt_data["reeceipt_data"]
+                receipt, receipt_data["receipt_data"]
             )
 
-            # submiit receipt to zimra
-            submission_res = receipt_handler.submit_receipt(
-                hash_sig_data["hash"],
-                hash_sig_data["signature"],
-                receipt_data["reeceipt_data"],
-            )
+            # # submiit receipt to zimra
+            # submission_res = receipt_handler.submit_receipt(
+            #     hash_sig_data["hash"],
+            #     hash_sig_data["signature"],
+            #     receipt_data["reeceipt_data"],
+            # )
 
+            receipt.submitted = True
             # save receipt
             receipt.save()
 
@@ -128,6 +123,7 @@ class GetStatusView(APIView):
     """
     Shows the fiscal day status either open or closed(with errors or not)
     """
+
     def get(self, request):
         res = client.get_status()
         return Response(res, status=status.HTTP_200_OK)
@@ -137,6 +133,7 @@ class OpenDayView(APIView):
     """
     View to open a fiscal day
     """
+
     def get(self, request):
         res = client.open_day()
         return Response(res, status=status.HTTP_200_OK)
@@ -147,4 +144,60 @@ class CloseDayView(APIView):
     View to close a day.
     Computes the closing day fdms string from the fiscal counters to a hash and signature.
     """
-    pass
+
+    def get(self, request):
+        device = Device.objects.first()
+        tax_map = {tax.tax_id: tax.name for tax in Taxes.objects.all()}
+        fiscal_counters = FiscalDay.objects.filter(is_open=True).first().counters.all()
+
+        salebytax = []
+        saletaxbytax = []
+        balancebymoneytype = []
+
+        payload = None
+
+        for counter in fiscal_counters:
+            tax_percent = counter.fiscal_counter_tax_percent
+            tax_id = counter.fiscal_counter_tax_id
+            currency = counter.fiscal_counter_currency
+            money_type = counter.fiscal_counter_money_type
+            value = counter.fiscal_counter_value
+            counter_name = counter.fiscal_counter_type.lower()
+
+            intial_string = counter_name + currency
+
+            if counter_name == "salebytax":
+
+                if tax_map.get(tax_id).lower().__contains__("standard"):
+                    salebytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
+                elif tax_map.get(tax_id).lower().__contains__("zero"):
+                    salebytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
+                else:
+                    salebytax.append(f"{intial_string}{int(value*100)}")
+
+            elif counter_name == "saletaxbytax":
+                saletaxbytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
+
+            elif counter_name == "balancebymoneytype":
+                balancebymoneytype.append(
+                    f"{intial_string}{money_type}{int(value*100)}"
+                )
+        # concatinate final string
+        closing_string = f"{device.device_id}{timestamp()}" + \
+            "".join(salebytax) + "".join(saletaxbytax) + "".join(balancebymoneytype)
+        
+        # closing hash value and signature
+        closing_hash_signature = receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
+        
+        # zimra payload
+        
+
+        # # submit zimra
+        # submission_res = client.close_day(
+        #     closing_hash_signature["hash"],
+        #     closing_hash_signature["signature"],
+        #     payload
+        # )
+
+        print(closing_string.upper())
+        return Response(closing_hash_signature)

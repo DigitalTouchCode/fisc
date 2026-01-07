@@ -192,6 +192,7 @@ class ZIMRAReceiptHandler:
             )
 
             logger.info(f"Signature string: {signature_string}")
+            logger.info(f"receipt data: {receipt_data}")
 
             return {"receipt_string": signature_string, "receipt_data": receipt_data}
 
@@ -290,7 +291,7 @@ class ZIMRAReceiptHandler:
             logger.error(f"Error generating QR code: {e}")
             raise
 
-    def _update_fiscal_counters(self, receipt_data, receipt):
+    def _update_fiscal_counters(self, receipt, receipt_data):
         """
         Update fiscal counters based on receipt data.
 
@@ -313,7 +314,7 @@ class ZIMRAReceiptHandler:
                 sale_by_tax_counter, created_sbt = FiscalCounter.objects.get_or_create(
                     fiscal_counter_type="SaleByTax",
                     created_at__date=datetime.today(),
-                    fiscal_counter_currency=receipt.currency.name.lower(),
+                    fiscal_counter_currency=receipt.currency.lower(),
                     fiscal_counter_tax_id=tax_id,
                     fiscal_counter_tax_percent=tax_percent,
                     fiscal_counter_money_type=receipt_data["receiptPayments"][0][
@@ -337,7 +338,7 @@ class ZIMRAReceiptHandler:
                         FiscalCounter.objects.get_or_create(
                             fiscal_counter_type="SaleTaxByTax",
                             created_at__date=datetime.today(),
-                            fiscal_counter_currency=receipt.currency.name.lower(),
+                            fiscal_counter_currency=receipt.currency.lower(),
                             fiscal_counter_tax_id=tax_id,
                             fiscal_counter_tax_percent=tax_percent,
                             fiscal_counter_money_type=None,
@@ -358,18 +359,20 @@ class ZIMRAReceiptHandler:
             fiscal_counter_bal_obj, created_bal = FiscalCounter.objects.get_or_create(
                 fiscal_counter_type="Balancebymoneytype",
                 created_at__date=datetime.today(),
-                fiscal_counter_currency=receipt.currency.name.lower(),
+                fiscal_counter_currency=receipt.currency.lower(),
                 fiscal_day=fiscal_day,
                 defaults={
                     "fiscal_counter_tax_percent": None,
                     "fiscal_counter_tax_id": tax_id,
                     "fiscal_counter_money_type": receipt.payment_terms,
-                    "fiscal_counter_value": receipt.amount,
+                    "fiscal_counter_value": receipt.total_amount,
                 },
             )
 
             if not created_bal:
-                fiscal_counter_bal_obj.fiscal_counter_value += receipt.amount
+                fiscal_counter_bal_obj.fiscal_counter_value += Decimal(
+                    receipt.total_amount
+                )
                 fiscal_counter_bal_obj.save()
 
         except Exception as e:

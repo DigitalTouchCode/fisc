@@ -163,7 +163,7 @@ class Receipt(models.Model):
 
     global_number = models.IntegerField(null=True, blank=True)
     hash_value = models.CharField(max_length=255, null=True, blank=True)
-    signature = models.CharField(max_length=255, null=True, blank=True)
+    signature = models.TextField()
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now_add=True)
@@ -178,6 +178,7 @@ class Receipt(models.Model):
         related_name="receipts",
     )
     payment_terms = models.CharField(max_length=200)
+    submitted = models.BooleanField(default=False, null=True)
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
