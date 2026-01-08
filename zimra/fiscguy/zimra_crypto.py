@@ -184,13 +184,17 @@ class ZIMRACrypto:
             if tax.get("taxPercent") is not None:
                 if isinstance(tax["taxPercent"], int):
                     tax_percent = f"{tax['taxPercent']}.00"
+                    logger.info(f"tax percent 1: {tax_percent}")
                 else:
                     tax_percent = f"{tax['taxPercent']:.2f}"
+                    logger.info(f"tax percent 2: {tax_percent}")
             else:
                 tax_percent = ""
 
-            tax_amount_cents = int(tax["taxAmount"] * 100)
-            sales_amount_cents = int(tax["salesAmountWithTax"] * 100)
+            tax_amount_cents = round(tax["taxAmount"] * 100)
+            sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
+
+            logger.info(f"tax amount: {tax_amount_cents}, sales_amount_cents: {sales_amount_cents}")
 
             return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
 
@@ -199,8 +203,13 @@ class ZIMRACrypto:
             receipt_taxes, key=lambda x: (x["taxID"], x.get("taxCode", ""))
         )
 
+        logger.info(f'receipt taxes: {receipt_taxes}')
+        logger.info(f'sorted taxes: {sorted_taxes}')
+
         # Concatenate all tax lines
         tax_string = "".join(format_tax_line(tax) for tax in sorted_taxes)
+
+        logger.info(f'Tax string: {tax_string}')
 
         # Build signature components
         signature_components = [

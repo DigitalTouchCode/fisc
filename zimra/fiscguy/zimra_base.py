@@ -109,32 +109,23 @@ class ZIMRAClient:
 
         response = self._request("POST", "openDay", json=payload).json()
 
-        FiscalDay.objects.create(day_no=next_day_no, is_open=True, receipt_counnter=0)
+        FiscalDay.objects.create(day_no=next_day_no, is_open=True, receipt_counter=0)
 
         return response
 
-    def close_day(self, hash_value: str, signature: str, counters: list) -> dict:
+    def close_day(self, payload: dict) -> dict:
+
         active_day = FiscalDay.objects.filter(is_open=True).first()
         if not active_day:
             raise RuntimeError("No open fiscal day")
-
-        payload = {
-            "fiscalDayNo": active_day.day_no,
-            "fiscaleDayDate": active_day.created_at.date().isoformat(),
-            "receiptCounter": active_day.receipt_count,
-            "fiscalDayCounters": counters,
-            "fiscalDayDeviceSignature": {
-                "hash": hash_value,
-                "signature": signature,
-            },
-        }
 
         self._request("POST", "CloseDay", data=json.dumps(payload))
 
         active_day.is_open = False
         active_day.save()
 
-        sleep(5)
+        sleep(10)
+
         return self.get_status()
 
     def submit_receipt(
@@ -145,6 +136,9 @@ class ZIMRAClient:
             "signature": signature,
         }
 
+        logger.info(f"Submitting receipt: {receipt_payload}")
+        # Perform the POST to SubmitReceipt and return the parsed JSON.
+        # Removing any early 'return' that prevented the HTTP call.
         return self._request("POST", "SubmitReceipt", json=receipt_payload).json()
 
     def close(self):

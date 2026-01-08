@@ -65,17 +65,19 @@ class ReceiptView(generics.GenericAPIView):
             # assign receipt global number
             receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
 
-            # update receipt counters
+            #update receipt counters
             update_counter_res = receipt_handler._update_fiscal_counters(
                 receipt, receipt_data["receipt_data"]
             )
 
             # # submiit receipt to zimra
-            # submission_res = receipt_handler.submit_receipt(
-            #     hash_sig_data["hash"],
-            #     hash_sig_data["signature"],
-            #     receipt_data["reeceipt_data"],
-            # )
+            submission_res = receipt_handler.submit_receipt(
+                hash_sig_data["hash"],
+                hash_sig_data["signature"],
+                receipt_data["receipt_data"],
+            )
+
+            logger.info(f"Receipt submission response: {submission_res}")
 
             receipt.submitted = True
             # save receipt
@@ -191,15 +193,63 @@ class CloseDayView(APIView):
         # closing hash value and signature
         closing_hash_signature = receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
         
-        # zimra payload
+        # zimra payload preparation
+        regular_counters = []
+        sale_tax_by_tax_counter = [] 
+        balance_by_money_counter = [] 
+
+        for counter in fiscal_counters:
+            if counter.fiscal_counter_type == "Balancebymoneytype":
+                fiscal_counter_data = {
+                    "fiscalCounterType": counter.fiscal_counter_type,
+                    "fiscalCounterCurrency": counter.fiscal_counter_currency,
+                    "fiscalCounterMoneyType": counter.fiscal_counter_money_type or 0,
+                    "fiscalCounterValue": float(round(counter.fiscal_counter_value, 2)),
+                }
+                
+            elif float(round(counter.fiscal_counter_value, 2))== 0.00:
+                continue
+            
+            else:
+                fiscal_counter_data = {
+                    "fiscalCounterType": counter.fiscal_counter_type,
+                    "fiscalCounterCurrency": counter.fiscal_counter_currency,
+                    "fiscalCounterTaxPercent": float(counter.fiscal_counter_tax_percent),
+                    "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
+                    "fiscalCounterValue": float(round(counter.fiscal_counter_value, 2)),
+                }
+
+            if counter.fiscal_counter_type == "SaleTaxByTax":
+                sale_tax_by_tax_counter.append(fiscal_counter_data)  
+            elif counter.fiscal_counter_type == "SaleByTax":
+                regular_counters.append(fiscal_counter_data)
+            elif counter.fiscal_counter_type == "BalanceByMoneyType":
+                balance_by_money_counter.append(fiscal_counter_data) 
+            else:
+                logger.info(fiscal_counter_data)
+                regular_counters.append(fiscal_counter_data)
+
+        fiscal_day_counters = regular_counters + sale_tax_by_tax_counter + balance_by_money_counter
         
+        logger.debug(fiscal_day_counters)
+        
+        payload = {
+            "deviceID": device.device_id,
+            "fiscalDayNo": fiscal_day.day_no,
+            "fiscalDayDate": today(),
+            "fiscalDayCounters": fiscal_day_counters,
+            "fiscalDayDeviceSignature": {
+                "hash": closing_hash_signature["hash"],
+                "signature": closing_hash_signature["signature"],
+            },
+            "receiptCounter": fiscal_day.receipt_counter
+        }
 
-        # # submit zimra
-        # submission_res = client.close_day(
-        #     closing_hash_signature["hash"],
-        #     closing_hash_signature["signature"],
-        #     payload
-        # )
+        logger.info(f"Closing Fiscal Day with payload: {payload}")
 
-        print(closing_string.upper())
-        return Response(closing_string)
+        # submit zimra
+        submission_res = client.close_day(
+            payload
+        )
+        
+        return Response(submission_res)
