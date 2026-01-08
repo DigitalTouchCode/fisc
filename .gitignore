@@ -1,7 +1,131 @@
 venv/
-venv
-/venv
+.venv/
+ENV/
+env/
+env.bak/
 
+# SQLite DB
 db.sqlite3
-/Zimra_qr_codes
-Zimra_qr_codes
+db.sqlite3-journal
+
+# Django media and static (adjust if you store these differently)
+/media/
+/staticfiles/
+
+# QR code uploads
+Zimra_qr_codes/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+download/
+eggs/
+egg-info/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Flask instance folder
+instance/
+.webassets-cache
+
+# Sphinx documentation
+docs/_build/
+
+# Pyenv
+.python-version
+
+# VS Code / IDE settings
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.tmproj
+*.project
+*.pydevproject
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+
+# Logs
+*.log
+fiscal.log
+
+# Certificates / keys (shouldn't be committed)
+*.pem
+*.key
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+
+# Coverage reports
+coverage_html_report/
+
+# pyre
+.pyre/
+
+# Node / frontend build artifacts (if present)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Editor swap files
+*~
+*.swp
+
+# Misc backups and temp files
+*.bak
+*.tmp
+
+# End of file
