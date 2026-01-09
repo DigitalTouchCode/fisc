@@ -192,6 +192,8 @@ class CloseDayView(APIView):
         
         # closing hash value and signature
         closing_hash_signature = receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
+
+        logger.info(f"Closing Fiscal Day string: {closing_string}")
         
         # zimra payload preparation
         regular_counters = []
@@ -207,8 +209,8 @@ class CloseDayView(APIView):
                     "fiscalCounterValue": float(round(counter.fiscal_counter_value, 2)),
                 }
                 
-            elif float(round(counter.fiscal_counter_value, 2))== 0.00:
-                continue
+            # elif float(round(counter.fiscal_counter_value, 2))== 0.00:
+            #     continue
             
             else:
                 fiscal_counter_data = {

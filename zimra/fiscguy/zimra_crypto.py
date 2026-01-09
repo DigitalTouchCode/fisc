@@ -182,6 +182,7 @@ class ZIMRACrypto:
         def format_tax_line(tax):
             """Format a single tax line for signature"""
             if tax.get("taxPercent") is not None:
+                logger.info(f"tax percent raw: {tax['taxPercent']}")
                 if isinstance(tax["taxPercent"], int):
                     tax_percent = f"{tax['taxPercent']}.00"
                     logger.info(f"tax percent 1: {tax_percent}")
@@ -191,8 +192,9 @@ class ZIMRACrypto:
             else:
                 tax_percent = ""
 
-            tax_amount_cents = round(tax["taxAmount"] * 100)
-            sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
+            if tax.get("taxPercent"):
+                tax_amount_cents = round(tax["taxAmount"] * 100)
+                sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
 
             logger.info(f"tax amount: {tax_amount_cents}, sales_amount_cents: {sales_amount_cents}")
 
