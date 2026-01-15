@@ -65,12 +65,12 @@ class ReceiptView(generics.GenericAPIView):
             # assign receipt global number
             receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
 
-            #update receipt counters
+            # update receipt counters
             update_counter_res = receipt_handler._update_fiscal_counters(
                 receipt, receipt_data["receipt_data"]
             )
 
-            # # submiit receipt to zimra
+            # submiit receipt to zimra
             submission_res = receipt_handler.submit_receipt(
                 hash_sig_data["hash"],
                 hash_sig_data["signature"],
@@ -80,6 +80,7 @@ class ReceiptView(generics.GenericAPIView):
             logger.info(f"Receipt submission response: {submission_res}")
 
             receipt.submitted = True
+
             # save receipt
             receipt.save()
 
@@ -158,6 +159,9 @@ class CloseDayView(APIView):
         balancebymoneytype = []
 
         payload = None
+        sale_by_tax_counters = []
+        sale_tax_by_tax_counter = []
+        balance_by_money_counter = []
 
         for counter in fiscal_counters:
             tax_percent = counter.fiscal_counter_tax_percent
@@ -172,86 +176,107 @@ class CloseDayView(APIView):
             if counter_name == "salebytax":
                 if tax_map.get(tax_id).lower().__contains__("standard"):
                     salebytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
+
+                    # payload counter
+                    sale_by_tax_counters.append(
+                        {
+                            "fiscalCounterType": counter.fiscal_counter_type,
+                            "fiscalCounterCurrency": counter.fiscal_counter_currency,
+                            "fiscalCounterTaxPercent": (
+                                float(counter.fiscal_counter_tax_percent)
+                                if counter.fiscal_counter_tax_percent
+                                else None
+                            ),
+                            "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
+                            "fiscalCounterValue": float(
+                                round(counter.fiscal_counter_value, 2)
+                            ),
+                        }
+                    )
+
                 elif tax_map.get(tax_id).lower().__contains__("zero"):
                     salebytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
-                else:
+                    # payload counter same as the sale_by_tax with difference in tax percent 0.00
+                else:  # for exempt
                     salebytax.append(f"{intial_string}{int(value*100)}")
+                    # payload counter same as the sale_by_tax with difference in tax percent shown as None
 
             elif counter_name == "saletaxbytax":
                 saletaxbytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
+
+                # payload counter
+                sale_tax_by_tax_counter.append(
+                    {
+                        "fiscalCounterType": counter.fiscal_counter_type,
+                        "fiscalCounterCurrency": counter.fiscal_counter_currency,
+                        "fiscalCounterTaxPercent": (
+                            float(counter.fiscal_counter_tax_percent)
+                            if counter.fiscal_counter_tax_percent
+                            else None
+                        ),
+                        "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
+                        "fiscalCounterValue": float(
+                            round(counter.fiscal_counter_value, 2)
+                        ),
+                    }
+                )
 
             elif counter_name == "balancebymoneytype":
                 balancebymoneytype.append(
                     f"{intial_string}{money_type}{int(value*100)}"
                 )
+
+                # payload counter
+                balance_by_money_counter.append(
+                    {
+                        "fiscalCounterType": counter.fiscal_counter_type,
+                        "fiscalCounterCurrency": counter.fiscal_counter_currency,
+                        "fiscalCounterMoneyType": counter.fiscal_counter_money_type
+                        or 0,
+                        "fiscalCounterValue": float(
+                            round(counter.fiscal_counter_value, 2)
+                        ),
+                    }
+                )
+
         # concatinate final string
         closing_string = (
-            f"{device.device_id}{fiscal_day.day_no}{today()}" + \
-            "".join(salebytax) + "".join(saletaxbytax) + "".join(balancebymoneytype)
+            f"{device.device_id}{fiscal_day.day_no}{today()}"
+            + "".join(salebytax)
+            + "".join(saletaxbytax)
+            + "".join(balancebymoneytype)
         ).upper()
-        
+
         # closing hash value and signature
-        closing_hash_signature = receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
+        closing_hash_signature = (
+            receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
+        )
 
         logger.info(f"Closing Fiscal Day string: {closing_string}")
-        
-        # zimra payload preparation
-        regular_counters = []
-        sale_tax_by_tax_counter = [] 
-        balance_by_money_counter = [] 
 
-        for counter in fiscal_counters:
-            if counter.fiscal_counter_type == "Balancebymoneytype":
-                fiscal_counter_data = {
-                    "fiscalCounterType": counter.fiscal_counter_type,
-                    "fiscalCounterCurrency": counter.fiscal_counter_currency,
-                    "fiscalCounterMoneyType": counter.fiscal_counter_money_type or 0,
-                    "fiscalCounterValue": float(round(counter.fiscal_counter_value, 2)),
-                }
-                
-            # elif float(round(counter.fiscal_counter_value, 2))== 0.00:
-            #     continue
-            
-            else:
-                fiscal_counter_data = {
-                    "fiscalCounterType": counter.fiscal_counter_type,
-                    "fiscalCounterCurrency": counter.fiscal_counter_currency,
-                    "fiscalCounterTaxPercent": float(counter.fiscal_counter_tax_percent),
-                    "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
-                    "fiscalCounterValue": float(round(counter.fiscal_counter_value, 2)),
-                }
+        fiscal_day_counters = (
+            sale_by_tax_counters + sale_tax_by_tax_counter + balance_by_money_counter
+        )
 
-            if counter.fiscal_counter_type == "SaleTaxByTax":
-                sale_tax_by_tax_counter.append(fiscal_counter_data)  
-            elif counter.fiscal_counter_type == "SaleByTax":
-                regular_counters.append(fiscal_counter_data)
-            elif counter.fiscal_counter_type == "BalanceByMoneyType":
-                balance_by_money_counter.append(fiscal_counter_data) 
-            else:
-                logger.info(fiscal_counter_data)
-                regular_counters.append(fiscal_counter_data)
+        logger.info(fiscal_day_counters)
 
-        fiscal_day_counters = regular_counters + sale_tax_by_tax_counter + balance_by_money_counter
-        
-        logger.debug(fiscal_day_counters)
-        
-        payload = {
-            "deviceID": device.device_id,
-            "fiscalDayNo": fiscal_day.day_no,
-            "fiscalDayDate": today(),
-            "fiscalDayCounters": fiscal_day_counters,
-            "fiscalDayDeviceSignature": {
-                "hash": closing_hash_signature["hash"],
-                "signature": closing_hash_signature["signature"],
-            },
-            "receiptCounter": fiscal_day.receipt_counter
-        }
+        # logger.debug(fiscal_day_counters)
+
+        # payload = {
+        #     "deviceID": device.device_id,
+        #     "fiscalDayNo": fiscal_day.day_no,
+        #     "fiscalDayDate": today(),
+        #     "fiscalDayCounters": fiscal_day_counters,
+        #     "fiscalDayDeviceSignature": {
+        #         "hash": closing_hash_signature["hash"],
+        #         "signature": closing_hash_signature["signature"],
+        #     },
+        #     "receiptCounter": fiscal_day.receipt_counter
+        # }
 
         logger.info(f"Closing Fiscal Day with payload: {payload}")
 
         # submit zimra
-        submission_res = client.close_day(
-            payload
-        )
-        
+        submission_res = client.close_day(payload)
+
         return Response(submission_res)

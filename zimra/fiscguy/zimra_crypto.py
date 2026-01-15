@@ -192,26 +192,29 @@ class ZIMRACrypto:
             else:
                 tax_percent = ""
 
-            if tax.get("taxPercent"):
+            sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
+
+            if tax.get("taxPercent") is not None and tax.get("taxPercent") >= 0:
                 tax_amount_cents = round(tax["taxAmount"] * 100)
-                sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
+                logger.info(
+                    f"tax amount: {tax_amount_cents}, sales_amount_cents: {sales_amount_cents}"
+                )
 
-            logger.info(f"tax amount: {tax_amount_cents}, sales_amount_cents: {sales_amount_cents}")
-
-            return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
+                return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
+            return f"{sales_amount_cents}"
 
         # Sort taxes by taxID and taxCode
         sorted_taxes = sorted(
             receipt_taxes, key=lambda x: (x["taxID"], x.get("taxCode", ""))
         )
 
-        logger.info(f'receipt taxes: {receipt_taxes}')
-        logger.info(f'sorted taxes: {sorted_taxes}')
+        logger.info(f"receipt taxes: {receipt_taxes}")
+        logger.info(f"sorted taxes: {sorted_taxes}")
 
         # Concatenate all tax lines
         tax_string = "".join(format_tax_line(tax) for tax in sorted_taxes)
 
-        logger.info(f'Tax string: {tax_string}')
+        logger.info(f"Tax string: {tax_string}")
 
         # Build signature components
         signature_components = [
