@@ -302,19 +302,3 @@ class ZIMRACrypto:
         )
 
         return private_key_pem, csr_pem
-
-
-# Convenience function for backward compatibility
-def run(signature_string):
-    """
-    Process input: hash and sign it.
-    This function maintains backward compatibility with existing code.
-
-    Args:
-        signature_string (str): The signature string to process
-
-    Returns:
-        dict: Dictionary with 'hash' and 'signature' keys
-    """
-    crypto = ZIMRACrypto()
-    return crypto.generate_receipt_hash_and_signature(signature_string)
