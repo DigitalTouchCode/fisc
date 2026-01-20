@@ -185,17 +185,15 @@ class ZIMRACrypto:
                 logger.info(f"tax percent raw: {tax['taxPercent']}")
                 if isinstance(tax["taxPercent"], int):
                     tax_percent = f"{tax['taxPercent']}.00"
-                    logger.info(f"tax percent 1: {tax_percent}")
                 else:
                     tax_percent = f"{tax['taxPercent']:.2f}"
-                    logger.info(f"tax percent 2: {tax_percent}")
             else:
-                tax_percent = ""
+                tax_percent = 0
 
             tax_amount_cents = round(tax["taxAmount"] * 100)
             sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
 
-            if tax.get("taxPercent") is not None and tax.get("taxPercent") >= 0:
+            if tax.get("taxPercent") >= 0:
                 return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
             return f"{tax_amount_cents}{sales_amount_cents}"
 
