@@ -192,16 +192,12 @@ class ZIMRACrypto:
             else:
                 tax_percent = ""
 
+            tax_amount_cents = round(tax["taxAmount"] * 100)
             sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
 
             if tax.get("taxPercent") is not None and tax.get("taxPercent") >= 0:
-                tax_amount_cents = round(tax["taxAmount"] * 100)
-                logger.info(
-                    f"tax amount: {tax_amount_cents}, sales_amount_cents: {sales_amount_cents}"
-                )
-
                 return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
-            return f"{sales_amount_cents}"
+            return f"{tax_amount_cents}{sales_amount_cents}"
 
         # Sort taxes by taxID and taxCode
         sorted_taxes = sorted(
