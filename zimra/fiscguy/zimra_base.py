@@ -137,8 +137,7 @@ class ZIMRAClient:
         }
 
         logger.info(f"Submitting receipt: {receipt_payload}")
-        # Perform the POST to SubmitReceipt and return the parsed JSON.
-        # Removing any early 'return' that prevented the HTTP call.
+        
         return self._request("POST", "SubmitReceipt", json=receipt_payload).json()
 
     def close(self):
