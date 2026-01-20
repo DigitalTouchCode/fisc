@@ -184,7 +184,7 @@ class CloseDayView(APIView):
                             "fiscalCounterCurrency": counter.fiscal_counter_currency,
                             "fiscalCounterTaxPercent": (
                                 float(counter.fiscal_counter_tax_percent)
-                                if counter.fiscal_counter_tax_percent
+                                if counter.fiscal_counter_tax_percent >= 0
                                 else None
                             ),
                             "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
