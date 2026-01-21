@@ -185,22 +185,16 @@ class ZIMRACrypto:
                 logger.info(f"tax percent raw: {tax['taxPercent']}")
                 if isinstance(tax["taxPercent"], int):
                     tax_percent = f"{tax['taxPercent']}.00"
-                    logger.info(f"tax percent 1: {tax_percent}")
                 else:
                     tax_percent = f"{tax['taxPercent']:.2f}"
-                    logger.info(f"tax percent 2: {tax_percent}")
             else:
                 tax_percent = 0
 
+            tax_amount_cents = round(tax["taxAmount"] * 100)
             sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
             tax_amount_cents = round(tax["taxAmount"] * 100)
 
-            if tax.get("taxPercent") is not None and tax.get("taxPercent") >= 0:
-                tax_amount_cents = round(tax["taxAmount"] * 100)
-                logger.info(
-                    f"tax amount: {tax_amount_cents}, sales_amount_cents: {sales_amount_cents}"
-                )
-
+            if tax.get("taxPercent") >= 0:
                 return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
             return f"{tax_amount_cents}{sales_amount_cents}"
 
@@ -303,19 +297,3 @@ class ZIMRACrypto:
         )
 
         return private_key_pem, csr_pem
-
-
-# Convenience function for backward compatibility
-def run(signature_string):
-    """
-    Process input: hash and sign it.
-    This function maintains backward compatibility with existing code.
-
-    Args:
-        signature_string (str): The signature string to process
-
-    Returns:
-        dict: Dictionary with 'hash' and 'signature' keys
-    """
-    crypto = ZIMRACrypto()
-    return crypto.generate_receipt_hash_and_signature(signature_string)
