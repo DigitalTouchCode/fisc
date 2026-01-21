@@ -196,10 +196,40 @@ class CloseDayView(APIView):
 
                 elif tax_map.get(tax_id).lower().__contains__("zero"):
                     salebytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
-                    # payload counter same as the sale_by_tax with difference in tax percent 0.00
+                    # payload counter 
+                    sale_by_tax_counters.append(
+                        {
+                            "fiscalCounterType": counter.fiscal_counter_type,
+                            "fiscalCounterCurrency": counter.fiscal_counter_currency,
+                            "fiscalCounterTaxPercent": (
+                                float(counter.fiscal_counter_tax_percent)
+                                if counter.fiscal_counter_tax_percent
+                                else float(0)
+                            ),
+                            "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
+                            "fiscalCounterValue": float(
+                                round(counter.fiscal_counter_value, 2)
+                            ),
+                        }
+                    )
                 else:  # for exempt
                     salebytax.append(f"{intial_string}{int(value*100)}")
                     # payload counter same as the sale_by_tax with difference in tax percent shown as None
+                    sale_by_tax_counters.append(
+                        {
+                            "fiscalCounterType": counter.fiscal_counter_type,
+                            "fiscalCounterCurrency": counter.fiscal_counter_currency,
+                            "fiscalCounterTaxPercent": (
+                                float(counter.fiscal_counter_tax_percent)
+                                if counter.fiscal_counter_tax_percent
+                                else None
+                            ),
+                            "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
+                            "fiscalCounterValue": float(
+                                round(counter.fiscal_counter_value, 2)
+                            ),
+                        }
+                    )
 
             elif counter_name == "saletaxbytax":
                 saletaxbytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
@@ -260,23 +290,21 @@ class CloseDayView(APIView):
 
         logger.info(fiscal_day_counters)
 
-        # logger.debug(fiscal_day_counters)
-
-        # payload = {
-        #     "deviceID": device.device_id,
-        #     "fiscalDayNo": fiscal_day.day_no,
-        #     "fiscalDayDate": today(),
-        #     "fiscalDayCounters": fiscal_day_counters,
-        #     "fiscalDayDeviceSignature": {
-        #         "hash": closing_hash_signature["hash"],
-        #         "signature": closing_hash_signature["signature"],
-        #     },
-        #     "receiptCounter": fiscal_day.receipt_counter
-        # }
+        payload = {
+            "deviceID": device.device_id,
+            "fiscalDayNo": fiscal_day.day_no,
+            "fiscalDayDate": today(),
+            "fiscalDayCounters": fiscal_day_counters,
+            "fiscalDayDeviceSignature": {
+                "hash": closing_hash_signature["hash"],
+                "signature": closing_hash_signature["signature"],
+            },
+            "receiptCounter": fiscal_day.receipt_counter
+        }
 
         logger.info(f"Closing Fiscal Day with payload: {payload}")
 
         # submit zimra
-        submission_res = client.close_day(payload)
+        client.close_day(payload)
 
-        return Response(submission_res)
+        return Response(client.get_status(), status=status.HTTP_200_OK)
