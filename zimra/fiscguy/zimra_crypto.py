@@ -194,7 +194,7 @@ class ZIMRACrypto:
             sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
             tax_amount_cents = round(tax["taxAmount"] * 100)
 
-            if tax.get("taxPercent") >= 0:
+            if tax.get("taxPercent") is not None:
                 return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
             return f"{tax_amount_cents}{sales_amount_cents}"
 

@@ -14,6 +14,7 @@ from fiscguy.serializers import (ConfigurationSerializer,
 from fiscguy.utils.datetime_now import date_today as today
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
+from fiscguy.services.closing_day_service import ClosingDayService
 
 client = ZIMRAClient(Device.objects.first())
 receipt_handler = ZIMRAReceiptHandler()
@@ -143,168 +144,25 @@ class OpenDayView(APIView):
 
 
 class CloseDayView(APIView):
-    """
-    View to close a day.
-    Computes the closing day fdms string from the fiscal counters to a hash and signature.
-    """
-
     def get(self, request):
         device = Device.objects.first()
-        tax_map = {tax.tax_id: tax.name for tax in Taxes.objects.all()}
         fiscal_day = FiscalDay.objects.filter(is_open=True).first()
         fiscal_counters = fiscal_day.counters.all()
+        tax_map = {t.tax_id: t.name for t in Taxes.objects.all()}
 
-        salebytax = []
-        saletaxbytax = []
-        balancebymoneytype = []
-
-        payload = None
-        sale_by_tax_counters = []
-        sale_tax_by_tax_counter = []
-        balance_by_money_counter = []
-
-        for counter in fiscal_counters:
-            tax_percent = counter.fiscal_counter_tax_percent
-            tax_id = counter.fiscal_counter_tax_id
-            currency = counter.fiscal_counter_currency
-            money_type = counter.fiscal_counter_money_type
-            value = counter.fiscal_counter_value
-            counter_name = counter.fiscal_counter_type.lower()
-
-            intial_string = counter_name + currency
-
-            if counter_name == "salebytax":
-                if tax_map.get(tax_id).lower().__contains__("standard"):
-                    salebytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
-
-                    # payload counter
-                    sale_by_tax_counters.append(
-                        {
-                            "fiscalCounterType": counter.fiscal_counter_type,
-                            "fiscalCounterCurrency": counter.fiscal_counter_currency,
-                            "fiscalCounterTaxPercent": (
-                                float(counter.fiscal_counter_tax_percent)
-                                if counter.fiscal_counter_tax_percent >= 0
-                                else None
-                            ),
-                            "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
-                            "fiscalCounterValue": float(
-                                round(counter.fiscal_counter_value, 2)
-                            ),
-                        }
-                    )
-
-                elif tax_map.get(tax_id).lower().__contains__("zero"):
-                    salebytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
-                    # payload counter 
-                    sale_by_tax_counters.append(
-                        {
-                            "fiscalCounterType": counter.fiscal_counter_type,
-                            "fiscalCounterCurrency": counter.fiscal_counter_currency,
-                            "fiscalCounterTaxPercent": (
-                                float(counter.fiscal_counter_tax_percent)
-                                if counter.fiscal_counter_tax_percent
-                                else float(0)
-                            ),
-                            "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
-                            "fiscalCounterValue": float(
-                                round(counter.fiscal_counter_value, 2)
-                            ),
-                        }
-                    )
-                else:  # for exempt
-                    salebytax.append(f"{intial_string}{int(value*100)}")
-                    # payload counter same as the sale_by_tax with difference in tax percent shown as None
-                    sale_by_tax_counters.append(
-                        {
-                            "fiscalCounterType": counter.fiscal_counter_type,
-                            "fiscalCounterCurrency": counter.fiscal_counter_currency,
-                            "fiscalCounterTaxPercent": (
-                                float(counter.fiscal_counter_tax_percent)
-                                if counter.fiscal_counter_tax_percent
-                                else None
-                            ),
-                            "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
-                            "fiscalCounterValue": float(
-                                round(counter.fiscal_counter_value, 2)
-                            ),
-                        }
-                    )
-
-            elif counter_name == "saletaxbytax":
-                saletaxbytax.append(f"{intial_string}{tax_percent}{int(value*100)}")
-
-                # payload counter
-                sale_tax_by_tax_counter.append(
-                    {
-                        "fiscalCounterType": counter.fiscal_counter_type,
-                        "fiscalCounterCurrency": counter.fiscal_counter_currency,
-                        "fiscalCounterTaxPercent": (
-                            float(counter.fiscal_counter_tax_percent)
-                            if counter.fiscal_counter_tax_percent
-                            else None
-                        ),
-                        "fiscalCounterTaxID": counter.fiscal_counter_tax_id,
-                        "fiscalCounterValue": float(
-                            round(counter.fiscal_counter_value, 2)
-                        ),
-                    }
-                )
-
-            elif counter_name == "balancebymoneytype":
-                balancebymoneytype.append(
-                    f"{intial_string}{money_type}{int(value*100)}"
-                )
-
-                # payload counter
-                balance_by_money_counter.append(
-                    {
-                        "fiscalCounterType": counter.fiscal_counter_type,
-                        "fiscalCounterCurrency": counter.fiscal_counter_currency,
-                        "fiscalCounterMoneyType": counter.fiscal_counter_money_type
-                        or 0,
-                        "fiscalCounterValue": float(
-                            round(counter.fiscal_counter_value, 2)
-                        ),
-                    }
-                )
-
-        # concatinate final string
-        closing_string = (
-            f"{device.device_id}{fiscal_day.day_no}{today()}"
-            + "".join(salebytax)
-            + "".join(saletaxbytax)
-            + "".join(balancebymoneytype)
-        ).upper()
-
-        # closing hash value and signature
-        closing_hash_signature = (
-            receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
+        service = ClosingDayService(
+            device=device,
+            fiscal_day=fiscal_day,
+            fiscal_counters=fiscal_counters,
+            tax_map=tax_map,
+            receipt_handler=receipt_handler,
         )
+
+        closing_string, payload = service.close_day()
 
         logger.info(f"Closing Fiscal Day string: {closing_string}")
+        logger.info(f"Closing payload: {payload}")
 
-        fiscal_day_counters = (
-            sale_by_tax_counters + sale_tax_by_tax_counter + balance_by_money_counter
-        )
-
-        logger.info(fiscal_day_counters)
-
-        payload = {
-            "deviceID": device.device_id,
-            "fiscalDayNo": fiscal_day.day_no,
-            "fiscalDayDate": today(),
-            "fiscalDayCounters": fiscal_day_counters,
-            "fiscalDayDeviceSignature": {
-                "hash": closing_hash_signature["hash"],
-                "signature": closing_hash_signature["signature"],
-            },
-            "receiptCounter": fiscal_day.receipt_counter
-        }
-
-        logger.info(f"Closing Fiscal Day with payload: {payload}")
-
-        # submit zimra
         client.close_day(payload)
 
         return Response(client.get_status(), status=status.HTTP_200_OK)
