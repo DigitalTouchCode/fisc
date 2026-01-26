@@ -15,16 +15,15 @@ from fiscguy.utils.datetime_now import date_today as today
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 from fiscguy.services.closing_day_service import ClosingDayService
+from fiscguy.services.receipt_service import ReceiptService
 
 client = ZIMRAClient(Device.objects.first())
 receipt_handler = ZIMRAReceiptHandler()
 
 
 class ReceiptView(generics.GenericAPIView):
+    """ view to submit receipt"""
     serializer_class = ReceiptSerializer
-    # permission_classes = [
-    #     IsAuthenticated,
-    # ]
     queryset = Receipt.objects.all()
 
     def get(self, request):
@@ -32,61 +31,15 @@ class ReceiptView(generics.GenericAPIView):
         return Response(data)
 
     def post(self, request):
+        service = ReceiptService(receipt_handler=receipt_handler)
+        try:
+            receipt, submission_res = service.create_and_submit_receipt(request.data)
+        except Exception as e:
+            logger.exception("Receipt creation failed")
+            return Response({"error": str(e)}, status=400)
 
-        serializer = ReceiptCreateSerializer(data=request.data)
-
-        if serializer.is_valid():
-            receipt = serializer.save()
-            receipt = (
-                Receipt.objects.select_related("buyer")
-                .prefetch_related("lines")
-                .get(id=receipt.id)
-            )
-            receipt_items = receipt.lines.all()
-
-            # zimra formatted string and receipt data
-            receipt_data = receipt_handler.generate_receipt_data(receipt, receipt_items)
-
-            logger.info(receipt_data)
-
-            # receipt hash and signature
-            hash_sig_data = receipt_handler.crypto.generate_receipt_hash_and_signature(
-                receipt_data["receipt_string"]
-            )
-
-            # assign hash and signature values to the receipt
-            receipt.hash_value = hash_sig_data["hash"]
-            receipt.signature = hash_sig_data["signature"]
-
-            # assign qr_code to the receipt and 16 character md5 code
-            receipt_handler._generate_qr_code(
-                receipt, receipt_data["receipt_data"], hash_sig_data["signature"]
-            )
-
-            # assign receipt global number
-            receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
-
-            # update receipt counters
-            update_counter_res = receipt_handler._update_fiscal_counters(
-                receipt, receipt_data["receipt_data"]
-            )
-
-            # submiit receipt to zimra
-            submission_res = receipt_handler.submit_receipt(
-                hash_sig_data["hash"],
-                hash_sig_data["signature"],
-                receipt_data["receipt_data"],
-            )
-
-            logger.info(f"Receipt submission response: {submission_res}")
-
-            receipt.submitted = True
-
-            # save receipt
-            receipt.save()
-
-            return Response(ReceiptSerializer(receipt).data, status=201)
-        return Response(serializer.errors, status=400)
+        logger.info(f"Receipt submitted to ZIMRA: {submission_res}")
+        return Response(ReceiptSerializer(receipt).data, status=201)
 
 
 class ReceiptDetailView(generics.RetrieveAPIView):
@@ -144,6 +97,9 @@ class OpenDayView(APIView):
 
 
 class CloseDayView(APIView):
+    """
+    close day view
+    """
     def get(self, request):
         device = Device.objects.first()
         fiscal_day = FiscalDay.objects.filter(is_open=True).first()
