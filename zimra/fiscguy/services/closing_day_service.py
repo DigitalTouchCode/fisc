@@ -8,6 +8,8 @@ SALE_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
 
 
 class ClosingDayService:
+    """ Closing day service """
+    
     def __init__(
         self,
         device: Device,
