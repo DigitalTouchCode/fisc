@@ -179,6 +179,9 @@ class Receipt(models.Model):
     )
     payment_terms = models.CharField(max_length=200)
     submitted = models.BooleanField(default=False, null=True)
+    is_credit_note = models.BooleanField(default=False, null=True)
+    credit_note_reason = models.CharField(max_length=255, null=True, blank=True)
+    credit_note_reference = models.CharField(max_length=255, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None

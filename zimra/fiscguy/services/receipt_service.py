@@ -53,6 +53,7 @@ class ReceiptService:
                 receipt_data["receipt_data"]
             )
             receipt.submitted = True
+            receipt.zimra_inv_id = submission_res.get("receiptID", "")
             receipt.save()
 
         except Exception as e:
