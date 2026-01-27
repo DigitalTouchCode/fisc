@@ -99,6 +99,13 @@ class ReceiptSerializer(serializers.ModelSerializer):
 class ReceiptCreateSerializer(serializers.ModelSerializer):
     lines = ReceiptLineCreateSerializer(many=True)
 
+    credit_note_reference = serializers.CharField(
+        required=False, allow_blank=True
+    )
+    credit_note_reason = serializers.CharField(
+        required=False, allow_blank=True
+    )
+
     class Meta:
         model = Receipt
         fields = [
@@ -108,19 +115,52 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
             "buyer",
             "lines",
             "payment_terms",
+            "credit_note_reference",
+            "credit_note_reason",
         ]
+
+    def validate(self, attrs):
+        receipt_type = attrs.get("receipt_type", "").lower()
+        total_amount = attrs.get("total_amount", 0)
+
+        if receipt_type == "creditnote":
+
+            if not attrs.get("credit_note_reference"):
+                raise serializers.ValidationError(
+                    {"credit_note_reference": "This field is required for credit notes"}
+                )
+
+            if not Receipt.objects.filter(
+                receipt_number=attrs["credit_note_reference"]
+            ).exists():
+                raise serializers.ValidationError(
+                    {"credit_note_reference": "Referenced receipt does not exist"}
+                )
+
+            # Amount must be negative
+            if total_amount > 0:
+                raise serializers.ValidationError(
+                    {"total_amount": "Credit note total must be negative"}
+                )
+
+        return attrs
 
     def create(self, validated_data):
         lines_data = validated_data.pop("lines")
+        receipt_type = validated_data.get("receipt_type", "").lower()
 
         receipt = Receipt.objects.create(**validated_data)
+
         for idx, line_data in enumerate(lines_data):
+
             tax_name = line_data.pop("tax_name", None)
 
             if tax_name:
-                tax = Taxes.objects.filter(name__iexact=tax_name.strip()).first()
-                if not tax:
-                    tax = Taxes.objects.filter(name__icontains=tax_name.strip()).first()
+                tax = Taxes.objects.filter(
+                    name__iexact=tax_name.strip()
+                ).first() or Taxes.objects.filter(
+                    name__icontains=tax_name.strip()
+                ).first()
 
                 if not tax:
                     raise serializers.ValidationError(
@@ -129,6 +169,16 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
 
                 line_data["tax_type"] = tax
 
-            ReceiptLine.objects.create(receipt=receipt, **line_data)
+            if receipt_type == "creditnote":
+                if line_data.get("unit_price", 0) > 0:
+                    line_data["unit_price"] *= -1
+
+                if line_data.get("line_total", 0) > 0:
+                    line_data["line_total"] *= -1
+
+            ReceiptLine.objects.create(
+                receipt=receipt,
+                **line_data
+            )
 
         return receipt

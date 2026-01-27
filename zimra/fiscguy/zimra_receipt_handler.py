@@ -45,7 +45,8 @@ class ZIMRAReceiptHandler:
             self.client = ZIMRAClient(device)
         except Exception:
             self.client = None
-
+        
+        self.device = device
         self.crypto = ZIMRACrypto()
         logger.info("ZIMRAReceiptHandler initialized")
 
@@ -63,9 +64,11 @@ class ZIMRAReceiptHandler:
         new_global_no = int(last_global_no) + 1
         return new_global_no
 
+  
     def generate_receipt_data(self, receipt: Receipt, receipt_items: list):
         """
-        Transform invoice data to ZIMRA receipt format.
+        Transform receipt data to ZIMRA receipt format.
+        Supports FiscalInvoice and CreditNote.
 
         Args:
             receipt: Receipt object
@@ -75,138 +78,148 @@ class ZIMRAReceiptHandler:
             receipt_string, receipt_data or (error_message, None)
         """
         try:
+            is_credit_note = receipt.receipt_type.lower() == "creditnote"
 
-            logger.info(receipt_items.values())
-            tax_amount = 0
-
+            # Get last receipt (for previousReceiptHash)
             last_receipt = (
-                Receipt.objects.exclude(id=receipt.id).order_by("-created_at").first()
+                Receipt.objects.exclude(id=receipt.id)
+                .exclude(hash_value__isnull=True)
+                .order_by("-created_at")
+                .first()
             )
 
-            # Get fiscal day
+            # Fiscal day
             fiscal_day = FiscalDay.objects.filter(is_open=True).first()
-
-            # check if fiscal day is open
             if not fiscal_day:
-                return {"error: no fiscal day open"}
+                return {"error": "No fiscal day open"}
 
-            # Build receipt lines and calculate taxes
+            # Containers
             receipt_lines = []
             tax_group_totals = defaultdict(
-                lambda: {"taxAmount": 0.00, "salesAmountWithTax": 0.00}
+                lambda: {"taxAmount": float("0.00"), "salesAmountWithTax": float("0.00")}
             )
 
+            # Build receipt lines
             for index, item in enumerate(receipt_items, start=1):
-                line_total = float(item.unit_price) * item.quantity
 
-                # Determine tax details
+                unit_price = item.unit_price
+
+                quantity = item.quantity
+                line_total = unit_price * quantity
+
                 tax_id = item.tax_type.tax_id
-                tax_percent = float(item.tax_type.percent)
+                tax_percent = item.tax_type.percent
                 tax_name = item.tax_type.name.lower()
 
-                logger.info(f"Tax ID: {tax_id}, Tax Percent: {tax_percent}")
+                # Tax calculation
+                if tax_name in ["exempt", "zero rated 0%"]:
+                    tax_amount = float("0.00")
+                else:
+                    tax_amount = line_total * (tax_percent / (float("100.00") + tax_percent))
 
-                # Calculate tax amount
-                if tax_name == "exempt" or tax_name == "zero rated 0%":
-                    tax_amount = 0.00
+                logger.info(
+                    f"Line {index} | Price: {unit_price} | Total: {line_total} | Tax: {tax_amount}"
+                )
 
-                elif tax_name == "standard rated 15.5%":
-                    tax_amount = line_total * (tax_percent / (100 + tax_percent))
-
-                logger.info(f'tax amount for line item: {tax_amount}')
-
-                # Accumulate tax group totals
+                # Accumulate tax totals
                 key = (tax_id, tax_percent, tax_name)
                 tax_group_totals[key]["taxAmount"] += tax_amount
                 tax_group_totals[key]["salesAmountWithTax"] += line_total
 
-                logger.info(f"Tax Group Totals: {tax_group_totals}")
-
-                # Build receipt line
+                # Receipt line
                 line_data = {
                     "receiptLineType": "Sale",
                     "receiptLineNo": index,
                     "receiptLineHSCode": "01010101",
                     "receiptLineName": item.product,
-                    "receiptLinePrice": float(item.unit_price),
-                    "receiptLineQuantity": item.quantity,
-                    "receiptLineTotal": line_total,
+                    "receiptLinePrice": float(unit_price),
+                    "receiptLineQuantity": float(quantity),
+                    "receiptLineTotal": float(line_total),
                     "taxID": tax_id,
                 }
 
-                if tax_name != "exempt":
+                if tax_name not in ["exempt", "zero rated 0%"]:
                     line_data["taxPercent"] = float(tax_percent)
 
                 receipt_lines.append(line_data)
 
-            # Construct receiptTaxes from actual usage
+            # Build receiptTaxes
             receipt_taxes = []
-            for (
-                tax_id,
-                tax_percent,
-                tax_name,
-            ), totals in tax_group_totals.items():
+            for (tax_id, tax_percent, tax_name), totals in tax_group_totals.items():
                 tax_obj = {
                     "taxID": tax_id,
-                    "taxAmount": (
-                        round(totals["taxAmount"], 2) if not tax_name == "exempt" else 0
-                    ),
+                    "taxAmount": round(totals["taxAmount"], 2),
                     "salesAmountWithTax": round(totals["salesAmountWithTax"], 2),
                 }
-                if tax_name != "exempt":
+
+                if tax_name not in ["exempt", "zero rated 0%"]:
                     tax_obj["taxPercent"] = float(tax_percent)
-                
+
                 receipt_taxes.append(tax_obj)
 
-            logger.info(f"Receipt taxes: {receipt_taxes}")
+            # Receipt totals
+            receipt_total = receipt.total_amount 
 
-            # Build complete receipt data
+            # Base receipt payload
             receipt_data = {
                 "receiptType": receipt.receipt_type,
                 "receiptCurrency": receipt.currency.upper(),
                 "receiptCounter": fiscal_day.receipt_counter + 1,
                 "receiptGlobalNo": self._get_receipt_global_number(receipt),
-                "invoiceNo": f"{receipt.receipt_number}",
-                "receiptNotes": "Thank you for shopping with us!",
+                "invoiceNo": receipt.receipt_number,
+                "receiptNotes": (
+                    receipt.credit_note_reason if is_credit_note else "Thank you for shopping with us!"
+                ),
                 "receiptDate": timestamp(),
                 "receiptLinesTaxInclusive": True,
                 "receiptLines": receipt_lines,
-                "receiptTaxes": receipt_taxes if receipt_taxes else [],
+                "receiptTaxes": receipt_taxes,
                 "receiptPayments": [
                     {
                         "moneyTypeCode": receipt.payment_terms,
-                        "paymentAmount": float(receipt.total_amount),
+                        "paymentAmount": float(receipt_total),
                     }
                 ],
-                "receiptTotal": float(receipt.total_amount),
+                "receiptTotal": float(receipt_total),
                 "receiptPrintForm": "Receipt48",
                 "previousReceiptHash": (
-                    "" if fiscal_day.receipt_counter == 0 else last_receipt.hash_value
+                    "" if not last_receipt else last_receipt.hash_value
                 ),
             }
 
-            logger.info(f"Receipt data: {receipt_data}")
+            # Credit Note 
+            if is_credit_note:
+                original_receipt = Receipt.objects.get(
+                    receipt_number=receipt.credit_note_reference
+                )
+
+                receipt_data["creditDebitNote"] = {
+                    "receiptID": original_receipt.zimra_inv_id
+                }
+
+            logger.info(f"Final receipt payload: {receipt_data}")
 
             # Generate signature string
             signature_string = self.crypto.generate_receipt_signature_string(
-                device_id=device.device_id,
+                device_id=self.device.device_id,
                 receipt_type=receipt_data["receiptType"],
                 receipt_currency=receipt_data["receiptCurrency"],
                 receipt_global_no=receipt_data["receiptGlobalNo"],
                 receipt_date=receipt_data["receiptDate"],
-                receipt_total=Decimal(str(receipt_data["receiptTotal"])),
+                receipt_total=receipt_data["receiptTotal"],
                 receipt_taxes=receipt_data["receiptTaxes"],
                 previous_receipt_hash=receipt_data["previousReceiptHash"],
             )
 
-            logger.info(f"Signature string: {signature_string}")
-            logger.info(f"receipt data: {receipt_data}")
-
-            return {"receipt_string": signature_string, "receipt_data": receipt_data}
+            return {
+                "receipt_string": signature_string,
+                "receipt_data": receipt_data,
+            }
 
         except Exception as e:
-            logger.error(f"Error generating receipt data: {e}")
-            return f"Error generating receipt: {e}"
+            logger.exception("Error generating receipt data")
+            return {"error": str(e)}
+
 
     def submit_receipt(self, hash_value, signature, receipt_data):
         """
@@ -351,7 +364,7 @@ class ZIMRAReceiptHandler:
                         )
                         sale_by_tax_counter.save()
 
-                    # SaleTaxByTax counter (only if tax percent is not 0)
+                    # SaleTaxByTax counter
                     if (
                         tax_percent
                         and tax_name != "exempt"
@@ -383,7 +396,7 @@ class ZIMRAReceiptHandler:
                     fiscal_sale_counter_obj, _sbt = FiscalCounter.objects.get_or_create(
                         fiscal_counter_type="CreditNoteByTax",
                         created_at__date=datetime.today(),
-                        fiscal_counter_currency=receipt.currency.name.lower(),
+                        fiscal_counter_currency=receipt.currency.lower(),
                         fiscal_day=fiscal_day,
                         defaults={
                             "fiscal_counter_tax_percent": tax_percent,
@@ -407,7 +420,7 @@ class ZIMRAReceiptHandler:
                     fiscal_counter_obj, _stbt = FiscalCounter.objects.get_or_create(
                         fiscal_counter_type="CreditNoteTaxByTax",
                         created_at__date=datetime.today(),
-                        fiscal_counter_currency=receipt_data.currency.name.lower(),
+                        fiscal_counter_currency=receipt.currency.lower(),
                         fiscal_day=fiscal_day,
                         defaults={
                             "fiscal_counter_tax_percent": tax_percent,
