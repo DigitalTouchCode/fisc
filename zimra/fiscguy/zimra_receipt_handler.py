@@ -243,7 +243,6 @@ class ZIMRAReceiptHandler:
                 {"receipt": receipt_data}, hash_value, signature
             )
 
-            # response is a dict (parsed JSON). Log and update counters.
             logger.info(f"Receipt submission response: {response}")
 
             fiscal_day = FiscalDay.objects.filter(is_open=True).first()
