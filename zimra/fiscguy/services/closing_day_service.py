@@ -35,11 +35,11 @@ class ClosingDayService:
         return int(value * 100)
 
 
-    def build_sale_by_tax(self) -> str:
+    def build_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
         for c in self.counters:
-            if c.fiscal_counter_type.lower() != "salebytax":
+            if c.fiscal_counter_type.lower() not in ["salebytax", "creditnotebytax"]:
                 continue
 
             tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
@@ -79,11 +79,11 @@ class ClosingDayService:
 
         return "".join("".join(buckets[k]) for k in SALE_BY_TAX_ORDER)
 
-    def build_sale_tax_by_tax(self) -> str:
+    def build_tax_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
         for c in self.counters:
-            if c.fiscal_counter_type.lower() != "saletaxbytax":
+            if c.fiscal_counter_type.lower() not in ["saletaxbytax", "creditnotetaxbytax"]:
                 continue
 
             tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
@@ -142,8 +142,8 @@ class ClosingDayService:
         return "".join(strings)
 
     def close_day(self) -> Tuple[str, Dict[str, Any]]:
-        sale_by_tax: str = self.build_sale_by_tax()
-        sale_tax_by_tax: str = self.build_sale_tax_by_tax()
+        sale_by_tax: str = self.build_by_tax()
+        sale_tax_by_tax: str = self.build_tax_by_tax()
         balance_by_money: str = self.build_balance_by_money_type()
 
         closing_string: str = (
