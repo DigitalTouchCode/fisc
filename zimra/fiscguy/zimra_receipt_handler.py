@@ -83,7 +83,7 @@ class ZIMRAReceiptHandler:
             # Get last receipt (for previousReceiptHash)
             last_receipt = (
                 Receipt.objects.exclude(id=receipt.id)
-                # .exclude(hash_value__isnull=True)
+                .exclude(hash_value__isnull=True)
                 .order_by("-created_at")
                 .first()
             )
@@ -183,7 +183,7 @@ class ZIMRAReceiptHandler:
                 "receiptTotal": float(receipt_total),
                 "receiptPrintForm": "Receipt48",
                 "previousReceiptHash": (
-                    "" if not last_receipt else last_receipt.hash_value
+                    "" if fiscal_day.day_no == 0 else last_receipt.hash_value
                 ),
             }
 
