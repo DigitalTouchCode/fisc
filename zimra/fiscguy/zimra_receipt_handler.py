@@ -83,7 +83,7 @@ class ZIMRAReceiptHandler:
             # Get last receipt (for previousReceiptHash)
             last_receipt = (
                 Receipt.objects.exclude(id=receipt.id)
-                .exclude(hash_value__isnull=True)
+                # .exclude(hash_value__isnull=True)
                 .order_by("-created_at")
                 .first()
             )
@@ -330,6 +330,8 @@ class ZIMRAReceiptHandler:
                 tax_id = tax["taxID"]
                 tax_amount = tax["taxAmount"]
                 sales_amount_with_tax = tax["salesAmountWithTax"]
+
+                logger.info(f"Receipt tyepe: {receipt_data['receiptType']}")
 
                 tax_name = Taxes.objects.filter(tax_id=tax_id).first().name.lower()
 
