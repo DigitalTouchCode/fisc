@@ -31,31 +31,35 @@ class ZIMRAClient:
         if not self.config:
             raise RuntimeError("ZIMRA configuration missing")
 
-        # URLs
-        if self.certs.production:
-            self.base_url = f"https://fdmsapi.zimra.co.zw/Device/v1/{device.device_id}"
-            self.public_url = (
-                f"https://fdmsapi.zimra.co.zw/Public/v1/{device.device_id}"
-            )
+        if self.certs:
+            if self.certs.production:
+                self.base_url = f"https://fdmsapi.zimra.co.zw/Device/v1/{device.device_id}"
+                self.public_url = f"https://fdmsapi.zimra.co.zw/Public/v1/{device.device_id}"
+            else:
+                self.base_url = f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
+                self.public_url = f"https://fdmsapitest.zimra.co.zw/Public/v1/{device.device_id}"
         else:
-            self.base_url = (
-                f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
-            )
-            self.public_url = (
-                f"https://fdmsapitest.zimra.co,.zw/Public/v1/{device.device_id}"
-            )
-
-        # temp cert handling
+            self.base_url = None
+            self.public_url = None
+        
         self._lock = threading.Lock()
         self._temp_dir = Path(tempfile.mkdtemp(prefix="zimra_fdms_"))
         self._pem_path = self._temp_dir / "client.pem"
-        self._pem_path.write_text(
-            f"{self.certs.certificate}\n{self.certs.certificate_key}"
-        )
+
+        if self.certs:
+            self._pem_path.write_text(
+                f"{self.certs.certificate}\n{self.certs.certificate_key}"
+            )
+        else:
+            logger.warning(
+                "No ZIMRA certs found — temporary PEM not created yet. "
+                "Certs must be registered before submitting receipts."
+            )
 
         # session
         self.session = requests.Session()
-        self.session.cert = str(self._pem_path)
+        if self.certs:
+            self.session.cert = str(self._pem_path)
         self.session.headers.update(
             {
                 "Content-Type": "application/json",
