@@ -17,6 +17,7 @@ from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 from fiscguy.services.closing_day_service import ClosingDayService
 from fiscguy.services.receipt_service import ReceiptService
 
+
 client = ZIMRAClient(Device.objects.first())
 receipt_handler = ZIMRAReceiptHandler()
 
