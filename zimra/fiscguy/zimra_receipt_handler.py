@@ -183,7 +183,7 @@ class ZIMRAReceiptHandler:
                 "receiptTotal": float(receipt_total),
                 "receiptPrintForm": "Receipt48",
                 "previousReceiptHash": (
-                    "" if fiscal_day.day_no == 0 else last_receipt.hash_value
+                    "" if fiscal_day.receipt_counter == 0 else last_receipt.hash_value
                 ),
             }
 
