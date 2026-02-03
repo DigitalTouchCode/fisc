@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Any, Dict, Iterable, List, Tuple
 from django.utils.timezone import now
 from fiscguy.models import Device, FiscalCounter, FiscalDay
+from fiscguy.utils.datetime_now import date_today as today
 
 SALE_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 SALE_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
@@ -10,7 +11,7 @@ CREDIT_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
 
 class ClosingDayService:
     """ Closing day service """
-    
+
     def __init__(
         self,
         device: Device,
@@ -27,143 +28,96 @@ class ClosingDayService:
 
         self.sale_by_tax_payload: List[Dict[str, Any]] = []
         self.sale_tax_by_tax_payload: List[Dict[str, Any]] = []
+        self.credit_by_tax_payload: List[Dict[str, Any]] = []
+        self.credit_tax_by_tax_payload: List[Dict[str, Any]] = []
         self.balance_by_money_payload: List[Dict[str, Any]] = []
 
     def _today(self) -> str:
-        return now().date().isoformat()
+        return today()
 
     def _money_value(self, value: float) -> int:
         return int(value * 100)
 
-
-    def build_by_tax(self) -> str:
-        sale_buckets: Dict[str, List[str]] = defaultdict(list)
-        credit_buckets: Dict[str, List[str]] = defaultdict(list)
-
-        for c in self.counters:
-            if c.fiscal_counter_type.lower() not in ["salebytax", "creditnotebytax"]:
-                continue
-
-            tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
-            key: str = "standard" if "standard" in tax_name else "zero" if "zero" in tax_name else "exempt"
-       
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
-
-            tax_part: str = (
-                str(c.fiscal_counter_tax_percent)
-                if c.fiscal_counter_tax_percent is not None
-                else ""
-            )
-
-            item = f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}"
-
-            if c.fiscal_counter_type.lower() == "salebytax":
-                sale_buckets[key].append(item)
-            else: # default to creditnote TODO: debitnote
-                credit_buckets[key].append(item)
-
-            self.sale_by_tax_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterTaxPercent": (
-                        float(c.fiscal_counter_tax_percent)
-                        if c.fiscal_counter_tax_percent is not None
-                        else None
-                    ),
-                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
-
-        return "".join("".join(sale_buckets[k]) for k in SALE_BY_TAX_ORDER) + \
-           "".join("".join(credit_buckets[k]) for k in CREDIT_BY_TAX_ORDER)
-
-    def build_tax_by_tax(self) -> str:
-        sale_tax_buckets: Dict[str, List[str]] = defaultdict(list)
-        credit_tax_buckets: Dict[str, List[str]] = defaultdict(list)
+    def _collect_buckets(self) -> Dict[str, List[str]]:
+        """
+        Build string buckets and payloads per fiscal counter type.
+        """
+        buckets: Dict[str, List[str]] = {
+            "salebytax": [],
+            "saletaxbytax": [],
+            "creditnotebytax": [],
+            "creditnotetaxbytax": [],
+            "balancebymoneytype": [],
+        }
 
         for c in self.counters:
-            if c.fiscal_counter_type.lower() not in ["saletaxbytax", "creditnotetaxbytax"]:
+            c_type = c.fiscal_counter_type.lower()
+            if c_type not in buckets:
                 continue
 
-            tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
-            key: str = "zero" if "zero" in tax_name else "standard"
+            # build string item
+            if "tax" in c_type:
+                tax_part = str(c.fiscal_counter_tax_percent or "")
+                value_str = f"{c_type}{c.fiscal_counter_currency}{tax_part}{self._money_value(c.fiscal_counter_value)}"
+            else:
+                value_str = f"{c_type}{c.fiscal_counter_currency}{c.fiscal_counter_money_type}{self._money_value(c.fiscal_counter_value)}"
 
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
-            tax_part: str = str(c.fiscal_counter_tax_percent or "")
+            buckets[c_type].append(value_str)
 
-            item = f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}"
-
-            if c.fiscal_counter_type.lower() == "saletaxbytax":
-                sale_tax_buckets[key].append(item)
-            else:  # creditnotetaxbytax TODO: debitnote
-                credit_tax_buckets[key].append(item)
-
-            self.sale_tax_by_tax_payload.append({
+            # build payload
+            payload_item = {
                 "fiscalCounterType": c.fiscal_counter_type,
                 "fiscalCounterCurrency": c.fiscal_counter_currency,
-                "fiscalCounterTaxPercent": float(c.fiscal_counter_tax_percent) if c.fiscal_counter_tax_percent else None,
-                "fiscalCounterTaxID": c.fiscal_counter_tax_id,
+                "fiscalCounterTaxPercent": float(c.fiscal_counter_tax_percent) if getattr(c, "fiscal_counter_tax_percent", None) else None,
+                "fiscalCounterTaxID": getattr(c, "fiscal_counter_tax_id", None),
                 "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-            })
+                "fiscalCounterMoneyType": getattr(c, "fiscal_counter_money_type", None),
+            }
 
-        return "".join("".join(sale_tax_buckets[k]) for k in SALE_TAX_BY_TAX_ORDER) + \
-            "".join("".join(credit_tax_buckets[k]) for k in CREDIT_TAX_BY_TAX_ORDER)
+            if c_type == "salebytax":
+                self.sale_by_tax_payload.append(payload_item)
+            elif c_type == "saletaxbytax":
+                self.sale_tax_by_tax_payload.append(payload_item)
+            elif c_type == "creditnotebytax":
+                self.credit_by_tax_payload.append(payload_item)
+            elif c_type == "creditnotetaxbytax":
+                self.credit_tax_by_tax_payload.append(payload_item)
+            elif c_type == "balancebymoneytype":
+                self.balance_by_money_payload.append(payload_item)
 
-    def build_balance_by_money_type(self) -> str:
-        strings: List[str] = []
-
-        for c in self.counters:
-            if c.fiscal_counter_type.lower() != "balancebymoneytype":
-                continue
-
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
-
-            strings.append(
-                f"{base}{c.fiscal_counter_money_type}{self._money_value(c.fiscal_counter_value)}"
-            )
-
-            self.balance_by_money_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterMoneyType": c.fiscal_counter_money_type or 0,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
-
-        return "".join(strings)
+        return buckets
 
     def close_day(self) -> Tuple[str, Dict[str, Any]]:
-        sale_by_tax: str = self.build_by_tax()
-        sale_tax_by_tax: str = self.build_tax_by_tax()
-        balance_by_money: str = self.build_balance_by_money_type()
+        # collect all buckets
+        buckets = self._collect_buckets()
 
-        closing_string: str = (
-            f"{self.device.device_id}"
-            f"{self.fiscal_day.day_no}"
-            f"{self._today()}"
-            f"{sale_by_tax}"
-            f"{sale_tax_by_tax}"
-            f"{balance_by_money}"
+        # build final string in the exact order
+        closing_string = (
+            f"{self.device.device_id}" +
+            f"{self.fiscal_day.day_no}" f"{self._today()}" +
+            "".join(buckets["salebytax"]) +
+            "".join(buckets["saletaxbytax"]) +
+            "".join(buckets["creditnotebytax"]) +
+            "".join(buckets["creditnotetaxbytax"]) +
+            "".join(buckets["balancebymoneytype"])
         ).upper()
 
-        signature: Dict[str, str] = (
-            self.receipt_handler.crypto.generate_receipt_hash_and_signature(
-                closing_string
-            )
+
+        signature = self.receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
+
+        payload_counters = (
+            self.sale_by_tax_payload +
+            self.sale_tax_by_tax_payload +
+            self.credit_by_tax_payload +
+            self.credit_tax_by_tax_payload +
+            self.balance_by_money_payload
         )
 
         payload: Dict[str, Any] = {
             "deviceID": self.device.device_id,
             "fiscalDayNo": self.fiscal_day.day_no,
             "fiscalDayDate": self._today(),
-            "fiscalDayCounters": (
-                self.sale_by_tax_payload
-                + self.sale_tax_by_tax_payload
-                + self.balance_by_money_payload
-            ),
+            "fiscalDayCounters": payload_counters,
             "fiscalDayDeviceSignature": signature,
             "receiptCounter": self.fiscal_day.receipt_counter,
         }
