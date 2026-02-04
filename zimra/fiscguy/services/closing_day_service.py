@@ -4,10 +4,13 @@ from django.utils.timezone import now
 from fiscguy.models import Device, FiscalCounter, FiscalDay
 from fiscguy.utils.datetime_now import date_today as today
 
+from loguru import logger
+
 SALE_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 SALE_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
 CREDIT_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 CREDIT_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
+
 
 class ClosingDayService:
     """ Closing day service """
@@ -50,8 +53,11 @@ class ClosingDayService:
             "balancebymoneytype": [],
         }
 
+        logger.info(self.counters)
+
         for c in self.counters:
             c_type = c.fiscal_counter_type.lower()
+            logger.info(c_type)
             if c_type not in buckets:
                 continue
 
@@ -64,26 +70,73 @@ class ClosingDayService:
 
             buckets[c_type].append(value_str)
 
-            # build payload
-            payload_item = {
-                "fiscalCounterType": c.fiscal_counter_type,
-                "fiscalCounterCurrency": c.fiscal_counter_currency,
-                "fiscalCounterTaxPercent": float(c.fiscal_counter_tax_percent) if getattr(c, "fiscal_counter_tax_percent", None) else None,
-                "fiscalCounterTaxID": getattr(c, "fiscal_counter_tax_id", None),
-                "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                "fiscalCounterMoneyType": getattr(c, "fiscal_counter_money_type", None),
-            }
+            
 
             if c_type == "salebytax":
-                self.sale_by_tax_payload.append(payload_item)
+                self.sale_by_tax_payload.append(
+                    {
+                        "fiscalCounterType": c.fiscal_counter_type,
+                        "fiscalCounterCurrency": c.fiscal_counter_currency,
+                        "fiscalCounterTaxPercent": (
+                            float(c.fiscal_counter_tax_percent)
+                            if c.fiscal_counter_tax_percent is not None
+                            else None
+                        ),
+                        "fiscalCounterTaxID": c.fiscal_counter_tax_id,
+                        "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+                    }
+                )
             elif c_type == "saletaxbytax":
-                self.sale_tax_by_tax_payload.append(payload_item)
+                self.sale_tax_by_tax_payload.append(
+                    {
+                        "fiscalCounterType": c.fiscal_counter_type,
+                        "fiscalCounterCurrency": c.fiscal_counter_currency,
+                        "fiscalCounterTaxPercent": (
+                            float(c.fiscal_counter_tax_percent)
+                            if c.fiscal_counter_tax_percent is not None
+                            else None
+                        ),
+                        "fiscalCounterTaxID": c.fiscal_counter_tax_id,
+                        "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+                    }
+                )
             elif c_type == "creditnotebytax":
-                self.credit_by_tax_payload.append(payload_item)
+                self.sale_tax_by_tax_payload.append(
+                    {
+                        "fiscalCounterType": c.fiscal_counter_type,
+                        "fiscalCounterCurrency": c.fiscal_counter_currency,
+                        "fiscalCounterTaxPercent": (
+                            float(c.fiscal_counter_tax_percent)
+                            if c.fiscal_counter_tax_percent is not None
+                            else None
+                        ),
+                        "fiscalCounterTaxID": c.fiscal_counter_tax_id,
+                        "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+                    }
+                )
             elif c_type == "creditnotetaxbytax":
-                self.credit_tax_by_tax_payload.append(payload_item)
+                self.sale_tax_by_tax_payload.append(
+                    {
+                        "fiscalCounterType": c.fiscal_counter_type,
+                        "fiscalCounterCurrency": c.fiscal_counter_currency,
+                        "fiscalCounterTaxPercent": (
+                            float(c.fiscal_counter_tax_percent)
+                            if c.fiscal_counter_tax_percent is not None
+                            else None
+                        ),
+                        "fiscalCounterTaxID": c.fiscal_counter_tax_id,
+                        "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+                    }
+                )
             elif c_type == "balancebymoneytype":
-                self.balance_by_money_payload.append(payload_item)
+                self.balance_by_money_payload.append(
+                    {
+                        "fiscalCounterType": c.fiscal_counter_type,
+                        "fiscalCounterCurrency": c.fiscal_counter_currency,
+                        "fiscalCounterMoneyType": c.fiscal_counter_money_type or 0,
+                        "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+                    }
+                )
 
         return buckets
 
@@ -102,8 +155,9 @@ class ClosingDayService:
             "".join(buckets["balancebymoneytype"])
         ).upper()
 
-
         signature = self.receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
+
+        logger.info(self.sale_tax_by_tax_payload)
 
         payload_counters = (
             self.sale_by_tax_payload +

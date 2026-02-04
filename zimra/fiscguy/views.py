@@ -103,9 +103,11 @@ class CloseDayView(APIView):
     """
     def get(self, request):
         device = Device.objects.first()
-        fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+        fiscal_day = FiscalDay.objects.filter(is_open=True).first() #circuit breaker
         fiscal_counters = fiscal_day.counters.all()
         tax_map = {t.tax_id: t.name for t in Taxes.objects.all()}
+
+        logger.info(fiscal_counters)
 
         service = ClosingDayService(
             device=device,
