@@ -83,19 +83,32 @@ class FiscalCounter(models.Model):
     """
     Fiscal counter model
     """
-
     SALE_BY_TAX = "SaleByTax"
-    SALE_BY_VAT = "SaleByVAT"
     SALE_TAX_BY_TAX = "SaleTaxByTax"
-    Balancebymoneytype = "Balancebymoneytype"
+
+    CREDITNOTE_BY_TAX = "CreditNoteByTax"
+    CREDITNOTE_TAX_BY_TAX = "CreditNoteTaxByTax"
+
+    DEBITNOTE_BY_TAX = "DebitNoteByTax"
+    DEBITNOTE_TAX_BY_TAX = "DebitNoteTaxByTax"
+
+    BALANCE_BY_MONEY_TYPE = "BalanceByMoneyType"
     OTHER = "Other"
 
     COUNTER_TYPE_CHOICES = [
-        (SALE_BY_TAX, "SaleByTax"),
-        (SALE_BY_VAT, "SaleByVAT"),
-        (SALE_TAX_BY_TAX, "SaleTaxByTax"),
-        (Balancebymoneytype, "Balancebymoneytype"),
+        (SALE_BY_TAX, "Sale_by_Tax"),
+        (SALE_TAX_BY_TAX, "Sale Tax by Tax"),
+
+        (CREDITNOTE_BY_TAX, "Credit Note by Tax"),
+        (CREDITNOTE_TAX_BY_TAX, "Credit Note Tax by Tax"),
+
+        (DEBITNOTE_BY_TAX, "Debit Note by Tax"),
+        (DEBITNOTE_TAX_BY_TAX, "Debit Note Tax by Tax"),
+
+        (BALANCE_BY_MONEY_TYPE, "Balance by Money Type"),
+        (OTHER, "Other"),
     ]
+
 
     CASH = "Cash"
     CARD = "Card"
