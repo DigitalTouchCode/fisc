@@ -122,6 +122,10 @@ class CloseDayView(APIView):
         logger.info(f"Closing Fiscal Day string: {closing_string}")
         logger.info(f"Closing payload: {payload}")
 
-        client.close_day(payload)
+        try:
+            client.close_day(payload)
+            status_payload = client.get_status()
+        finally:
+            client.close()
 
-        return Response(client.get_status(), status=status.HTTP_200_OK)
+        return Response(status_payload, status=status.HTTP_200_OK)

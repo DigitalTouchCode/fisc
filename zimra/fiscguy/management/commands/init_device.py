@@ -69,6 +69,7 @@ class Command(BaseCommand):
         print(
             "Welcome to device registration please input the following provided information as proveded by ZIMRA\n"
         )
+        
         environment = input(
             "Enter yes for production environment and no for test enviroment: "
         ).strip()
@@ -184,7 +185,7 @@ class Command(BaseCommand):
             "deviceModelVersion": model_version,
         }
 
-        # ---- create temporary cert and key files separately ----
+        # create temporary cert and key files separately
         # The requests library doesn't accept certificate contents directly
         # so we write the cert/key to a secure temporary directory and
         # pass the file paths to requests.
