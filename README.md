@@ -41,6 +41,13 @@ fiscguy/
 | `fiscguy/zimra_receipt_handler.py` (`ZIMRAReceiptHandler`) | High-level orchestrator for fiscal documents. Generates FDMS-compliant payloads (including line/tax aggregation), calculates hash & signature strings, submits receipts via `ZIMRAClient`, maintains fiscal counters, stores QR artifacts, and differentiates between `FiscalInvoice` and `CreditNote` flows. |
 | `fiscguy/zimra_crypto.py` (`ZIMRACrypto`) | Encapsulates hashing, RSA signing, verification-code generation, and CSR/private-key provisioning. Exposes helpers to build the signature string, compute hash+signature pairs, and bootstrap device certificates during onboarding. |
 
+### Utility Helpers
+
+| Module | Purpose |
+|--------|---------|
+| `fiscguy/utils/datetime_now.py` | Provides `datetime_now()` and `date_today()` helpers that always emit timestamps in the `Africa/Harare` timezone—matching ZIMRA’s expected clock. Used across device registration, receipt payloads, and fiscal day operations. |
+| `fiscguy/utils/cert_temp_manager.py` | Manages certificate PEM material pulled from the database by writing it to thread-safe temporary files and cleaning them up once the request lifecycle ends. This underpins both `ZIMRAClient` and `ZIMRACrypto` so the library never leaves long-lived certificate files on disk. |
+
 ### How they collaborate
 1. `ZIMRAReceiptHandler.generate_receipt_data` prepares the payload and asks `ZIMRACrypto` for hash/signature material.
 2. `ZIMRAClient.submit_receipt` transports the signed payload to ZIMRA FDMS and returns the authoritative response.

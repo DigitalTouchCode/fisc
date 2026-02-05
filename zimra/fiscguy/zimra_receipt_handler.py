@@ -234,8 +234,7 @@ class ZIMRAReceiptHandler:
             dict: Response from ZIMRA
         """
         try:
-            # Submit to ZIMRA using the ZIMRA client instance. The
-            # client's `submit_receipt` returns a parsed JSON dict.
+            # Submit to ZIMRA using the ZIMRA client instance.
             if not self.client:
                 raise RuntimeError("ZIMRA client not initialised")
 
