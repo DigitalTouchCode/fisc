@@ -100,7 +100,6 @@ All endpoints live under the `fiscguy` namespace (`fiscguy/urls.py`).
       "quantity": 2,
       "unit_price": 50.0,
       "line_total": 100.0,
-      "tax_amount": 15.5,
       "tax_name": "standard rated 15.5%"
     }
   ]
@@ -114,16 +113,15 @@ All endpoints live under the `fiscguy` namespace (`fiscguy/urls.py`).
   "receipt_type": "creditnote",
   "currency": "USD",
   "total_amount": -15.0,
-  "credit_note_reference": "R-000344",
+  "credit_note_reference": "R-000344", // reference to the original invoice #receipt number
   "credit_note_reason": "cancel",
   "payment_terms": "cash",
   "lines": [
     {
-      "product": "os installation",
+      "product": "test product",
       "quantity": 1,
       "unit_price": -15.0,
       "line_total": -15.0,
-      "tax_amount": 0.0,
       "tax_name": "standard rated 15.5%"
     }
   ]
