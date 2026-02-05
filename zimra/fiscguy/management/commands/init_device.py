@@ -274,7 +274,7 @@ class Command(BaseCommand):
                         except Exception:
                             # log individual failures but continue creating
                             # remaining tax records so one bad entry doesn't
-                            # prevent the whole update.
+                            # prevent the whole update. TODO: To think of asinakupinda, (maybe open-day -< runs config -> updates again)
                             logger.exception(f"Error creating tax record for: {tax}")
             except Exception:
                 logger.exception("Failed to persist configuration and taxes")
@@ -307,7 +307,7 @@ class Command(BaseCommand):
             "certificateRequest": csr,
         }
 
-        headers = headers = {
+        headers = {
             "Content-Type": "application/json",
             "deviceModelName": model_name,
             "deviceModelVersion": model_version,
