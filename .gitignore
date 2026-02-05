@@ -67,10 +67,6 @@ coverage.xml
 *.mo
 *.pot
 
-# Flask instance folder
-instance/
-.webassets-cache
-
 # Sphinx documentation
 docs/_build/
 
@@ -103,9 +99,6 @@ fiscal.log
 *.pem
 *.key
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
 # mypy
 .mypy_cache/
 
@@ -115,11 +108,6 @@ coverage_html_report/
 # pyre
 .pyre/
 
-# Node / frontend build artifacts (if present)
-node_modules/
-npm-debug.log
-yarn-error.log
-
 # Editor swap files
 *~
 *.swp
@@ -127,5 +115,3 @@ yarn-error.log
 # Misc backups and temp files
 *.bak
 *.tmp
-
-# End of file

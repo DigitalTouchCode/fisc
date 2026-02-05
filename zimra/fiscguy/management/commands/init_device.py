@@ -55,12 +55,22 @@ class Command(BaseCommand):
     cert = Certs.objects.first()
 
     def handle(self, *args, **options):
-
+        print("\n" + "*" * 75)
+        print("*" + " " * 73 + "*")
+        print("*  ****  **  ****   ****   ****    **  **  **   **  ")
+        print("*  **    **  **     **     **      **  **  **   **  ")
+        print("*  ****  **  ****   **     ** **   **  **   *****   ")
+        print("*  **    **    **   **     **  **  **  **     **    ")
+        print("*  **    **  ****   ****   ****     ****      **    ")
+        print("*" + " " * 73 + "*")
+        print("*" * 75)
+        print("\nDeveloped by Casper Moyo Property Of DT")
+        print("Version 1.0.0\n")
         print(
             "Welcome to device registration please input the following provided information as proveded by ZIMRA\n"
         )
         environment = input(
-            "Enter yes if for production environment and no for test enviroment: "
+            "Enter yes for production environment and no for test enviroment: "
         ).strip()
         org = input("Enter your organisation name: ").strip()
         device_id = input("Enter your device ID: ").strip()
