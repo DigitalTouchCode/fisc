@@ -229,6 +229,7 @@ class Command(BaseCommand):
                     # Create a single configuration record if none exists,
                     # otherwise update the existing one in-place.
                     if not config:
+                        # TODO: to refactor to get_or_create (< if(s))
                         config = Configuration.objects.create(
                             tax_payer_name=res.get("taxPayerName", "DEFAULT TAXPAYER"),
                             tax_inclusive=True,
