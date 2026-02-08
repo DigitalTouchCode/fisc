@@ -205,12 +205,10 @@ class Command(BaseCommand):
             response.raise_for_status()
             res = response.json()
 
-            # persist configuration and taxes to the local DB
             try:
                 with transaction.atomic():
                     config = Configuration.objects.first()
 
-                    # build address string from available address fields
                     branch_addr = res.get("deviceBranchAddress") or {}
                     addr_parts = []
                     for k in ("houseNo", "street", "city", "province"):
@@ -250,10 +248,6 @@ class Command(BaseCommand):
                         config.url = res.get("qrUrl", config.url)
                         config.save()
 
-                    # Replace existing taxes with the list returned by FDMS.
-                    # Deleting and recreating ensures the local DB matches
-                    # the authoritative source. If the FDMS omits fields we
-                    # fall back to safe defaults (percent=0.0).
                     Taxes.objects.all().delete()
                     for tax in res.get("applicableTaxes", []):
                         tax_id = tax.get("taxID") or 0

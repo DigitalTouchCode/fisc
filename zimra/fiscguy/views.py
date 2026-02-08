@@ -94,8 +94,8 @@ class OpenDayView(APIView):
     """
 
     def get(self, request):
-        config_res = client.get_config()
-        create_or_update_config(config_res)
+        # config_res = client.get_config()
+        # create_or_update_config(config_res)
 
         res = client.open_day()
 
