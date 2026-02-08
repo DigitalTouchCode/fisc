@@ -70,7 +70,6 @@ class ZIMRACrypto:
                     password=self.password.encode() if self.password else None,
                     backend=default_backend(),
                 )
-            logger.info(f"Private key loaded from {self.private_key_path}")
             return self._private_key
         except FileNotFoundError:
             logger.error(f"Private key file not found at {self.private_key_path}")
@@ -217,13 +216,8 @@ class ZIMRACrypto:
             receipt_taxes, key=lambda x: (x["taxID"], x.get("taxCode", ""))
         )
 
-        logger.info(f"receipt taxes: {receipt_taxes}")
-        logger.info(f"sorted taxes: {sorted_taxes}")
-
         # Concatenate all tax lines
         tax_string = "".join(format_tax_line(tax) for tax in sorted_taxes)
-
-        logger.info(f"Tax string: {tax_string}")
 
         # Build signature components
         signature_components = [
@@ -241,7 +235,6 @@ class ZIMRACrypto:
             signature_components.append(previous_receipt_hash)
 
         signature_string = "".join(signature_components)
-        logger.info(f"Generated signature string: {signature_string}")
 
         return signature_string
 
