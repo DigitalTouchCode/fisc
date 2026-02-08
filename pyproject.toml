@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Digital Touch", email = "cassymyo@gmail.com"},
+    {name = "Casper Moyo", email = "cassymyo@gmail.com"},
 ]
 keywords = [
     "zimra",
@@ -33,7 +33,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "Django>=4.0",
+    "Django>=4.2",
     "djangorestframework>=3.14",
     "loguru>=0.7",
     "requests>=2.28",

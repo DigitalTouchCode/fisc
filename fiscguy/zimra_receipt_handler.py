@@ -4,11 +4,11 @@ Handles receipt generation, signing, and submission to ZIMRA FDMS.
 Inherits from base ZIMRA class.
 """
 
-import os
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
+from time import sleep
 
 import qrcode
 from django.core.files.base import ContentFile
@@ -20,7 +20,6 @@ from fiscguy.utils.datetime_now import datetime_now as timestamp
 from .models import FiscalCounter, FiscalDay, Receipt, Taxes
 from .zimra_base import ZIMRAClient
 from .zimra_crypto import ZIMRACrypto
-from time import sleep
 
 
 class ZIMRAReceiptHandler:
@@ -118,7 +117,8 @@ class ZIMRAReceiptHandler:
                     logger.error(f"Error auto-opening fiscal day: {e}")
                     return {"error": f"Failed to auto-open fiscal day: {str(e)}"}
                 
-            sleep(5) 
+                # Wait 5 seconds after auto opening to allow ZIMRA to process
+                sleep(5)
 
             # Containers
             receipt_lines = []
