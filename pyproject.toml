@@ -7,7 +7,7 @@ name = "fiscguy"
 version = "0.1.0"
 description = "ZIMRA Fiscal Device Integration Library - Simple and Pythonic API for ZIMRA fiscal device operations"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Digital Touch", email = "cassymyo@gmail.com"},
@@ -26,9 +26,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -80,7 +77,7 @@ fiscguy = [
 
 [tool.black]
 line-length = 100
-target-version = ['py38']
+target-version = ['py311']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -108,7 +105,6 @@ line_length = 100
 skip_glob = ["*/migrations/*"]
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "zimra.settings"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 addopts = "--cov=fiscguy --cov-report=html --cov-report=term-missing"
 testpaths = ["fiscguy/tests"]
@@ -133,7 +129,7 @@ exclude_lines = [
 ]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
