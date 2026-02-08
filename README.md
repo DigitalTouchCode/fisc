@@ -74,6 +74,22 @@ When running `python manage.py init_device`:
 
 Fiscguy is built as a Django REST Framework-first library. After device registration, integrate it into your Django project:
 
+#### Important: First Sale Automatically Opens Fiscal Day
+
+When you submit your first receipt without an open fiscal day, Fiscguy will **automatically open a new fiscal day**. This means:
+
+- You don't need to manually call `open_day()` before submitting the first receipt
+- The fiscal day will be opened silently and a 5-second delay is applied for ZIMRA processing
+- Subsequent receipts will use the already-open fiscal day
+- You only need to call `close_day()` when you're done with sales for the day
+
+**Example Flow:**
+```
+1. Submit first receipt → Fiscal day automatically opens
+2. Submit more receipts → Use the same open fiscal day
+3. Call close_day() → Close the fiscal day when done
+```
+
 #### 1. Add to Django Settings
 
 ```python

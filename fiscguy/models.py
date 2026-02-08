@@ -29,7 +29,7 @@ class Configuration(models.Model):
     email = models.EmailField()
     url = models.URLField(
         null=True, blank=True
-    )  # for zimra either testing or production
+    )  # for zimra either testing or production (the url in config its old)
 
     def __str__(self):
         return self.tax_payer_name
