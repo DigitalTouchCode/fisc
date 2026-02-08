@@ -422,26 +422,31 @@ class ZIMRAReceiptHandler:
                     )
 
                     # CreditNoteTaxByTax
-                    fiscal_counter_obj, _stbt = FiscalCounter.objects.get_or_create(
-                        fiscal_counter_type="CreditNoteTaxByTax",
-                        created_at__date=datetime.today(),
-                        fiscal_counter_currency=receipt.currency.lower(),
-                        fiscal_day=fiscal_day,
-                        defaults={
-                            "fiscal_counter_tax_percent": tax_percent,
-                            "fiscal_counter_tax_id": tax_id,
-                            "fiscal_counter_money_type": None,
-                            "fiscal_counter_value": receipt_data["receiptTaxes"][0][
-                                "taxAmount"
-                            ],
-                        },
-                    )
-
-                    if not _stbt:
-                        fiscal_counter_obj.fiscal_counter_value += Decimal(
-                            receipt_data["receiptTaxes"][0]["taxAmount"]
+                    if (
+                        tax_percent
+                        and tax_name != "exempt"
+                        and tax_name != "zero rated 0%"
+                    ):
+                        fiscal_counter_obj, _stbt = FiscalCounter.objects.get_or_create(
+                            fiscal_counter_type="CreditNoteTaxByTax",
+                            created_at__date=datetime.today(),
+                            fiscal_counter_currency=receipt.currency.lower(),
+                            fiscal_day=fiscal_day,
+                            defaults={
+                                "fiscal_counter_tax_percent": tax_percent,
+                                "fiscal_counter_tax_id": tax_id,
+                                "fiscal_counter_money_type": None,
+                                "fiscal_counter_value": receipt_data["receiptTaxes"][0][
+                                    "taxAmount"
+                                ],
+                            },
                         )
-                        fiscal_counter_obj.save()
+
+                        if not _stbt:
+                            fiscal_counter_obj.fiscal_counter_value += Decimal(
+                                receipt_data["receiptTaxes"][0]["taxAmount"]
+                            )
+                            fiscal_counter_obj.save()
 
             # Balance By Money Type counter
             fiscal_counter_bal_obj, created_bal = FiscalCounter.objects.get_or_create(
@@ -460,8 +465,7 @@ class ZIMRAReceiptHandler:
                 fiscal_counter_bal_obj.fiscal_counter_value += Decimal(
                     receipt.total_amount
                 )
-                if fiscal_counter_bal_obj.fiscal_counter_value > 0:
-                    fiscal_counter_bal_obj.save()
+                fiscal_counter_bal_obj.save()
 
         except Exception as e:
             logger.error(f"Error updating fiscal counters: {e}")

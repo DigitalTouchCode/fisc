@@ -89,7 +89,11 @@ class ClosingDayService:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
         for c in self.counters:
+            
             if c.fiscal_counter_type.lower() != "saletaxbytax":
+                continue
+
+            if c.fiscal_counter_type.lower() == "saletaxbytax" and c.fiscal_counter_value == 0:
                 continue
 
             tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
@@ -122,30 +126,6 @@ class ClosingDayService:
             )
 
         return "".join("".join(buckets[k]) for k in SALE_TAX_BY_TAX_ORDER)
-
-    def build_balance_by_money_type(self) -> str:
-        strings: List[str] = []
-
-        for c in self.counters:
-            if c.fiscal_counter_type.lower() != "balancebymoneytype":
-                continue
-
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
-
-            strings.append(
-                f"{base}{c.fiscal_counter_money_type}{self._money_value(c.fiscal_counter_value)}"
-            )
-
-            self.balance_by_money_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterMoneyType": c.fiscal_counter_money_type or 0,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
-
-        return "".join(strings)
 
     def build_credit_note_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
@@ -198,6 +178,9 @@ class ClosingDayService:
             if c.fiscal_counter_type.lower() != "creditnotetaxbytax":
                 continue
 
+            if c.fiscal_counter_type.lower() == "creditnotetaxbytax" and c.fiscal_counter_value == 0:
+                continue
+
             tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
             key: str = "zero" if "zero" in tax_name else "standard"
 
@@ -228,6 +211,34 @@ class ClosingDayService:
             )
 
         return "".join("".join(buckets[k]) for k in CREDIT_TAX_BY_TAX_ORDER)
+    
+    def build_balance_by_money_type(self) -> str:
+        strings: List[str] = []
+
+        for c in self.counters:
+
+            if c.fiscal_counter_type.lower() != "balancebymoneytype":
+                continue
+
+            if c.fiscal_counter_type.lower() == "balancebymoneytype" and c.fiscal_counter_value == 0:
+                continue
+
+            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
+
+            strings.append(
+                f"{base}{c.fiscal_counter_money_type}{self._money_value(c.fiscal_counter_value)}"
+            )
+
+            self.balance_by_money_payload.append(
+                {
+                    "fiscalCounterType": c.fiscal_counter_type,
+                    "fiscalCounterCurrency": c.fiscal_counter_currency,
+                    "fiscalCounterMoneyType": c.fiscal_counter_money_type or 0,
+                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+                }
+            )
+
+        return "".join(strings)
 
     def close_day(self) -> Tuple[str, Dict[str, Any]]:
         sale_by_tax: str = self.build_sale_by_tax()
@@ -250,8 +261,6 @@ class ClosingDayService:
         signature = self.receipt_handler.crypto.generate_receipt_hash_and_signature(
             closing_string
         )
-
-        logger.info(self.sale_tax_by_tax_payload)
 
         payload_counters = (
             self.sale_by_tax_payload
