@@ -229,15 +229,15 @@ class CloseDayTest(APILibraryTestSetup):
         mock_client.get_status.assert_called_once()
 
     def test_close_day_no_open_day_raises(self):
-        """Test that close_day raises RuntimeError if no open fiscal day."""
+        """Test that close_day returns error dict if no open fiscal day."""
         # Close the fiscal day so no open day exists
         self.fiscal_day.is_open = False
         self.fiscal_day.save()
 
-        with self.assertRaises(RuntimeError) as context:
-            api.close_day()
+        result = api.close_day()
 
-        self.assertIn("No open fiscal day", str(context.exception))
+        self.assertIn("error", result)
+        self.assertIn("No open fiscal day", result["error"])
 
     @patch("fiscguy.api.ZIMRAClient")
     def test_close_day_builds_payload_with_counters(self, mock_client_class):
