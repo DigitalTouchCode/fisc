@@ -5,17 +5,17 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
-
 from fiscguy.models import Configuration, Device, FiscalDay, Receipt, Taxes
-from fiscguy.serializers import (ConfigurationSerializer,
-                                 ReceiptCreateSerializer, ReceiptSerializer,
-                                 TaxSerializer)
-from fiscguy.utils.datetime_now import date_today as today
+from fiscguy.serializers import (
+    ConfigurationSerializer,
+    ReceiptSerializer,
+    TaxSerializer,
+)
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 from fiscguy.services.closing_day_service import ClosingDayService
 from fiscguy.services.receipt_service import ReceiptService
+from fiscguy.services.configuration_service import create_or_update_config
 
 
 client = ZIMRAClient(Device.objects.first())
@@ -23,7 +23,8 @@ receipt_handler = ZIMRAReceiptHandler()
 
 
 class ReceiptView(generics.GenericAPIView):
-    """ view to submit receipt"""
+    """view to submit receipt"""
+
     serializer_class = ReceiptSerializer
     queryset = Receipt.objects.all()
 
@@ -93,7 +94,11 @@ class OpenDayView(APIView):
     """
 
     def get(self, request):
+        config_res = client.get_config()
+        create_or_update_config(config_res)
+
         res = client.open_day()
+
         return Response(res, status=status.HTTP_200_OK)
 
 
@@ -101,9 +106,12 @@ class CloseDayView(APIView):
     """
     close day view
     """
+
     def get(self, request):
         device = Device.objects.first()
-        fiscal_day = FiscalDay.objects.filter(is_open=True).first() #circuit breaker
+        fiscal_day = FiscalDay.objects.filter(
+            is_open=True
+        ).first()  # TODO: circuit breaker
         fiscal_counters = fiscal_day.counters.all()
         tax_map = {t.tax_id: t.name for t in Taxes.objects.all()}
 
@@ -122,10 +130,7 @@ class CloseDayView(APIView):
         logger.info(f"Closing Fiscal Day string: {closing_string}")
         logger.info(f"Closing payload: {payload}")
 
-        try:
-            client.close_day(payload)
-            status_payload = client.get_status()
-        finally:
-            client.close()
+        client.close_day(payload)
+        status_payload = client.get_status()
 
         return Response(status_payload, status=status.HTTP_200_OK)

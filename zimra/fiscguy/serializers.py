@@ -99,12 +99,8 @@ class ReceiptSerializer(serializers.ModelSerializer):
 class ReceiptCreateSerializer(serializers.ModelSerializer):
     lines = ReceiptLineCreateSerializer(many=True)
 
-    credit_note_reference = serializers.CharField(
-        required=False, allow_blank=True
-    )
-    credit_note_reason = serializers.CharField(
-        required=False, allow_blank=True
-    )
+    credit_note_reference = serializers.CharField(required=False, allow_blank=True)
+    credit_note_reason = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Receipt
@@ -156,11 +152,10 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
             tax_name = line_data.pop("tax_name", None)
 
             if tax_name:
-                tax = Taxes.objects.filter(
-                    name__iexact=tax_name.strip()
-                ).first() or Taxes.objects.filter(
-                    name__icontains=tax_name.strip()
-                ).first()
+                tax = (
+                    Taxes.objects.filter(name__iexact=tax_name.strip()).first()
+                    or Taxes.objects.filter(name__icontains=tax_name.strip()).first()
+                )
 
                 if not tax:
                     raise serializers.ValidationError(
@@ -176,9 +171,6 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
                 if line_data.get("line_total", 0) > 0:
                     line_data["line_total"] *= -1
 
-            ReceiptLine.objects.create(
-                receipt=receipt,
-                **line_data
-            )
+            ReceiptLine.objects.create(receipt=receipt, **line_data)
 
         return receipt

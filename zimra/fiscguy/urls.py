@@ -1,7 +1,13 @@
 from django.urls import path
 
-from .views import (CloseDayView, ConfigurationView, GetStatusView,
-                    OpenDayView, ReceiptView, TaxView)
+from .views import (
+    CloseDayView,
+    ConfigurationView,
+    GetStatusView,
+    OpenDayView,
+    ReceiptView,
+    TaxView,
+)
 
 app_name = "fiscguy"
 

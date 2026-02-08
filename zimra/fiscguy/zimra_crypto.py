@@ -43,10 +43,9 @@ class ZIMRACrypto:
         else:
             # No cert yet, will register later
             self.private_key_path = private_key_path
-        
+
         self.password = password
         self._private_key = None
-
 
     def load_private_key(self):
         """
