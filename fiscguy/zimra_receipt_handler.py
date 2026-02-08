@@ -149,10 +149,6 @@ class ZIMRAReceiptHandler:
                         tax_percent / (float("100.00") + tax_percent)
                     )
 
-                logger.info(
-                    f"Line {index} | Price: {unit_price} | Total: {line_total} | Tax: {tax_amount}"
-                )
-
                 # Accumulate tax totals
                 key = (tax_id, tax_percent, tax_name)
                 tax_group_totals[key]["taxAmount"] += tax_amount
@@ -230,8 +226,6 @@ class ZIMRAReceiptHandler:
                 receipt_data["creditDebitNote"] = {
                     "receiptID": original_receipt.zimra_inv_id
                 }
-
-            logger.info(f"Final receipt payload: {receipt_data}")
 
             # Generate signature string
             signature_string = self.crypto.generate_receipt_signature_string(
@@ -314,10 +308,6 @@ class ZIMRAReceiptHandler:
                 "-", ""
             )
 
-            logger.info(
-                f"QR Data: {device_id}, {receipt_date}, {receipt_global_no}, {receipt_qr_data}"
-            )
-
             full_url = f"{base_url}/{device_id}{receipt_date}{receipt_global_no}{receipt_qr_data}"
 
             # Generate QR code
@@ -362,16 +352,12 @@ class ZIMRAReceiptHandler:
                 tax_amount = tax["taxAmount"]
                 sales_amount_with_tax = tax["salesAmountWithTax"]
 
-                logger.info(f"Receipt tyepe: {receipt_data['receiptType']}")
-
                 tax_name = Taxes.objects.filter(tax_id=tax_id).first().name.lower()
 
                 # dont assign for no exempt
                 tax_percent = (
                     tax.get("taxPercent") if not tax_name == "exempt" else None
                 )
-
-                logger.info(f"Updating counters - Tax percent: {tax_percent}")
 
                 if receipt_data["receiptType"].lower() == "fiscalinvoice":
                     # SaleByTax counter
