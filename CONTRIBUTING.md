@@ -10,7 +10,7 @@ Be respectful, inclusive, and professional in all interactions.
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.11+
 - Git
 - Virtual environment (recommended)
 
@@ -19,7 +19,7 @@ Be respectful, inclusive, and professional in all interactions.
 ```bash
 # Clone the repository
 git clone https://github.com/cassymyo-spec/zimra.git
-cd zimra
+cd zimra /. to change to fiscguy
 
 # Create virtual environment
 python -m venv venv
@@ -280,4 +280,4 @@ Include:
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
 
-Thank you for contributing to Fiscguy! 🎉
+Thank you for contributing to Fiscguy! 
