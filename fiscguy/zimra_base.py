@@ -25,26 +25,41 @@ class ZIMRAClient:
 
     def __init__(self, device: Device):
         self.device = device
-        self.config = Configuration.objects.first()
-        self.certs = Certs.objects.first()
+        self._config = None
+        self._certs = None
+        self._validate_config()
 
+    @property
+    def config(self):
+        if self._config is None:
+            self._config = Configuration.objects.first()
+        return self._config
+
+    @property
+    def certs(self):
+        if self._certs is None:
+            self._certs = Certs.objects.first()
+        return self._certs
+
+    def _validate_config(self):
+        """Validate that configuration exists"""
         if not self.config:
             raise RuntimeError("ZIMRA configuration missing")
 
         if self.certs:
             if self.certs.production:
                 self.base_url = (
-                    f"https://fdmsapi.zimra.co.zw/Device/v1/{device.device_id}"
+                    f"https://fdmsapi.zimra.co.zw/Device/v1/{self.device.device_id}"
                 )
                 self.public_url = (
-                    f"https://fdmsapi.zimra.co.zw/Public/v1/{device.device_id}"
+                    f"https://fdmsapi.zimra.co.zw/Public/v1/{self.device.device_id}"
                 )
             else:
                 self.base_url = (
-                    f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
+                    f"https://fdmsapitest.zimra.co.zw/Device/v1/{self.device.device_id}"
                 )
                 self.public_url = (
-                    f"https://fdmsapitest.zimra.co.zw/Public/v1/{device.device_id}"
+                    f"https://fdmsapitest.zimra.co.zw/Public/v1/{self.device.device_id}"
                 )
         else:
             self.base_url = None
@@ -76,7 +91,7 @@ class ZIMRAClient:
             }
         )
 
-        logger.info(f"ZIMRA client initialised for device {device.device_id}")
+        logger.info(f"ZIMRA client initialised for device {self.device.device_id}")
 
     def _request(self, method: str, endpoint: str, **kwargs):
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
@@ -110,7 +125,6 @@ class ZIMRAClient:
                 "success": True,
                 "message": f"Fiscal day {active_day.day_no} already open",
             }
-
         last_day = FiscalDay.objects.order_by("-id").first()
         next_day_no = last_day.day_no + 1 if last_day else 1
 
@@ -120,6 +134,7 @@ class ZIMRAClient:
         }
 
         response = self._request("POST", "openDay", json=payload).json()
+        logger.info(f"FDMS response for openDay: {response}")
 
         FiscalDay.objects.create(day_no=next_day_no, is_open=True, receipt_counter=0)
 
@@ -129,7 +144,7 @@ class ZIMRAClient:
 
         active_day = FiscalDay.objects.filter(is_open=True).first()
         if not active_day:
-            raise RuntimeError("No open fiscal day")
+            return {"error": "No open fiscal day to close"}
 
         self._request("POST", "CloseDay", data=json.dumps(payload))
 

@@ -53,8 +53,6 @@ class Command(BaseCommand):
 
     help = "Interactive registration of a new ZIMRA device"
 
-    cert = Certs.objects.first()
-
     def handle(self, *args, **options):
         print("\n" + "*" * 75)
         print("*" + " " * 73 + "*")
@@ -118,7 +116,35 @@ class Command(BaseCommand):
 
         else:
             if device.production != env:
-                print("\n___Switching device to new environment___\n")
+                print("\n" + "!" * 75)
+                print("!" + " " * 73 + "!")
+                print("!  WARNING: ENVIRONMENT SWITCH DETECTED" + " " * 33 + "!")
+                print("!" + " " * 73 + "!")
+                print("!" + " " * 73 + "!")
+                print("!  Switching from", "PRODUCTION" if device.production else "TEST", "to", "PRODUCTION" if env else "TEST" + " " * (73 - 54) + "!")
+                print("!" + " " * 73 + "!")
+                print("!  ALL TEST DATA WILL BE PERMANENTLY DELETED:" + " " * 28 + "!")
+                print("!    - Fiscal Days" + " " * 57 + "!")
+                print("!    - Fiscal Counters" + " " * 52 + "!")
+                print("!    - Receipts & Receipt Lines" + " " * 40 + "!")
+                print("!    - Device Configuration" + " " * 47 + "!")
+                print("!    - Certificates" + " " * 55 + "!")
+                print("!    - Device Record" + " " * 54 + "!")
+                print("!" + " " * 73 + "!")
+                print("!" * 75)
+                
+                confirm = input(
+                    "\nType 'YES' to confirm data deletion and switch environment, or press Enter to cancel: "
+                ).strip()
+                
+                if confirm.upper() != "YES":
+                    print("Environment switch cancelled. No data was deleted.")
+                    return
+                
+                print("\nDeleting all test data...")
+                self.delete_all_test_data()
+                print("✓ All test data has been deleted.\n")
+                
                 device.org_name = org
                 device.activation_key = activation_key
                 device.device_id = device_id
@@ -149,6 +175,69 @@ class Command(BaseCommand):
             device_id, model_name, model_version, device.production
         )
         print(zimra_config)
+
+    def delete_all_test_data(self) -> None:
+        """
+        Delete all test data when switching environments.
+        
+        Deletes in order of dependencies:
+        - Fiscal Days
+        - Fiscal Counters
+        - Receipts & Receipt Lines
+        - Configuration
+        - Certificates
+        - Device
+        - Taxes
+        
+        """
+        try:
+            from fiscguy.models import (
+                FiscalDay,
+                FiscalCounter,
+                Receipt,
+                ReceiptLine,
+                Configuration,
+            )
+            
+            with transaction.atomic():
+                # Delete in order of dependencies (child tables first)
+                logger.info("Deleting receipt lines...")
+                count = ReceiptLine.objects.all().delete()[0]
+                self.stdout.write(self.style.SUCCESS(f"  Deleted {count} receipt lines"))
+                
+                logger.info("Deleting receipts...")
+                count = Receipt.objects.all().delete()[0]
+                self.stdout.write(self.style.SUCCESS(f"  Deleted {count} receipts"))
+                
+                logger.info("Deleting fiscal counters...")
+                count = FiscalCounter.objects.all().delete()[0]
+                self.stdout.write(self.style.SUCCESS(f"  Deleted {count} fiscal counters"))
+                
+                logger.info("Deleting fiscal days...")
+                count = FiscalDay.objects.all().delete()[0]
+                self.stdout.write(self.style.SUCCESS(f"  Deleted {count} fiscal days"))
+                
+                logger.info("Deleting configuration...")
+                count = Configuration.objects.all().delete()[0]
+                self.stdout.write(self.style.SUCCESS(f"  Deleted {count} configuration records"))
+                
+                logger.info("Deleting certificates...")
+                count = Certs.objects.all().delete()[0]
+                self.stdout.write(self.style.SUCCESS(f"  Deleted {count} certificates"))
+                
+                logger.info("Deleting taxes...")
+                count = Taxes.objects.all().delete()[0]
+                self.stdout.write(self.style.SUCCESS(f"  Deleted {count} tax records"))
+                
+                logger.info("Deleting device...")
+                count = Device.objects.all().delete()[0]
+                self.stdout.write(self.style.SUCCESS(f"  Deleted {count} devices"))
+                
+                logger.info("All test data successfully deleted")
+        except Exception as e:
+            logger.exception(f"Error deleting test data: {e}")
+            self.stdout.write(self.style.ERROR(f"ERROR: Failed to delete test data: {e}"))
+            raise
 
     def get_config(
         self, device_id: str, model_name: str, model_version: str, env: bool
@@ -205,74 +294,9 @@ class Command(BaseCommand):
             response.raise_for_status()
             res = response.json()
 
-            try:
-                with transaction.atomic():
-                    config = Configuration.objects.first()
-
-                    branch_addr = res.get("deviceBranchAddress") or {}
-                    addr_parts = []
-                    for k in ("houseNo", "street", "city", "province"):
-                        v = branch_addr.get(k)
-                        if v:
-                            addr_parts.append(str(v))
-                    address_str = ", ".join(addr_parts) if addr_parts else ""
-
-                    # contact details are optional in the FDMS response
-                    contacts = res.get("deviceBranchContacts") or {}
-
-                    # Create a single configuration record if none exists,
-                    # otherwise update the existing one in-place.
-                    if not config:
-                        # TODO: to refactor to get_or_create (< if(s))
-                        config = Configuration.objects.create(
-                            tax_payer_name=res.get("taxPayerName", "DEFAULT TAXPAYER"),
-                            tax_inclusive=True,
-                            tin_number=res.get("taxPayerTIN", ""),
-                            vat_number=res.get("vatNumber", ""),
-                            address=address_str,
-                            phone_number=contacts.get("phoneNo", ""),
-                            email=contacts.get("email", ""),
-                            url=res.get("qrUrl", None),
-                        )
-                    else:
-                        config.tax_payer_name = res.get(
-                            "taxPayerName", config.tax_payer_name
-                        )
-                        config.tin_number = res.get("taxPayerTIN", config.tin_number)
-                        config.vat_number = res.get("vatNumber", config.vat_number)
-                        config.address = address_str or config.address
-                        config.phone_number = contacts.get(
-                            "phoneNo", config.phone_number
-                        )
-                        config.email = contacts.get("email", config.email)
-                        config.url = res.get("qrUrl", config.url)
-                        config.save()
-
-                    Taxes.objects.all().delete()
-                    for tax in res.get("applicableTaxes", []):
-                        tax_id = tax.get("taxID") or 0
-                        percent = tax.get("taxPercent")
-                        if percent is None:
-                            # e.g. 'Exempt' entries may have no percent
-                            percent = 0.0
-                        try:
-                            Taxes.objects.create(
-                                code=str(tax_id)[:10],
-                                name=tax.get("taxName", ""),
-                                tax_id=int(tax_id),
-                                percent=float(percent),
-                            )
-                        except Exception:
-                            # log individual failures but continue creating
-                            # remaining tax records so one bad entry doesn't
-                            # prevent the whole update. TODO: To think of asinakupinda, (maybe open-day -< runs config -> updates again)
-                            logger.exception(f"Error creating tax record for: {tax}")
-            except Exception:
-                logger.exception("Failed to persist configuration and taxes")
-
-            return res
             create_or_update_config(res)
-
+            logger.info(f"Configuration for device {device_id} updated successfully.")
+            return res
         except requests.RequestException as e:
             logger.error(f"Error fetching config: {e}")
             return None
