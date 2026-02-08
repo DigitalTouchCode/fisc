@@ -11,6 +11,7 @@ from loguru import logger
 
 from fiscguy.models import Certs, Configuration, Device, Taxes
 from fiscguy.zimra_crypto import ZIMRACrypto
+from fiscguy.services.configuration_service import create_or_update_config
 
 """
 Management command to register a ZIMRA fiscal device and fetch its
@@ -64,12 +65,12 @@ class Command(BaseCommand):
         print("*  **    **  ****   ****   ****     ****      **    ")
         print("*" + " " * 73 + "*")
         print("*" * 75)
-        print("\nDeveloped by Casper Moyo Property Of DT")
+        print("\nDeveloped by Casper Moyo")
         print("Version 1.0.0\n")
         print(
             "Welcome to device registration please input the following provided information as proveded by ZIMRA\n"
         )
-        
+
         environment = input(
             "Enter yes for production environment and no for test enviroment: "
         ).strip()
@@ -136,7 +137,6 @@ class Command(BaseCommand):
                 device.save()
                 print(f"Device {device.device_id} updated for current environment.")
 
-        # self.get_config(device_id, model_name, model_version, env)
         cert_key, csr = crypto.generate_key_and_csr(device_sn, device_id, env)
 
         # register the device and get signed certificate from ZIMRA
@@ -185,10 +185,6 @@ class Command(BaseCommand):
             "deviceModelVersion": model_version,
         }
 
-        # create temporary cert and key files separately
-        # The requests library doesn't accept certificate contents directly
-        # so we write the cert/key to a secure temporary directory and
-        # pass the file paths to requests.
         temp_dir = Path(tempfile.mkdtemp(prefix="zimra_fdms_"))
         cert_path = temp_dir / "client_cert.pem"
         key_path = temp_dir / "client_key.pem"
@@ -209,77 +205,8 @@ class Command(BaseCommand):
             response.raise_for_status()
             res = response.json()
 
-            # persist configuration and taxes to the local DB
-            try:
-                with transaction.atomic():
-                    config = Configuration.objects.first()
+            create_or_update_config(res)
 
-                    # build address string from available address fields
-                    branch_addr = res.get("deviceBranchAddress") or {}
-                    addr_parts = []
-                    for k in ("houseNo", "street", "city", "province"):
-                        v = branch_addr.get(k)
-                        if v:
-                            addr_parts.append(str(v))
-                    address_str = ", ".join(addr_parts) if addr_parts else ""
-
-                    # contact details are optional in the FDMS response
-                    contacts = res.get("deviceBranchContacts") or {}
-
-                    # Create a single configuration record if none exists,
-                    # otherwise update the existing one in-place.
-                    if not config:
-                        config = Configuration.objects.create(
-                            tax_payer_name=res.get("taxPayerName", "DEFAULT TAXPAYER"),
-                            tax_inclusive=True,
-                            tin_number=res.get("taxPayerTIN", ""),
-                            vat_number=res.get("vatNumber", ""),
-                            address=address_str,
-                            phone_number=contacts.get("phoneNo", ""),
-                            email=contacts.get("email", ""),
-                            url=res.get("qrUrl", None),
-                        )
-                    else:
-                        config.tax_payer_name = res.get(
-                            "taxPayerName", config.tax_payer_name
-                        )
-                        config.tin_number = res.get("taxPayerTIN", config.tin_number)
-                        config.vat_number = res.get("vatNumber", config.vat_number)
-                        config.address = address_str or config.address
-                        config.phone_number = contacts.get(
-                            "phoneNo", config.phone_number
-                        )
-                        config.email = contacts.get("email", config.email)
-                        config.url = res.get("qrUrl", config.url)
-                        config.save()
-
-                    # Replace existing taxes with the list returned by FDMS.
-                    # Deleting and recreating ensures the local DB matches
-                    # the authoritative source. If the FDMS omits fields we
-                    # fall back to safe defaults (percent=0.0).
-                    Taxes.objects.all().delete()
-                    for tax in res.get("applicableTaxes", []):
-                        tax_id = tax.get("taxID") or 0
-                        percent = tax.get("taxPercent")
-                        if percent is None:
-                            # e.g. 'Exempt' entries may have no percent
-                            percent = 0.0
-                        try:
-                            Taxes.objects.create(
-                                code=str(tax_id)[:10],
-                                name=tax.get("taxName", ""),
-                                tax_id=int(tax_id),
-                                percent=float(percent),
-                            )
-                        except Exception:
-                            # log individual failures but continue creating
-                            # remaining tax records so one bad entry doesn't
-                            # prevent the whole update.
-                            logger.exception(f"Error creating tax record for: {tax}")
-            except Exception:
-                logger.exception("Failed to persist configuration and taxes")
-
-            return res
         except requests.RequestException as e:
             logger.error(f"Error fetching config: {e}")
             return None

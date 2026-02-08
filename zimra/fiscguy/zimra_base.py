@@ -33,15 +33,23 @@ class ZIMRAClient:
 
         if self.certs:
             if self.certs.production:
-                self.base_url = f"https://fdmsapi.zimra.co.zw/Device/v1/{device.device_id}"
-                self.public_url = f"https://fdmsapi.zimra.co.zw/Public/v1/{device.device_id}"
+                self.base_url = (
+                    f"https://fdmsapi.zimra.co.zw/Device/v1/{device.device_id}"
+                )
+                self.public_url = (
+                    f"https://fdmsapi.zimra.co.zw/Public/v1/{device.device_id}"
+                )
             else:
-                self.base_url = f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
-                self.public_url = f"https://fdmsapitest.zimra.co.zw/Public/v1/{device.device_id}"
+                self.base_url = (
+                    f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
+                )
+                self.public_url = (
+                    f"https://fdmsapitest.zimra.co.zw/Public/v1/{device.device_id}"
+                )
         else:
             self.base_url = None
             self.public_url = None
-        
+
         self._lock = threading.Lock()
         self._temp_dir = Path(tempfile.mkdtemp(prefix="zimra_fdms_"))
         self._pem_path = self._temp_dir / "client.pem"
@@ -141,7 +149,7 @@ class ZIMRAClient:
         }
 
         logger.info(f"Submitting receipt: {receipt_payload}")
-        
+
         return self._request("POST", "SubmitReceipt", json=receipt_payload).json()
 
     def close(self):

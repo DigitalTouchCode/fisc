@@ -115,3 +115,5 @@ coverage_html_report/
 # Misc backups and temp files
 *.bak
 *.tmp
+
+test_m.py

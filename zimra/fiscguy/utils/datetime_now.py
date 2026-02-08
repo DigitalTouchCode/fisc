@@ -8,7 +8,6 @@ def datetime_now():
         .replace(microsecond=0)
         .strftime("%Y-%m-%dT%H:%M:%S")
     )
-
     return timestamp
 
 
