@@ -316,7 +316,7 @@ MIT License
 
 ## Support
 
-- Email: fiscal@example.com
+- Email: cassymyo@gmail.com
 - Issues: https://github.com/cassymyo-spec/zimra/issues
 - Documentation: See README.md, INSTALL.md, QUICKREF.md
 
