@@ -20,9 +20,7 @@ from fiscguy.utils.datetime_now import datetime_now as timestamp
 from .models import FiscalCounter, FiscalDay, Receipt, Taxes
 from .zimra_base import ZIMRAClient
 from .zimra_crypto import ZIMRACrypto
-
-device = Device.objects.first()
-certs = Certs.objects.first()
+from time import sleep
 
 
 class ZIMRAReceiptHandler:
@@ -41,14 +39,32 @@ class ZIMRAReceiptHandler:
     def __init__(self):
         """Initialize receipt handler with crypto utilities"""
         super().__init__()
-        try:
-            self.client = ZIMRAClient(device)
-        except Exception:
-            self.client = None
-
-        self.device = device
+        self._device = None
+        self._certs = None
+        self._client = None
         self.crypto = ZIMRACrypto()
         logger.info("ZIMRAReceiptHandler initialized")
+
+    @property
+    def device(self):
+        if self._device is None:
+            self._device = Device.objects.first()
+        return self._device
+
+    @property
+    def certs(self):
+        if self._certs is None:
+            self._certs = Certs.objects.first()
+        return self._certs
+
+    @property
+    def client(self):
+        if self._client is None:
+            try:
+                self._client = ZIMRAClient(self.device)
+            except Exception:
+                self._client = None
+        return self._client
 
     def _get_receipt_global_number(self, receipt):
         """
@@ -87,10 +103,22 @@ class ZIMRAReceiptHandler:
                 .first()
             )
 
-            # Fiscal day
+            # Fiscal day - auto-open if straight sell
             fiscal_day = FiscalDay.objects.filter(is_open=True).first()
             if not fiscal_day:
-                return {"error": "No fiscal day open"}
+                logger.info("No fiscal day open, auto-opening a new fiscal day")
+                try:
+                    open_day_result = self.client.open_day() if self.client else None
+                    if not open_day_result or open_day_result.get("error"):
+                        return {"error": "Failed to auto-open fiscal day"}
+                    fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+                    if not fiscal_day:
+                        return {"error": "No fiscal day open"}
+                except Exception as e:
+                    logger.error(f"Error auto-opening fiscal day: {e}")
+                    return {"error": f"Failed to auto-open fiscal day: {str(e)}"}
+                
+            sleep(5) 
 
             # Containers
             receipt_lines = []
@@ -272,12 +300,12 @@ class ZIMRAReceiptHandler:
         try:
 
             base_url = (
-                f"https://fdmsapi.zimra.co.zw/Device/v1/{device.device_id}"
-                if certs.production
-                else f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
+                f"https://fdmsapi.zimra.co.zw/Device/v1/{self.device.device_id}"
+                if self.certs.production
+                else f"https://fdmsapitest.zimra.co.zw/Device/v1/{self.device.device_id}"
             )
 
-            device_id = f"00000{device.device_id}"
+            device_id = f"00000{self.device.device_id}"
             receipt_date = datetime.strptime(
                 receipt_data["receiptDate"], "%Y-%m-%dT%H:%M:%S"
             ).strftime("%d%m%Y")

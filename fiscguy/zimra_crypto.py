@@ -36,16 +36,25 @@ class ZIMRACrypto:
             private_key_path (str): Path to private key file
             password (str): Password for private key (if encrypted)
         """
-        c = Certs.objects.first()
-        if c:
-            cert_manager = CertTempManager(c.certificate, c.certificate_key)
-            self.private_key_path = cert_manager._key_path
-        else:
-            # No cert yet, will register later
-            self.private_key_path = private_key_path
-
+        self._cert_manager = None
+        self._private_key_path_provided = private_key_path
         self.password = password
         self._private_key = None
+
+    @property
+    def private_key_path(self):
+        if self._cert_manager is None:
+            c = Certs.objects.first()
+            if c:
+                self._cert_manager = CertTempManager(c.certificate, c.certificate_key)
+            elif self._private_key_path_provided:
+                self._cert_manager = self._private_key_path_provided
+            else:
+                return None
+        
+        if isinstance(self._cert_manager, CertTempManager):
+            return self._cert_manager._key_path
+        return self._cert_manager
 
     def load_private_key(self):
         """

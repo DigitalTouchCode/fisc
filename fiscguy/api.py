@@ -44,6 +44,7 @@ def _get_client() -> ZIMRAClient:
     global _client
     if _client is None:
         device = _get_device()
+        logger.info(f"Initializing ZIMRA client for device {device}")
         _client = ZIMRAClient(device)
     return _client
 
@@ -111,7 +112,7 @@ def close_day() -> Dict[str, Any]:
     # Get open fiscal day
     fiscal_day = FiscalDay.objects.filter(is_open=True).first()
     if not fiscal_day:
-        raise RuntimeError("No open fiscal day to close")
+        return {"error": "No open fiscal day to close"}
 
     # Collect counters and build closing payload
     fiscal_counters = fiscal_day.counters.all()
@@ -133,7 +134,7 @@ def close_day() -> Dict[str, Any]:
     logger.info(f"Closing payload: {payload}")
 
     # Submit to ZIMRA and fetch final status
-    client.close_day(**payload)
+    client.close_day(payload)
     status_payload = client.get_status()
 
     return status_payload
