@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Casper Moyo", email = "cassymyo@gmail.com"},
+    {name = "Casper MoyO", email = "cassymyo@gmail.com"},
 ]
 keywords = [
     "zimra",
