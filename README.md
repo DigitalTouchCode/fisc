@@ -70,168 +70,103 @@ When running `python manage.py init_device`:
 4. Review the warning carefully
 5. Type `YES` to confirm deletion and switch
 
-### Using the Library
+### Using Fiscguy with Django REST Framework
 
-Once your device is registered, you can use the library:
+Fiscguy is built as a Django REST Framework-first library. After device registration, integrate it into your Django project:
 
-```python
-from fiscguy import (
-    open_day,
-    close_day,
-    submit_receipt,
-    get_status,
-    get_configuration,
-    get_taxes,
-)
-
-# Check device status
-status = get_status()
-print(f"Device: {status['device_id']}, Counter: {status['counter']}")
-
-# Open a fiscal day
-result = open_day()
-print(f"Day opened: {result['fiscal_day_number']}")
-
-# Submit a receipt
-receipt_data = {
-    "receipt_type": "fiscalinvoice",
-    "currency": "USD",
-    "total_amount": "100.00",
-    "payment_terms": "cash",
-    "lines": [
-        {
-            "product": "Test Item",
-            "quantity": "1",
-            "unit_price": "100.00",
-            "line_total": "100.00",
-            "tax_amount": "15.50",
-            "tax_name": "standard rated 15.5%",
-        }
-    ],
-    "buyer": 1,
-}
-
-result = submit_receipt(receipt_data)
-print(f"Receipt submitted: {result['receiptID']}")
-
-# Close the fiscal day
-result = close_day()
-print(f"Day closed, signature: {result['signature'][:20]}...")
-```
-
-## API Reference
-
-### `open_day() -> Dict[str, Any]`
-
-Open a new fiscal day.
-
-**Returns:**
-- `fiscal_day_number`: The fiscal day number
-- `fiscal_day_date`: The date the day was opened (ISO format)
-- `message`: Status message (if day already open)
-
-**Raises:**
-- `RuntimeError`: If no device is registered
-
-### `close_day() -> Dict[str, Any]`
-
-Close the currently open fiscal day.
-
-**Returns:**
-- `signature`: Device signature for the fiscal day
-- `closing_string`: Raw closing day string
-
-**Raises:**
-- `RuntimeError`: If no device or no open fiscal day exists
-
-### `submit_receipt(receipt_data: Dict[str, Any]) -> Dict[str, Any]`
-
-Create and submit a receipt to ZIMRA.
-
-**Parameters:**
-- `receipt_data`: Receipt dictionary with required fields:
-  - `receipt_type`: "fiscalinvoice" or "creditnote"
-  - `currency`: "USD", "ZWL", etc.
-  - `total_amount`: Total amount (string or Decimal)
-  - `payment_terms`: "cash", "cheque", "card", etc.
-  - `lines`: List of line items
-  - `buyer`: Buyer ID (integer)
-
-**Line Item Structure:**
-```python
-{
-    "product": "Product name",
-    "quantity": "1",
-    "unit_price": "100.00",
-    "line_total": "100.00",
-    "tax_amount": "15.50",
-    "tax_name": "standard rated 15.5%",
-}
-```
-
-**Returns:**
-- `receiptID`: ZIMRA receipt ID
-- `receipt_data`: Full receipt data
-
-**Raises:**
-- `ValidationError`: If tax_name doesn't match any database tax
-- `RuntimeError`: If submission to ZIMRA fails
-
-### `get_status() -> Dict[str, Any]`
-
-Get current device and fiscal status.
-
-**Returns:**
-- `device_id`: Device identifier
-- `counter`: Global receipt counter
-- `fiscal_day`: Current fiscal day number (or null if none open)
-- `fiscal_day_status`: Status of fiscal day
-
-### `get_configuration() -> Dict[str, Any]`
-
-Fetch device configuration from the database.
-
-**Returns:**
-- Dictionary with configuration fields
-- Empty dict if no configuration exists
-
-### `get_taxes() -> List[Dict[str, Any]]`
-
-Fetch all configured tax types.
-
-**Returns:**
-- List of tax dictionaries with fields: `code`, `name`, `percent`, `tax_id`
-
-## Django Integration
-
-Fiscguy is built on Django ORM. To use in a Django project:
-
-1. Add to `INSTALLED_APPS` in settings:
+#### 1. Add to Django Settings
 
 ```python
+# settings.py
 INSTALLED_APPS = [
-    ...
-    "fiscguy",
-    "rest_framework",
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    
+    'rest_framework',
+    'fiscguy',  # Add fiscguy here
 ]
 ```
 
-2. Run migrations:
+#### 2. Make Migrations
+
+Create migration files for fiscguy models:
+
+```bash
+python manage.py makemigrations fiscguy
+```
+
+#### 3. Migrate the Database
+
+Apply migrations to your database:
 
 ```bash
 python manage.py migrate fiscguy
 ```
 
-3. Initialize a device:
+#### 4. Include fiscguy URLs in Your Project
 
-```bash
-python manage.py init_device
-```
-
-4. Use the library:
+Add fiscguy URL endpoints to your Django project:
 
 ```python
-from fiscguy import open_day, submit_receipt
+# urls.py
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/', include('fiscguy.urls')),  # Add this line
+]
+```
+
+#### 5. Access API Endpoints
+
+Fiscguy provides the following REST API endpoints:
+
+- `POST /api/open_day/` - Open a new fiscal day
+- `POST /api/close_day/` - Close the current fiscal day
+- `POST /api/receipts/` - Create and submit a receipt
+- `GET /api/status/` - Get device and fiscal status
+- `GET /api/configuration/` - Get device configuration
+- `GET /api/taxes/` - Get available tax types
+- `GET /api/receipts/` - List all receipts
+- `GET /api/receipts/{id}/` - Get receipt details
+
+#### Example API Requests
+
+**Open a Fiscal Day:**
+```bash
+curl -X POST http://localhost:8000/api/open_day/ \
+  -H "Content-Type: application/json"
+```
+
+**Submit a Receipt:**
+```bash
+curl -X POST http://localhost:8000/api/receipts/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receipt_type": "fiscalinvoice",
+    "currency": "USD",
+    "total_amount": "100.00",
+    "payment_terms": "cash",
+    "lines": [
+      {
+        "product": "Test Item",
+        "quantity": 1,
+        "unit_price": "100.00",
+        "tax_name": "standard rated 15.5%"
+      }
+    ]
+  }'
+```
+
+**Get Device Status:**
+```bash
+curl -X GET http://localhost:8000/api/status/ \
+  -H "Content-Type: application/json"
 ```
 
 ## Models
