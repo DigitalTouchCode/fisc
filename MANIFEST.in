@@ -1,0 +1,16 @@
+include README.md
+include LICENSE
+include pyproject.toml
+include requirements.txt
+include requirements-dev.txt
+
+recursive-include fiscguy *.py
+recursive-include fiscguy *.sql
+recursive-include fiscguy/migrations *.py
+recursive-include fiscguy/management *.py
+recursive-include fiscguy/tests *.py
+
+global-exclude __pycache__
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude .DS_Store

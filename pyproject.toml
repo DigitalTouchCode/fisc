@@ -1,0 +1,162 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fiscguy"
+version = "0.1.0"
+description = "ZIMRA Fiscal Device Integration Library - Simple and Pythonic API for ZIMRA fiscal device operations"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Digital Touch", email = "cassymyo@gmail.com"},
+]
+keywords = [
+    "zimra",
+    "fiscal",
+    "device",
+    "receipt",
+    "invoicing",
+    "zimbabwe",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "Django>=4.0",
+    "djangorestframework>=3.14",
+    "loguru>=0.7",
+    "requests>=2.28",
+    "cryptography>=38.0",
+    "qrcode>=7.4",
+    "Pillow>=9.0",
+    "python-dotenv>=0.19",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-django>=4.5",
+    "pytest-cov>=4.0",
+    "black>=22.0",
+    "isort>=5.11",
+    "flake8>=4.0",
+    "pylint>=2.15",
+    "mypy>=0.990",
+    "django-stubs>=1.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/cassymyo-spec/zimra"
+Documentation = "https://github.com/cassymyo-spec/zimra#readme"
+Repository = "https://github.com/cassymyo-spec/zimra.git"
+Issues = "https://github.com/cassymyo-spec/zimra/issues"
+
+[tool.setuptools]
+packages = ["fiscguy"]
+
+[tool.setuptools.package-data]
+fiscguy = [
+    "py.typed",
+    "management/commands/*.py",
+    "migrations/*.py",
+    "utils/*.py",
+    "services/*.py",
+    "tests/*.py",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_mode = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+line_length = 100
+skip_glob = ["*/migrations/*"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "zimra.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+addopts = "--cov=fiscguy --cov-report=html --cov-report=term-missing"
+testpaths = ["fiscguy/tests"]
+
+[tool.coverage.run]
+source = ["fiscguy"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "if typing.TYPE_CHECKING:",
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+files = ["fiscguy"]
+exclude = ["*/migrations/", "*/tests/"]
+
+[[tool.mypy.overrides]]
+module = "fiscguy.migrations.*"
+ignore_errors = true
+
+[tool.pylint.messages_control]
+disable = [
+    "C0103",
+    "C0302",
+    "R0913",
+    "W0212",
+]
+
+[tool.pylint.format]
+max-line-length = 100

@@ -1,1 +1,20 @@
+# Development dependencies
 -r requirements.txt
+
+# Testing
+pytest>=7.0
+pytest-django>=4.5
+pytest-cov>=4.0
+mock>=4.0
+
+# Code quality
+black>=22.0
+isort>=5.11
+flake8>=4.0
+pylint>=2.15
+mypy>=0.990
+django-stubs>=1.12
+
+# Documentation
+sphinx>=4.5
+sphinx-rtd-theme>=1.0

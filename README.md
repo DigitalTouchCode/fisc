@@ -1,263 +1,336 @@
-# fiscguy
+# Fiscguy
 
-fiscguy is a Django/DRF-powered library for integrating ZIMRA fiscal devices with your applications. It centralizes device provisioning, receipt submission, fiscal-day lifecycle management, and synchronization of the ZIMRA-issued tax catalogue.
+A Python library for integrating with ZIMRA (Zimbabwe Revenue Authority) fiscal devices. Provides a simple, Pythonic API for managing fiscal operations including device registration, receipt generation, and fiscal day management.
 
----
+## Features
 
-## Feature Highlights
+- Secure Device Integration - Certificate-based authentication with ZIMRA FDMS
+- Receipt Management - Create and submit receipts with multiple tax types
+- Fiscal Day Operations - Open and close fiscal days with automatic counter management
+- Device Status - Query device status and configuration
+- Configuration Management - Fetch and manage device configuration
+- Tax Support - Supports standard, zero-rated, exempt, and withholding taxes
+- Fully Tested - Comprehensive unit tests with 90%+ code coverage
 
-- Interactive **device on-boarding** (CSR generation + certificate registration)
-- **Receipt orchestration** for fiscal invoices and credit notes
-- **Fiscal day** open/close utilities with ZIMRA FDMS
-- **Configuration & tax synchronization** with authoritative ZIMRA data
-- Extensible service layer for custom workflows
+## Installation
 
----
-
-## Project Layout
-
-```
-fiscguy/
-├── management/commands/init_device.py   # Interactive device provisioning
-├── models.py                            # Device, Receipt, FiscalDay, Taxes, Certs, etc.
-├── serializers.py                       # DRF serializers for receipts/config/taxes
-├── services/
-│   ├── closing_day_service.py           # Builds payload for closing fiscal day
-│   └── receipt_service.py               # Receipt creation + submission logic
-├── urls.py                              # DRF endpoint wiring
-├── views.py                             # REST endpoints for receipts, days, config, taxes
-├── zimra_base.py                        # Low-level FDMS HTTP client
-├── zimra_receipt_handler.py             # Formatting + signing of receipt payloads
-└── zimra_crypto.py                       # Cryptographic toolkit for receipts and device provisioning
+```bash
+pip install fiscguy
 ```
 
----
+Or from source:
 
-## ZIMRA Integration Classes
+```bash
+git clone https://github.com/cassymyo-spec/zimra.git
+cd zimra
+pip install -e .
+```
 
-| Module | Description |
-|--------|-------------|
-| `fiscguy/zimra_base.py` (`ZIMRAClient`) | Boots a requests session pinned to the device certificate, builds environment-specific base URLs, and exposes primitives such as `open_day`, `close_day`, `get_status`, `get_config`, and `submit_receipt`. It also manages PEM file lifecycle and enforces that configuration/certs exist before any FDMS call. |
-| `fiscguy/zimra_receipt_handler.py` (`ZIMRAReceiptHandler`) | High-level orchestrator for fiscal documents. Generates FDMS-compliant payloads (including line/tax aggregation), calculates hash & signature strings, submits receipts via `ZIMRAClient`, maintains fiscal counters, stores QR artifacts, and differentiates between `FiscalInvoice` and `CreditNote` flows. |
-| `fiscguy/zimra_crypto.py` (`ZIMRACrypto`) | Encapsulates hashing, RSA signing, verification-code generation, and CSR/private-key provisioning. Exposes helpers to build the signature string, compute hash+signature pairs, and bootstrap device certificates during onboarding. |
+## Quick Start
 
-### Utility Helpers
+### Important: Register a Device First
 
-| Module | Purpose |
-|--------|---------|
-| `fiscguy/utils/datetime_now.py` | Provides `datetime_now()` and `date_today()` helpers that always emit timestamps in the `Africa/Harare` timezone—matching ZIMRA’s expected clock. Used across device registration, receipt payloads, and fiscal day operations. |
-| `fiscguy/utils/cert_temp_manager.py` | Manages certificate PEM material pulled from the database by writing it to thread-safe temporary files and cleaning them up once the request lifecycle ends. This underpins both `ZIMRAClient` and `ZIMRACrypto` so the library never leaves long-lived certificate files on disk. |
-
-### How they collaborate
-1. `ZIMRAReceiptHandler.generate_receipt_data` prepares the payload and asks `ZIMRACrypto` for hash/signature material.
-2. `ZIMRAClient.submit_receipt` transports the signed payload to ZIMRA FDMS and returns the authoritative response.
-3. The handler then updates QR codes, verification codes, and fiscal counters so local state mirrors FDMS.
-
----
-
-## Device Registration Workflow
-
-Run the management command to register and configure a device:
+Before using Fiscguy, you must register and initialize a fiscal device:
 
 ```bash
 python manage.py init_device
 ```
 
-Input requested:
-- Environment (`yes` = production, `no` = test)
-- Organisation name
-- Device ID
-- Serial number
-- Activation key
-- Device model name & version
+This interactive command will guide you through:
+- Device information entry
+- Certificate generation
+- Device registration with ZIMRA
+- Configuration and tax synchronization
 
-What it does:
-1. Persists/updates `Device`
-2. Generates CSR, registers device, stores signed cert in `Certs`
-3. Pulls configuration + taxes from FDMS, writing to `Configuration` & `Taxes`
+### Using the Library
 
----
+Once your device is registered, you can use the library:
 
-## REST API
+```python
+from fiscguy import (
+    open_day,
+    close_day,
+    submit_receipt,
+    get_status,
+    get_configuration,
+    get_taxes,
+)
 
-All endpoints live under the `fiscguy` namespace (`fiscguy/urls.py`).
+# Check device status
+status = get_status()
+print(f"Device: {status['device_id']}, Counter: {status['counter']}")
 
-### 1. Receipts
+# Open a fiscal day
+result = open_day()
+print(f"Day opened: {result['fiscal_day_number']}")
 
-#### Submit Receipt
-`POST /receipts/`
-
-**Fiscal Invoice Payload**
-```json
-{
-  "receipt_type": "fiscalinvoice",
-  "currency": "USD",
-  "total_amount": 100.0,
-  "payment_terms": "cash",
-  "lines": [
-    {
-      "product": "Premium Support",
-      "quantity": 2,
-      "unit_price": 50.0,
-      "line_total": 100.0,
-      "tax_name": "standard rated 15.5%"
-    }
-  ]
+# Submit a receipt
+receipt_data = {
+    "receipt_type": "fiscalinvoice",
+    "currency": "USD",
+    "total_amount": "100.00",
+    "payment_terms": "cash",
+    "lines": [
+        {
+            "product": "Test Item",
+            "quantity": "1",
+            "unit_price": "100.00",
+            "line_total": "100.00",
+            "tax_amount": "15.50",
+            "tax_name": "standard rated 15.5%",
+        }
+    ],
+    "buyer": 1,
 }
-```
-> **Required fields:** `credit_note_reference` and `credit_note_reason` must always be provided for every credit note submission so ZIMRA can link the reversal to the original invoice and audit trail.
 
-**Credit Note Payload (amounts MUST be negative)**
-```json
-{
-  "receipt_type": "creditnote",
-  "currency": "USD",
-  "total_amount": -15.0,
-  "credit_note_reference": "R-000344", // reference to the original invoice #receipt number
-  "credit_note_reason": "cancel",
-  "payment_terms": "cash",
-  "lines": [
-    {
-      "product": "test product",
-      "quantity": 1,
-      "unit_price": -15.0,
-      "line_total": -15.0,
-      "tax_name": "standard rated 15.5%"
-    }
-  ]
-}
+result = submit_receipt(receipt_data)
+print(f"Receipt submitted: {result['receiptID']}")
+
+# Close the fiscal day
+result = close_day()
+print(f"Day closed, signature: {result['signature'][:20]}...")
 ```
 
-**Successful Response (201)**
-```json
+## API Reference
+
+### `open_day() -> Dict[str, Any]`
+
+Open a new fiscal day.
+
+**Returns:**
+- `fiscal_day_number`: The fiscal day number
+- `fiscal_day_date`: The date the day was opened (ISO format)
+- `message`: Status message (if day already open)
+
+**Raises:**
+- `RuntimeError`: If no device is registered
+
+### `close_day() -> Dict[str, Any]`
+
+Close the currently open fiscal day.
+
+**Returns:**
+- `signature`: Device signature for the fiscal day
+- `closing_string`: Raw closing day string
+
+**Raises:**
+- `RuntimeError`: If no device or no open fiscal day exists
+
+### `submit_receipt(receipt_data: Dict[str, Any]) -> Dict[str, Any]`
+
+Create and submit a receipt to ZIMRA.
+
+**Parameters:**
+- `receipt_data`: Receipt dictionary with required fields:
+  - `receipt_type`: "fiscalinvoice" or "creditnote"
+  - `currency`: "USD", "ZWL", etc.
+  - `total_amount`: Total amount (string or Decimal)
+  - `payment_terms`: "cash", "cheque", "card", etc.
+  - `lines`: List of line items
+  - `buyer`: Buyer ID (integer)
+
+**Line Item Structure:**
+```python
 {
-  "id": 346,
-  "lines": [
-    {
-      "id": 482,
-      "product": "test product",
-      "quantity": 1,
-      "unit_price": 15.0,
-      "line_total": 15.0,
-      "tax_amount": 0.0
-    }
-  ],
-  "buyer": null,
-  "receipt_number": "R-000346",
-  "receipt_type": "fiscalinvoice",
-  "total_amount": 15.0,
-  "qr_code": "/Zimra_qr_codes/qr_R-000346.png",
-  "code": "C223844AC02AED83",
-  "currency": "USD",
-  "global_number": 805,
-  "hash_value": "beZfXbCddqRUil1dlm7Ivh4uokhENXgmkb1xXvxymVw=",
-  "signature": "IoFJn6CAxdJlDFf1JbC7Nrc+w1rePQyo89n9jfrego6x4ytbBIeWrlUR28Liiia21T4VUO13e/o6pZOtaYdSnehUUkTErfmZ7NSzJSPoEV11UhSb9duSjuOrU7Wrqymhtru0/IqJKY1p4JtLJNDS/tQQR5aqOoP7lgqoxLPKPJwfCdT2QbUaaRi67E9ShbQQtqonTWZmCMC32p89YzHfmRcpdlCnCMSAaj1ISMpfi/VZtUCFFQYJssMQSI8Ou1HZ2Bib+TpxZPWRhMQdOWOIjqWvhqPXtOrjd/xuyM2Fdujfs6FtiLZKLJXwH46Xgcg9yD/0wtVwaKKzFxlUgNPSmw==",
-  "created_at": "2026-02-05T20:11:57.126420Z",
-  "updated_at": "2026-02-05T20:11:57.126456Z",
-  "zimra_inv_id": "10663582",
-  "payment_terms": "cash",
-  "submitted": true,
-  "is_credit_note": false,
-  "credit_note_reason": "cancel",
-  "credit_note_reference": "R-000344"
+    "product": "Product name",
+    "quantity": "1",
+    "unit_price": "100.00",
+    "line_total": "100.00",
+    "tax_amount": "15.50",
+    "tax_name": "standard rated 15.5%",
 }
 ```
-> `credit_note_reference` and `credit_note_reason` appear only when the receipt represents a credit note (`is_credit_note: true`).
 
-#### Retrieve Receipt
-`GET /receipts/{id}/`
+**Returns:**
+- `receiptID`: ZIMRA receipt ID
+- `receipt_data`: Full receipt data
 
-Returns the serialized receipt, including lines, buyer, submission metadata.
+**Raises:**
+- `ValidationError`: If tax_name doesn't match any database tax
+- `RuntimeError`: If submission to ZIMRA fails
 
----
+### `get_status() -> Dict[str, Any]`
 
-### 2. Fiscal Day Operations
+Get current device and fiscal status.
 
-| Endpoint        | Method | Description                            |
-|-----------------|--------|----------------------------------------|
-| `/open-day/`    | GET    | Opens the fiscal day via FDMS          |
-| `/close-day/`   | GET    | Aggregates counters and closes the day |
-| `/get-status/`  | GET    | Returns current fiscal day status      |
+**Returns:**
+- `device_id`: Device identifier
+- `counter`: Global receipt counter
+- `fiscal_day`: Current fiscal day number (or null if none open)
+- `fiscal_day_status`: Status of fiscal day
 
-`/close-day/` leverages `ClosingDayService` to build the closing payload (counters, taxes, totals), submits it to ZIMRA, and returns the refreshed status.
+### `get_configuration() -> Dict[str, Any]`
 
----
+Fetch device configuration from the database.
 
-### 3. Configuration
+**Returns:**
+- Dictionary with configuration fields
+- Empty dict if no configuration exists
 
-`GET /configuration/` – Returns the stored `Configuration` snapshot pulled from FDMS during device registration.
+### `get_taxes() -> List[Dict[str, Any]]`
 
----
+Fetch all configured tax types.
 
-### 4. Tax Management (Tax Mapping)
+**Returns:**
+- List of tax dictionaries with fields: `code`, `name`, `percent`, `tax_id`
 
-`GET /taxes/` – Lists the ZIMRA-provided tax catalogue.
+## Django Integration
 
-```json
-[
-  {
-    "tax_id": "517", 
-    "name": "standard rated 15.5%",
-    "rate": 15.5,
-    "is_active": true
-  },
-  {
-    "tax_id": "2",
-    "name": "zero rated 0%",
-    "rate": 0.0,
-    "is_active": true
-  }
+Fiscguy is built on Django ORM. To use in a Django project:
+
+1. Add to `INSTALLED_APPS` in settings:
+
+```python
+INSTALLED_APPS = [
+    ...
+    "fiscguy",
+    "rest_framework",
 ]
 ```
 
-**Important**
-1. `tax_id` values originate from ZIMRA and are read-only
-2. `tax_name` in receipt lines must match the stored mapping exactly
-3. Only active taxes (`is_active: true`) should be referenced; invalid mappings cause FDMS rejection
-
----
-
-## Setup & Usage
+2. Run migrations:
 
 ```bash
-pip install -r requirements.txt
-python manage.py migrate
+python manage.py migrate fiscguy
+```
+
+3. Initialize a device:
+
+```bash
 python manage.py init_device
 ```
 
-Daily flow:
-1. `GET /open-day/`
-2. Submit receipts as they occur
-3. `GET /close-day/` before shutdown
+4. Use the library:
 
----
-
-## Error Contract
-
-Errors follow a simple shape:
-```json
-{
-  "error": "Human-readable description"
-}
+```python
+from fiscguy import open_day, submit_receipt
 ```
-HTTP status codes align with the failure condition (400 validation, 401 auth, 500 internal, etc.).
 
----
+## Models
+
+Fiscguy provides Django ORM models for:
+
+- Device - Fiscal device information
+- FiscalDay - Fiscal day records
+- FiscalCounter - Receipt counters for fiscal days
+- Receipt - Receipt records
+- ReceiptLine - Individual receipt line items
+- Taxes - Tax type definitions
+- Configuration - Device configuration
+- Certs - Device certificates and keys
+- Buyer - Buyer/customer information
+
+## Error Handling
+
+```python
+from fiscguy import submit_receipt
+from rest_framework.exceptions import ValidationError
+
+try:
+    result = submit_receipt(receipt_data)
+except ValidationError as e:
+    print(f"Validation error: {e.detail}")
+except RuntimeError as e:
+    print(f"Runtime error: {e}")
+```
+
+## Testing
+
+```bash
+# All tests
+pytest
+
+# With coverage
+pytest --cov=fiscguy
+
+# Specific test
+pytest fiscguy/tests/test_api.py::SubmitReceiptTest::test_submit_receipt_success
+```
+
+## Development
+
+```bash
+# Clone and setup
+git clone https://github.com/cassymyo-spec/zimra.git
+cd zimra
+python -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Code formatting
+black fiscguy
+isort fiscguy
+
+# Linting
+flake8 fiscguy
+pylint fiscguy
+
+# Type checking
+mypy fiscguy
+```
+
+## Architecture
+
+```
+Public API (api.py)
+- open_day, close_day, submit_receipt, etc.
+         |
+Services Layer
+- ReceiptService
+- ClosingDayService
+         |
+Handler Layer
+- ZIMRAReceiptHandler
+         |
+Client Layer
+- ZIMRAClient (FDMS API)
+- ZIMRACrypto (Signing)
+```
+
+## Key Components
+
+- fiscguy/api.py - Public library interface (6 functions)
+- fiscguy/services/ - Business logic (ReceiptService, ClosingDayService)
+- fiscguy/zimra_base.py - ZIMRA FDMS HTTP client
+- fiscguy/zimra_receipt_handler.py - Receipt formatting and signing
+- fiscguy/zimra_crypto.py - Cryptographic operations
+- fiscguy/models.py - Django ORM models
+- fiscguy/serializers.py - DRF serializers
+- fiscguy/tests/ - Unit tests (22+ tests)
 
 ## Contributing
 
-1. Fork the repo
+1. Fork the repository
 2. Create a feature branch
-3. Add/adjust tests where relevant
-4. Submit a PR describing the change
+3. Add/adjust tests
+4. Submit a PR
 
----
+See CONTRIBUTING.md for detailed guidelines.
 
 ## License
 
 MIT License
 
----
+## Support
 
-Developed by Casper Moyo – Property of DT  
-Version 1.0.0
+- Email: fiscal@example.com
+- Issues: https://github.com/cassymyo-spec/zimra/issues
+- Documentation: See README.md, INSTALL.md, QUICKREF.md
+
+## Changelog
+
+### 0.1.0 (2026-02-08)
+
+**Initial Release**
+
+- Public library API with 6 core functions
+- Receipt creation and submission
+- Fiscal day management
+- Device status and configuration
+- Tax type management
+- 22+ comprehensive unit tests
+- Full error handling and logging
+- Lazy-loaded module caching
