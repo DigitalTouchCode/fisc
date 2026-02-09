@@ -42,6 +42,7 @@ dependencies = [
     "Pillow>=9.0",
     "python-dotenv>=0.19"
     "pyOpenSSL>=23
+]
 
 [project.optional-dependencies]
 dev = [
