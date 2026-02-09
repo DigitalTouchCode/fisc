@@ -297,4 +297,4 @@ MIT License
 
 - Email: cassymyo@gmail.com
 - Issues: https://github.com/cassymyo-spec/zimra/issues
-- Documentation: See README.md, INSTALL.md, QUICKREF.md
+- Documentation: See README.md, INSTALL.md
