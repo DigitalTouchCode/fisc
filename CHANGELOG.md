@@ -1,4 +1,4 @@
-# Changelog
+# changelog
 
 All notable changes to Fiscguy are documented in this file.  
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/).
