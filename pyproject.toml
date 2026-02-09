@@ -41,7 +41,7 @@ dependencies = [
     "qrcode>=7.4",
     "Pillow>=9.0",
     "python-dotenv>=0.19"
-    "pyOpenSSL>=23
+    "pyOpenSSL>=23"
 ]
 
 [project.optional-dependencies]
