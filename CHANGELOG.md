@@ -24,7 +24,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 - Added missing pyOpenSS dependency.
 - Minor packaging and build improvements for consistency and compatibility.
 
-## [0.1.0] - 2026-02-08
+## [0.1.1] - 2026-02-08
 
 ### Added
 
