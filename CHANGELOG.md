@@ -21,7 +21,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Fixed
 
-- Added missing `cryptography` dependency to ensure builds succeed on Termux, Android, and other environments.
+- Added missing pyOpenSS dependency.
 - Minor packaging and build improvements for consistency and compatibility.
 
 ## [0.1.0] - 2026-02-08
