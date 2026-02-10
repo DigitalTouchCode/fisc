@@ -271,7 +271,7 @@ class ZIMRACrypto:
         csr_request = crypto.X509Req()
         subject = csr_request.get_subject()
 
-        # Subject fields (ZIMRA style)
+        # Subject fields ZIMRA way
         subject.C = "ZW"
         subject.ST = "Zimbabwe"
         subject.L = "Harare"

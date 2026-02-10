@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from loguru import logger
 
-from fiscguy.models import Certs, Configuration, Device, Taxes
+from fiscguy.models import Certs, Device, Taxes
 from fiscguy.zimra_crypto import ZIMRACrypto
 from fiscguy.services.configuration_service import create_or_update_config
 
@@ -275,8 +275,6 @@ class Command(BaseCommand):
         cert_path = temp_dir / "client_cert.pem"
         key_path = temp_dir / "client_key.pem"
 
-        from fiscguy.models import Certs
-
         cert = Certs.objects.first()
         cert_path.write_text(cert.certificate)
         key_path.write_text(cert.certificate_key)
@@ -291,9 +289,10 @@ class Command(BaseCommand):
             response.raise_for_status()
             res = response.json()
 
+            # config business
             create_or_update_config(res)
+
             logger.info(f"Configuration for device {device_id} updated successfully.")
-            return res
         except requests.RequestException as e:
             logger.error(f"Error fetching config: {e}")
             return None
@@ -311,9 +310,8 @@ class Command(BaseCommand):
             if env
             else f"https://fdmsapitest.zimra.co.zw/Public/v1/{device_id}"
         )
-        print(csr)
-        csr = csr.replace("\n", "")
-        print(csr)
+
+        csr = csr.replace("\n", "") # remove newline escape charaters
 
         payload = {
             "activationKey": activation_key,
@@ -338,8 +336,6 @@ class Command(BaseCommand):
             signed_certificate = response.json().get("certificate")
 
             if signed_certificate:
-                from fiscguy.models import Certs
-
                 cert = Certs.objects.first()
                 cert.certificate = signed_certificate
                 cert.save()

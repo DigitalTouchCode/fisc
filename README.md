@@ -153,11 +153,11 @@ Fiscguy provides the following REST API endpoints:
 
 #### Example API Requests
 
-**Open a Fiscal Day:**
-```bash
-curl -X POST http://localhost:8000/api/open_day/ \
-  -H "Content-Type: application/json"
-```
+## Notes on Credit and Debit Notes
+
+- A person can also submit a credit note.
+- Debit notes are not mandatory.
+- A credit note can have negative values.
 
 **Submit a Receipt:**
 ```bash
@@ -177,6 +177,32 @@ curl -X POST http://localhost:8000/api/receipts/ \
       }
     ]
   }'
+```
+
+**Submit a Credit Note:**
+```bash
+curl -X POST http://localhost:8000/api/receipts/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receipt_type": "creditnote",
+    "currency": "USD",
+    "total_amount": "-100.00",
+    "payment_terms": "cash",
+    "lines": [
+      {
+        "product": "Test Item",
+        "quantity": 1,
+        "unit_price": "-100.00",
+        "tax_name": "standard rated 15.5%"
+      }
+    ]
+  }'
+```
+
+**Open a Fiscal Day:**
+```bash
+curl -X POST http://localhost:8000/api/open_day/ \
+  -H "Content-Type: application/json"
 ```
 
 **Get Device Status:**
