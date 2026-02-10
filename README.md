@@ -154,7 +154,6 @@ Fiscguy provides the following REST API endpoints:
 #### Example API Requests
 
 ## Notes on Credit and Debit Notes
-
 - A person can also submit a credit note.
 - Debit notes are not mandatory.
 - A credit note can have negative values.
@@ -173,6 +172,7 @@ curl -X POST http://localhost:8000/api/receipts/ \
         "product": "Test Item",
         "quantity": 1,
         "unit_price": "100.00",
+        "line_total": "100.00",
         "tax_name": "standard rated 15.5%"
       }
     ]
@@ -193,6 +193,7 @@ curl -X POST http://localhost:8000/api/receipts/ \
         "product": "Test Item",
         "quantity": 1,
         "unit_price": "-100.00",
+        "line_total": "-100.00",
         "tax_name": "standard rated 15.5%"
       }
     ]
