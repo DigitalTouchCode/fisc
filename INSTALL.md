@@ -147,24 +147,6 @@ taxes = Taxes.objects.all()
 
 ### Environment Variables
 
-```bash
-# .env
-ZIMRA_ENVIRONMENT=test  # or 'production'
-ZIMRA_TIMEOUT=5
-DEBUG=True
-```
-
-### Django Settings (Optional)
-
-```python
-# settings.py
-FISCAL_SETTINGS = {
-    'ENVIRONMENT': 'test',
-    'TIMEOUT': 5,
-    'VERIFY_SSL': True,
-}
-```
-
 ## Testing
 
 ### Run Unit Tests
@@ -316,5 +298,3 @@ pytest
 MIT License - See [LICENSE](LICENSE)
 
 ---
-
-**Happy coding with Fiscguy!**
