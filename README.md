@@ -297,19 +297,4 @@ MIT License
 
 - Email: cassymyo@gmail.com
 - Issues: https://github.com/cassymyo-spec/zimra/issues
-- Documentation: See README.md, INSTALL.md, QUICKREF.md
-
-## Changelog
-
-### 0.1.0 (2026-02-08)
-
-**Initial Release**
-
-- Public library API with 6 core functions
-- Receipt creation and submission
-- Fiscal day management
-- Device status and configuration
-- Tax type management
-- 22+ comprehensive unit tests
-- Full error handling and logging
-- Lazy-loaded module caching
+- Documentation: See README.md, INSTALL.md
