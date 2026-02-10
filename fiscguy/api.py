@@ -101,7 +101,7 @@ def close_day() -> Dict[str, Any]:
         dict: Final device/fiscal status from ZIMRA FDMS.
 
     Raises:
-        RuntimeError: If no open fiscal day or device not found.
+        error: If no open fiscal day or device not found.
         Exception: If FDMS request fails.
     """
     logger.info("Closing fiscal day")
@@ -129,9 +129,6 @@ def close_day() -> Dict[str, Any]:
     )
 
     closing_string, payload = service.close_day()
-
-    logger.info(f"Closing fiscal day string: {closing_string}")
-    logger.info(f"Closing payload: {payload}")
 
     # Submit to ZIMRA and fetch final status
     client.close_day(payload)
@@ -174,7 +171,6 @@ def submit_receipt(receipt_data: Dict[str, Any]) -> Dict[str, Any]:
         ValidationError: If receipt_data is invalid (missing required fields, invalid tax).
         Exception: If FDMS submission fails.
     """
-    logger.info(f"Submitting receipt: {receipt_data}")
     receipt_handler = _get_receipt_handler()
 
     service = ReceiptService(receipt_handler=receipt_handler)
