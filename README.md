@@ -185,6 +185,8 @@ curl -X POST http://localhost:8000/api/receipts/ \
   -H "Content-Type: application/json" \
   -d '{
     "receipt_type": "creditnote",
+    "credit_note_reference": "R-00001" # the receipt you want to raise a credit note on. It must exists both in fiscguy and zimra,
+    "credit_note_reason": "discount",
     "currency": "USD",
     "total_amount": "-100.00",
     "payment_terms": "cash",
