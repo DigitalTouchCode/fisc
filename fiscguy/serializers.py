@@ -1,4 +1,3 @@
-from loguru import logger
 from rest_framework import serializers
 from django.db import transaction
 

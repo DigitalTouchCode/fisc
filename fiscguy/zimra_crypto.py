@@ -6,13 +6,12 @@ Handles hashing, signing, and verification code generation.
 import base64
 import binascii
 import hashlib
-import os
 
 import OpenSSL.crypto as crypto
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.x509.oid import NameOID
 from dotenv import load_dotenv
 from loguru import logger
@@ -178,7 +177,7 @@ class ZIMRACrypto:
 
         Args:
             device_id (str): Device ID
-            receipt_type (str): Type of receipt (e.g., 'FiscalInvoice')
+            receipt_type (str): Type of receipt (e.g., 'FiscalInvoice' or 'Creditnote')
             receipt_currency (str): Currency code (e.g., 'USD')
             receipt_global_no (int): Global receipt number
             receipt_date (str): Receipt date in ISO format
