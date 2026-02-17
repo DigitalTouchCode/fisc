@@ -224,13 +224,15 @@ class ReceiptLine(models.Model):
 
 class Buyer(models.Model):
     """
-    Buyer model (not mansatory on every transaction)
+    Buyer model (not mandatory on every transaction)
     """
 
     name = models.CharField(max_length=255)
     address = models.CharField(max_length=255)
+    phonenumber = models.CharField(max_length=20)
+    trade_name = models.CharField(max_length=100)
     tin_number = models.CharField(max_length=255)
-    vat_numberr = models.CharField(max_length=255)
+    email = models.EmailField(max_length=255)
 
     def __str__(self):
         return self.name
