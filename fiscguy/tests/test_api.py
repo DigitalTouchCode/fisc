@@ -7,9 +7,8 @@ endpoint or making external network calls.
 """
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 from django.test import TestCase
-from django.utils import timezone
 
 from fiscguy.models import (
     Device,

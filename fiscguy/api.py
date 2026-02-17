@@ -21,6 +21,9 @@ from fiscguy.services.closing_day_service import ClosingDayService
 from fiscguy.services.receipt_service import ReceiptService
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
+from fiscguy.models import Configuration
+from fiscguy.serializers import ConfigurationSerializer
+from fiscguy.serializers import TaxSerializer
 
 
 # Module-level instances
@@ -188,8 +191,6 @@ def get_configuration() -> Dict[str, Any]:
         dict: Configuration fields (tax_payer_name, tin_number, vat_number, etc.)
               or empty dict if no configuration exists.
     """
-    from fiscguy.models import Configuration
-    from fiscguy.serializers import ConfigurationSerializer
 
     logger.info("Fetching device configuration")
     config = Configuration.objects.first()
@@ -213,7 +214,6 @@ def get_taxes() -> list:
                 "percent": float
             }
     """
-    from fiscguy.serializers import TaxSerializer
 
     logger.info("Fetching taxes")
     taxes = Taxes.objects.all()

@@ -63,7 +63,8 @@ class Command(BaseCommand):
         print("\nDeveloped by Casper Moyo")
         print("Version 0.1.5\n")
         print(
-            "Welcome to device registration please input the following provided information as proveded by ZIMRA\n"
+            "Welcome to device registration please input the following provided\
+             information as proveded by ZIMRA\n"
         )
 
         environment = input(
@@ -77,9 +78,7 @@ class Command(BaseCommand):
         device_sn = input("Enter device serial number: ").strip()
 
         if not environment.lower() in ["yes", "no"]:
-            self.stdout.write(
-                self.style.ERROR("Please input environment between yes or no")
-            )
+            self.stdout.write(self.style.ERROR("Please input environment between yes or no"))
             return
 
         if (
@@ -118,7 +117,12 @@ class Command(BaseCommand):
                 print("!  WARNING: ENVIRONMENT SWITCH DETECTED" + " " * 33 + "!")
                 print("!" + " " * 87 + "!")
                 print("!" + " " * 87 + "!")
-                print("!  Switching from", "PRODUCTION" if device.production else "TEST", "to", "PRODUCTION" if env else "TEST" + " " * (73 - 54) + "!")
+                print(
+                    "!  Switching from",
+                    "PRODUCTION" if device.production else "TEST",
+                    "to",
+                    "PRODUCTION" if env else "TEST" + " " * (73 - 54) + "!",
+                )
                 print("!" + " " * 87 + "!")
                 print("!  ALL TEST DATA WILL BE PERMANENTLY DELETED:" + " " * 28 + "!")
                 print("!    - Fiscal Days" + " " * 57 + "!")
@@ -131,19 +135,19 @@ class Command(BaseCommand):
                 print("!    - Taxes" + " " * 54 + "!")
                 print("!" + " " * 87 + "!")
                 print("!" * 90)
-                
+
                 confirm = input(
                     "\nType 'YES' to confirm data deletion and switch environment, or press Enter to cancel: "
                 ).strip()
-                
+
                 if confirm.upper() != "YES":
                     print("Environment switch cancelled. No data was deleted.")
                     return
-                
+
                 print("\nDeleting all test data...")
                 self.delete_all_test_data()
                 print("✓ All test data has been deleted.\n")
-                
+
                 device.org_name = org
                 device.activation_key = activation_key
                 device.device_id = device_id
@@ -171,14 +175,12 @@ class Command(BaseCommand):
         )
 
         # get zimra configurations for the provided device
-        self.get_config(
-            device_id, model_name, model_version, device.production
-        )
+        self.get_config(device_id, model_name, model_version, device.production)
 
     def delete_all_test_data(self) -> None:
         """
         Delete all test data when switching environments.
-        
+
         Deletes in order of dependencies:
         - Fiscal Days
         - Fiscal Counters
@@ -187,7 +189,7 @@ class Command(BaseCommand):
         - Certificates
         - Device
         - Taxes
-        
+
         """
         try:
             from fiscguy.models import (
@@ -197,50 +199,48 @@ class Command(BaseCommand):
                 ReceiptLine,
                 Configuration,
             )
-            
+
             with transaction.atomic():
                 # Delete in order of dependencies
                 logger.info("Deleting receipt lines...")
                 count = ReceiptLine.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} receipt lines"))
-                
+
                 logger.info("Deleting receipts...")
                 count = Receipt.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} receipts"))
-                
+
                 logger.info("Deleting fiscal counters...")
                 count = FiscalCounter.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} fiscal counters"))
-                
+
                 logger.info("Deleting fiscal days...")
                 count = FiscalDay.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} fiscal days"))
-                
+
                 logger.info("Deleting configuration...")
                 count = Configuration.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} configuration records"))
-                
+
                 logger.info("Deleting certificates...")
                 count = Certs.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} certificates"))
-                
+
                 logger.info("Deleting taxes...")
                 count = Taxes.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} tax records"))
-                
+
                 logger.info("Deleting device...")
                 count = Device.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} devices"))
-                
+
                 logger.info("All test data successfully deleted")
         except Exception as e:
             logger.exception(f"Error deleting test data: {e}")
             self.stdout.write(self.style.ERROR(f"ERROR: Failed to delete test data: {e}"))
             raise
 
-    def get_config(
-        self, device_id: str, model_name: str, model_version: str, env: bool
-    ) -> dict:
+    def get_config(self, device_id: str, model_name: str, model_version: str, env: bool) -> dict:
         """Fetch device configuration from ZIMRA and persist locally.
 
         Args:
@@ -293,7 +293,6 @@ class Command(BaseCommand):
 
             # config business
             create_or_update_config(res)
-
             logger.info(f"Configuration for device {device_id} updated successfully.")
         except requests.RequestException as e:
             logger.error(f"Error fetching config: {e}")
@@ -313,7 +312,7 @@ class Command(BaseCommand):
             else f"https://fdmsapitest.zimra.co.zw/Public/v1/{device_id}"
         )
 
-        csr = csr.replace("\n", "") # remove newline escape charaters
+        csr = csr.replace("\n", "")  # remove newline escape charaters
 
         payload = {
             "activationKey": activation_key,
@@ -328,9 +327,7 @@ class Command(BaseCommand):
         }
 
         try:
-            response = requests.post(
-                f"{url}/RegisterDevice", json=payload, headers=headers
-            )
+            response = requests.post(f"{url}/RegisterDevice", json=payload, headers=headers)
             response.raise_for_status()
 
             logger.info(response.json())
