@@ -113,13 +113,13 @@ class Command(BaseCommand):
 
         else:
             if device.production != env:
-                print("\n" + "!" * 75)
-                print("!" + " " * 73 + "!")
+                print("\n" + "!" * 90)
+                print("!" + " " * 87 + "!")
                 print("!  WARNING: ENVIRONMENT SWITCH DETECTED" + " " * 33 + "!")
-                print("!" + " " * 73 + "!")
-                print("!" + " " * 73 + "!")
+                print("!" + " " * 87 + "!")
+                print("!" + " " * 87 + "!")
                 print("!  Switching from", "PRODUCTION" if device.production else "TEST", "to", "PRODUCTION" if env else "TEST" + " " * (73 - 54) + "!")
-                print("!" + " " * 73 + "!")
+                print("!" + " " * 87 + "!")
                 print("!  ALL TEST DATA WILL BE PERMANENTLY DELETED:" + " " * 28 + "!")
                 print("!    - Fiscal Days" + " " * 57 + "!")
                 print("!    - Fiscal Counters" + " " * 52 + "!")
@@ -127,8 +127,10 @@ class Command(BaseCommand):
                 print("!    - Device Configuration" + " " * 47 + "!")
                 print("!    - Certificates" + " " * 55 + "!")
                 print("!    - Device Record" + " " * 54 + "!")
-                print("!" + " " * 73 + "!")
-                print("!" * 75)
+                print("!    - Certs Records" + " " * 54 + "!")
+                print("!    - Taxes" + " " * 54 + "!")
+                print("!" + " " * 87 + "!")
+                print("!" * 90)
                 
                 confirm = input(
                     "\nType 'YES' to confirm data deletion and switch environment, or press Enter to cancel: "
@@ -160,6 +162,7 @@ class Command(BaseCommand):
                 device.save()
                 print(f"Device {device.device_id} updated for current environment.")
 
+        # generate the csr and cert_key
         cert_key, csr = crypto.generate_key_and_csr(device_sn, device_id, env)
 
         # register the device and get signed certificate from ZIMRA
@@ -168,10 +171,9 @@ class Command(BaseCommand):
         )
 
         # get zimra configurations for the provided device
-        zimra_config = self.get_config(
+        self.get_config(
             device_id, model_name, model_version, device.production
         )
-        print(zimra_config)
 
     def delete_all_test_data(self) -> None:
         """
@@ -197,7 +199,7 @@ class Command(BaseCommand):
             )
             
             with transaction.atomic():
-                # Delete in order of dependencies (child tables first)
+                # Delete in order of dependencies
                 logger.info("Deleting receipt lines...")
                 count = ReceiptLine.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} receipt lines"))
