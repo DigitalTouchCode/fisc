@@ -21,6 +21,9 @@ from fiscguy.services.closing_day_service import ClosingDayService
 from fiscguy.services.receipt_service import ReceiptService
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
+from fiscguy.models import Configuration
+from fiscguy.serializers import ConfigurationSerializer
+from fiscguy.serializers import TaxSerializer
 
 
 # Module-level instances
@@ -101,7 +104,7 @@ def close_day() -> Dict[str, Any]:
         dict: Final device/fiscal status from ZIMRA FDMS.
 
     Raises:
-        RuntimeError: If no open fiscal day or device not found.
+        error: If no open fiscal day or device not found.
         Exception: If FDMS request fails.
     """
     logger.info("Closing fiscal day")
@@ -129,9 +132,6 @@ def close_day() -> Dict[str, Any]:
     )
 
     closing_string, payload = service.close_day()
-
-    logger.info(f"Closing fiscal day string: {closing_string}")
-    logger.info(f"Closing payload: {payload}")
 
     # Submit to ZIMRA and fetch final status
     client.close_day(payload)
@@ -174,7 +174,6 @@ def submit_receipt(receipt_data: Dict[str, Any]) -> Dict[str, Any]:
         ValidationError: If receipt_data is invalid (missing required fields, invalid tax).
         Exception: If FDMS submission fails.
     """
-    logger.info(f"Submitting receipt: {receipt_data}")
     receipt_handler = _get_receipt_handler()
 
     service = ReceiptService(receipt_handler=receipt_handler)
@@ -192,8 +191,6 @@ def get_configuration() -> Dict[str, Any]:
         dict: Configuration fields (tax_payer_name, tin_number, vat_number, etc.)
               or empty dict if no configuration exists.
     """
-    from fiscguy.models import Configuration
-    from fiscguy.serializers import ConfigurationSerializer
 
     logger.info("Fetching device configuration")
     config = Configuration.objects.first()
@@ -217,7 +214,6 @@ def get_taxes() -> list:
                 "percent": float
             }
     """
-    from fiscguy.serializers import TaxSerializer
 
     logger.info("Fetching taxes")
     taxes = Taxes.objects.all()

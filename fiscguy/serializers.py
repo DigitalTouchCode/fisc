@@ -1,5 +1,5 @@
-from loguru import logger
 from rest_framework import serializers
+from django.db import transaction
 
 from fiscguy.models import Buyer, Configuration, Receipt, ReceiptLine, Taxes
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
@@ -142,35 +142,57 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        buyer_data = validated_data.pop("buyer")
         lines_data = validated_data.pop("lines")
         receipt_type = validated_data.get("receipt_type", "").lower()
 
-        receipt = Receipt.objects.create(**validated_data)
+        with transaction.atomic():
 
-        for idx, line_data in enumerate(lines_data):
-
-            tax_name = line_data.pop("tax_name", None)
-
-            if tax_name:
-                tax = (
-                    Taxes.objects.filter(name__iexact=tax_name.strip()).first()
-                    or Taxes.objects.filter(name__icontains=tax_name.strip()).first()
+            # validate tin number
+            if len(buyer_data['tin_number']) != 10:
+                raise serializers.ValidationError(
+                    {"buyer": "Tin number is incorrect, must be ten digit."}
                 )
 
-                if not tax:
-                    raise serializers.ValidationError(
-                        {"lines": {idx: f"Tax with name '{tax_name}' not found"}}
+            buyer = Buyer.objects.get_or_create(
+                tin_number = buyer_data['tin_number'].strip(),
+                defaults={
+                    "name": buyer_data['name'].strip(), # registered name
+                    "emai": buyer_data["email"].strip(),
+                    "trade_name": buyer_data["trade_name"].strip(), # trade name e.g branch name
+                    "phonenumber":buyer_data["phonenumber"].strip(),
+                    "address": buyer_data['address'].strip()
+                }
+            )
+
+            receipt = Receipt.objects.create(**validated_data)
+            receipt.buyer = buyer
+            receipt.save()
+
+            for idx, line_data in enumerate(lines_data):
+
+                tax_name = line_data.pop("tax_name", None)
+
+                if tax_name:
+                    tax = (
+                        Taxes.objects.filter(name__iexact=tax_name.strip()).first()
+                        or Taxes.objects.filter(name__icontains=tax_name.strip()).first()
                     )
 
-                line_data["tax_type"] = tax
+                    if not tax:
+                        raise serializers.ValidationError(
+                            {"lines": {idx: f"Tax with name '{tax_name}' not found"}}
+                        )
 
-            if receipt_type == "creditnote":
-                if line_data.get("unit_price", 0) > 0:
-                    line_data["unit_price"] *= -1
+                    line_data["tax_type"] = tax
 
-                if line_data.get("line_total", 0) > 0:
-                    line_data["line_total"] *= -1
+                if receipt_type == "creditnote":
+                    if line_data.get("unit_price", 0) > 0:
+                        line_data["unit_price"] *= -1
 
-            ReceiptLine.objects.create(receipt=receipt, **line_data)
+                    if line_data.get("line_total", 0) > 0:
+                        line_data["line_total"] *= -1
 
-        return receipt
+                ReceiptLine.objects.create(receipt=receipt, **line_data)
+
+            return receipt

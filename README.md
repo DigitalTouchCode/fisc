@@ -153,11 +153,10 @@ Fiscguy provides the following REST API endpoints:
 
 #### Example API Requests
 
-**Open a Fiscal Day:**
-```bash
-curl -X POST http://localhost:8000/api/open_day/ \
-  -H "Content-Type: application/json"
-```
+## Notes on Credit and Debit Notes
+- A person can also submit a credit note.
+- Debit notes are not mandatory.
+- A credit note can have negative values.
 
 **Submit a Receipt:**
 ```bash
@@ -173,10 +172,40 @@ curl -X POST http://localhost:8000/api/receipts/ \
         "product": "Test Item",
         "quantity": 1,
         "unit_price": "100.00",
+        "line_total": "100.00",
         "tax_name": "standard rated 15.5%"
       }
     ]
   }'
+```
+
+**Submit a Credit Note:**
+```bash
+curl -X POST http://localhost:8000/api/receipts/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receipt_type": "creditnote",
+    "credit_note_reference": "R-00001" # the receipt you want to raise a credit note on. It must exists both in fiscguy and zimra,
+    "credit_note_reason": "discount",
+    "currency": "USD",
+    "total_amount": "-100.00",
+    "payment_terms": "cash",
+    "lines": [
+      {
+        "product": "Test Item",
+        "quantity": 1,
+        "unit_price": "-100.00",
+        "line_total": "-100.00",
+        "tax_name": "standard rated 15.5%"
+      }
+    ]
+  }'
+```
+
+**Open a Fiscal Day:**
+```bash
+curl -X POST http://localhost:8000/api/open_day/ \
+  -H "Content-Type: application/json"
 ```
 
 **Get Device Status:**
@@ -297,19 +326,4 @@ MIT License
 
 - Email: cassymyo@gmail.com
 - Issues: https://github.com/cassymyo-spec/zimra/issues
-- Documentation: See README.md, INSTALL.md, QUICKREF.md
-
-## Changelog
-
-### 0.1.0 (2026-02-08)
-
-**Initial Release**
-
-- Public library API with 6 core functions
-- Receipt creation and submission
-- Fiscal day management
-- Device status and configuration
-- Tax type management
-- 22+ comprehensive unit tests
-- Full error handling and logging
-- Lazy-loaded module caching
+- Documentation: See README.md, INSTALL.md
