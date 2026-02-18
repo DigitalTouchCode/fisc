@@ -1,7 +1,4 @@
-import json
-import shutil
 import tempfile
-import threading
 from pathlib import Path
 
 import requests
@@ -9,7 +6,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from loguru import logger
 
-from fiscguy.models import Certs, Configuration, Device, Taxes
+from fiscguy.models import Certs, Device, Taxes
 from fiscguy.zimra_crypto import ZIMRACrypto
 from fiscguy.services.configuration_service import create_or_update_config
 
@@ -64,9 +61,10 @@ class Command(BaseCommand):
         print("*" + " " * 73 + "*")
         print("*" * 75)
         print("\nDeveloped by Casper Moyo")
-        print("Version 1.0.0\n")
+        print("Version 0.1.5\n")
         print(
-            "Welcome to device registration please input the following provided information as proveded by ZIMRA\n"
+            "Welcome to device registration please input the following provided\
+             information as proveded by ZIMRA\n"
         )
 
         environment = input(
@@ -80,9 +78,7 @@ class Command(BaseCommand):
         device_sn = input("Enter device serial number: ").strip()
 
         if not environment.lower() in ["yes", "no"]:
-            self.stdout.write(
-                self.style.ERROR("Please input environment between yes or no")
-            )
+            self.stdout.write(self.style.ERROR("Please input environment between yes or no"))
             return
 
         if (
@@ -116,13 +112,18 @@ class Command(BaseCommand):
 
         else:
             if device.production != env:
-                print("\n" + "!" * 75)
-                print("!" + " " * 73 + "!")
+                print("\n" + "!" * 90)
+                print("!" + " " * 87 + "!")
                 print("!  WARNING: ENVIRONMENT SWITCH DETECTED" + " " * 33 + "!")
-                print("!" + " " * 73 + "!")
-                print("!" + " " * 73 + "!")
-                print("!  Switching from", "PRODUCTION" if device.production else "TEST", "to", "PRODUCTION" if env else "TEST" + " " * (73 - 54) + "!")
-                print("!" + " " * 73 + "!")
+                print("!" + " " * 87 + "!")
+                print("!" + " " * 87 + "!")
+                print(
+                    "!  Switching from",
+                    "PRODUCTION" if device.production else "TEST",
+                    "to",
+                    "PRODUCTION" if env else "TEST" + " " * (73 - 54) + "!",
+                )
+                print("!" + " " * 87 + "!")
                 print("!  ALL TEST DATA WILL BE PERMANENTLY DELETED:" + " " * 28 + "!")
                 print("!    - Fiscal Days" + " " * 57 + "!")
                 print("!    - Fiscal Counters" + " " * 52 + "!")
@@ -130,21 +131,23 @@ class Command(BaseCommand):
                 print("!    - Device Configuration" + " " * 47 + "!")
                 print("!    - Certificates" + " " * 55 + "!")
                 print("!    - Device Record" + " " * 54 + "!")
-                print("!" + " " * 73 + "!")
-                print("!" * 75)
-                
+                print("!    - Certs Records" + " " * 54 + "!")
+                print("!    - Taxes" + " " * 54 + "!")
+                print("!" + " " * 87 + "!")
+                print("!" * 90)
+
                 confirm = input(
                     "\nType 'YES' to confirm data deletion and switch environment, or press Enter to cancel: "
                 ).strip()
-                
+
                 if confirm.upper() != "YES":
                     print("Environment switch cancelled. No data was deleted.")
                     return
-                
+
                 print("\nDeleting all test data...")
                 self.delete_all_test_data()
                 print("✓ All test data has been deleted.\n")
-                
+
                 device.org_name = org
                 device.activation_key = activation_key
                 device.device_id = device_id
@@ -163,6 +166,7 @@ class Command(BaseCommand):
                 device.save()
                 print(f"Device {device.device_id} updated for current environment.")
 
+        # generate the csr and cert_key
         cert_key, csr = crypto.generate_key_and_csr(device_sn, device_id, env)
 
         # register the device and get signed certificate from ZIMRA
@@ -171,15 +175,12 @@ class Command(BaseCommand):
         )
 
         # get zimra configurations for the provided device
-        zimra_config = self.get_config(
-            device_id, model_name, model_version, device.production
-        )
-        print(zimra_config)
+        self.get_config(device_id, model_name, model_version, device.production)
 
     def delete_all_test_data(self) -> None:
         """
         Delete all test data when switching environments.
-        
+
         Deletes in order of dependencies:
         - Fiscal Days
         - Fiscal Counters
@@ -188,7 +189,7 @@ class Command(BaseCommand):
         - Certificates
         - Device
         - Taxes
-        
+
         """
         try:
             from fiscguy.models import (
@@ -198,50 +199,48 @@ class Command(BaseCommand):
                 ReceiptLine,
                 Configuration,
             )
-            
+
             with transaction.atomic():
-                # Delete in order of dependencies (child tables first)
+                # Delete in order of dependencies
                 logger.info("Deleting receipt lines...")
                 count = ReceiptLine.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} receipt lines"))
-                
+
                 logger.info("Deleting receipts...")
                 count = Receipt.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} receipts"))
-                
+
                 logger.info("Deleting fiscal counters...")
                 count = FiscalCounter.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} fiscal counters"))
-                
+
                 logger.info("Deleting fiscal days...")
                 count = FiscalDay.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} fiscal days"))
-                
+
                 logger.info("Deleting configuration...")
                 count = Configuration.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} configuration records"))
-                
+
                 logger.info("Deleting certificates...")
                 count = Certs.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} certificates"))
-                
+
                 logger.info("Deleting taxes...")
                 count = Taxes.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} tax records"))
-                
+
                 logger.info("Deleting device...")
                 count = Device.objects.all().delete()[0]
                 self.stdout.write(self.style.SUCCESS(f"  Deleted {count} devices"))
-                
+
                 logger.info("All test data successfully deleted")
         except Exception as e:
             logger.exception(f"Error deleting test data: {e}")
             self.stdout.write(self.style.ERROR(f"ERROR: Failed to delete test data: {e}"))
             raise
 
-    def get_config(
-        self, device_id: str, model_name: str, model_version: str, env: bool
-    ) -> dict:
+    def get_config(self, device_id: str, model_name: str, model_version: str, env: bool) -> dict:
         """Fetch device configuration from ZIMRA and persist locally.
 
         Args:
@@ -278,8 +277,6 @@ class Command(BaseCommand):
         cert_path = temp_dir / "client_cert.pem"
         key_path = temp_dir / "client_key.pem"
 
-        from fiscguy.models import Certs
-
         cert = Certs.objects.first()
         cert_path.write_text(cert.certificate)
         key_path.write_text(cert.certificate_key)
@@ -294,9 +291,9 @@ class Command(BaseCommand):
             response.raise_for_status()
             res = response.json()
 
+            # config business
             create_or_update_config(res)
             logger.info(f"Configuration for device {device_id} updated successfully.")
-            return res
         except requests.RequestException as e:
             logger.error(f"Error fetching config: {e}")
             return None
@@ -314,9 +311,8 @@ class Command(BaseCommand):
             if env
             else f"https://fdmsapitest.zimra.co.zw/Public/v1/{device_id}"
         )
-        print(csr)
-        csr = csr.replace("\n", "")
-        print(csr)
+
+        csr = csr.replace("\n", "")  # remove newline escape charaters
 
         payload = {
             "activationKey": activation_key,
@@ -331,9 +327,7 @@ class Command(BaseCommand):
         }
 
         try:
-            response = requests.post(
-                f"{url}/RegisterDevice", json=payload, headers=headers
-            )
+            response = requests.post(f"{url}/RegisterDevice", json=payload, headers=headers)
             response.raise_for_status()
 
             logger.info(response.json())
@@ -341,8 +335,6 @@ class Command(BaseCommand):
             signed_certificate = response.json().get("certificate")
 
             if signed_certificate:
-                from fiscguy.models import Certs
-
                 cert = Certs.objects.first()
                 cert.certificate = signed_certificate
                 cert.save()

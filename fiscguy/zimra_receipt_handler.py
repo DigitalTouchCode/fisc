@@ -102,7 +102,7 @@ class ZIMRAReceiptHandler:
                 .first()
             )
 
-            # Fiscal day - auto-open if straight sell
+            # Fiscal day - auto-open if first sell
             fiscal_day = FiscalDay.objects.filter(is_open=True).first()
             if not fiscal_day:
                 logger.info("No fiscal day open, auto-opening a new fiscal day")
@@ -128,6 +128,14 @@ class ZIMRAReceiptHandler:
                     "salesAmountWithTax": float("0.00"),
                 }
             )
+
+            # buyer data according to zimra only registered name and buyer tin are mandatory
+            buyerData = [
+                {
+                    "buyerRegisteredName": receipt.buyer.name,
+                    "buyerTIN": receipt.buyer.tin_number
+                }
+            ]
 
             # Build receipt lines
             for index, item in enumerate(receipt_items, start=1):
@@ -200,6 +208,7 @@ class ZIMRAReceiptHandler:
                     if is_credit_note
                     else "Thank you for shopping with us!"
                 ),
+                "buyerData": buyerData,
                 "receiptDate": timestamp(),
                 "receiptLinesTaxInclusive": True,
                 "receiptLines": receipt_lines,

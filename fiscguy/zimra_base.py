@@ -166,6 +166,15 @@ class ZIMRAClient:
         logger.info(f"Submitting receipt: {receipt_payload}")
 
         return self._request("POST", "SubmitReceipt", json=receipt_payload).json()
+    
+    def ping(self) -> dict:
+        """
+            is used to report device is online to FDMS
+            returns: 
+                deviceID (str), 
+                reportingFrequency (int)
+        """
+        return self._request("GET", "ping")
 
     def close(self):
         with self._lock:

@@ -106,7 +106,7 @@ class GetStatusView(APIView):
         except Exception as e:
             logger.exception("Status fetch failed")
             return Response({"error": str(e)}, status=400)
-
+        
 
 class OpenDayView(APIView):
     """REST endpoint to open a fiscal day.

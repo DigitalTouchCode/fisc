@@ -2,6 +2,9 @@ from typing import Tuple, Dict, Any
 from django.db import transaction
 from loguru import logger
 
+from fiscguy.models import Receipt
+from fiscguy.serializers import ReceiptCreateSerializer
+
 
 class ReceiptService:
     """
@@ -15,8 +18,6 @@ class ReceiptService:
     def create_and_submit_receipt(
         self, validated_data: Dict[str, Any]
     ) -> Tuple[Any, Dict[str, Any]]:
-        from fiscguy.models import Receipt
-        from fiscguy.serializers import ReceiptCreateSerializer
 
         serializer = ReceiptCreateSerializer(data=validated_data)
         serializer.is_valid(raise_exception=True)
@@ -63,6 +64,7 @@ class ReceiptService:
                 hash_sig_data["signature"],
                 receipt_data["receipt_data"],
             )
+            
             receipt.submitted = True
             receipt.zimra_inv_id = submission_res.get("receiptID", "")
             receipt.save()
