@@ -17,7 +17,7 @@ def create_or_update_config(res: dict) -> None:
             address_str = ", ".join(addr_parts) if addr_parts else ""
 
             contacts = res.get("deviceBranchContacts") or {}
-            
+
             if not config:
                 config = Configuration.objects.create(
                     tax_payer_name=res.get("taxPayerName", "DEFAULT TAXPAYER"),

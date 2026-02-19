@@ -160,7 +160,7 @@ def submit_receipt(receipt_data: Dict[str, Any]) -> Dict[str, Any]:
                         "unit_price": float,
                         "line_total": float,
                         "tax_amount": float, # optional, can be calculated from tax percent if tax_name provided
-                        "tax_name": str,  
+                        "tax_name": str,
                     },
                     ...
                 ],

@@ -48,16 +48,10 @@ class ZIMRAClient:
 
         if self.certs:
             if self.certs.production:
-                self.base_url = (
-                    f"https://fdmsapi.zimra.co.zw/Device/v1/{self.device.device_id}"
-                )
-                self.public_url = (
-                    f"https://fdmsapi.zimra.co.zw/Public/v1/{self.device.device_id}"
-                )
+                self.base_url = f"https://fdmsapi.zimra.co.zw/Device/v1/{self.device.device_id}"
+                self.public_url = f"https://fdmsapi.zimra.co.zw/Public/v1/{self.device.device_id}"
             else:
-                self.base_url = (
-                    f"https://fdmsapitest.zimra.co.zw/Device/v1/{self.device.device_id}"
-                )
+                self.base_url = f"https://fdmsapitest.zimra.co.zw/Device/v1/{self.device.device_id}"
                 self.public_url = (
                     f"https://fdmsapitest.zimra.co.zw/Public/v1/{self.device.device_id}"
                 )
@@ -70,9 +64,7 @@ class ZIMRAClient:
         self._pem_path = self._temp_dir / "client.pem"
 
         if self.certs:
-            self._pem_path.write_text(
-                f"{self.certs.certificate}\n{self.certs.certificate_key}"
-            )
+            self._pem_path.write_text(f"{self.certs.certificate}\n{self.certs.certificate_key}")
         else:
             logger.warning(
                 "No ZIMRA certs found — temporary PEM not created yet. "
@@ -106,10 +98,7 @@ class ZIMRAClient:
     @staticmethod
     def now_iso():
         return (
-            timezone.now()
-            .astimezone(ZoneInfo("Africa/Harare"))
-            .replace(microsecond=0)
-            .isoformat()
+            timezone.now().astimezone(ZoneInfo("Africa/Harare")).replace(microsecond=0).isoformat()
         )
 
     def get_status(self) -> dict:
@@ -155,9 +144,7 @@ class ZIMRAClient:
 
         return self.get_status()
 
-    def submit_receipt(
-        self, receipt_payload: dict, hash_value: str, signature: str
-    ) -> dict:
+    def submit_receipt(self, receipt_payload: dict, hash_value: str, signature: str) -> dict:
         receipt_payload["receipt"]["receiptDeviceSignature"] = {
             "hash": hash_value,
             "signature": signature,
@@ -166,13 +153,13 @@ class ZIMRAClient:
         logger.info(f"Submitting receipt: {receipt_payload}")
 
         return self._request("POST", "SubmitReceipt", json=receipt_payload).json()
-    
+
     def ping(self) -> dict:
         """
-            is used to report device is online to FDMS
-            returns: 
-                deviceID (str), 
-                reportingFrequency (int)
+        is used to report device is online to FDMS
+        returns:
+            deviceID (str),
+            reportingFrequency (int)
         """
         return self._request("GET", "ping")
 

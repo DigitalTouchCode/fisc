@@ -1,5 +1,4 @@
 from django.urls import path
-
 from .views import (
     CloseDayView,
     ConfigurationView,
@@ -7,7 +6,12 @@ from .views import (
     OpenDayView,
     ReceiptView,
     TaxView,
+    BuyerViewset,
 )
+from rest_framework.routers import DefaultRouter
+
+router = DefaultRouter()
+router.register(r"buyer/", BuyerViewset, basename="buyer")
 
 app_name = "fiscguy"
 
@@ -18,4 +22,4 @@ urlpatterns = [
     path("get-status/", GetStatusView.as_view(), name="status"),
     path("receipts/", ReceiptView.as_view(), name="receipts"),
     path("configuration/", ConfigurationView.as_view(), name="configuration"),
-]
+] + router.urls

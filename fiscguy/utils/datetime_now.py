@@ -4,9 +4,7 @@ from zoneinfo import ZoneInfo
 
 def datetime_now():
     timestamp = (
-        datetime.now(ZoneInfo("Africa/Harare"))
-        .replace(microsecond=0)
-        .strftime("%Y-%m-%dT%H:%M:%S")
+        datetime.now(ZoneInfo("Africa/Harare")).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
     )
     return timestamp
 
