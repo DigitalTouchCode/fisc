@@ -12,6 +12,7 @@ from loguru import logger
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 
 # Import public library functions
 from fiscguy.api import (
@@ -22,8 +23,8 @@ from fiscguy.api import (
     get_configuration,
     get_taxes,
 )
-from fiscguy.models import Receipt
-from fiscguy.serializers import ReceiptSerializer
+from fiscguy.models import Receipt, Buyer
+from fiscguy.serializers import ReceiptSerializer, BuyerSerializer
 
 
 class ReceiptView(generics.GenericAPIView):
@@ -61,6 +62,13 @@ class ReceiptDetailView(generics.RetrieveAPIView):
     queryset = Receipt.objects.all().select_related("receipt_lines", "buyer")
     serializer_class = ReceiptSerializer
     lookup_field = "id"
+
+
+class BuyerViewset(ModelViewSet):
+    """Buyer crud endpoint"""
+
+    queryset = Buyer.objects.all()
+    serializer_class = BuyerSerializer
 
 
 class ConfigurationView(APIView):
@@ -106,7 +114,7 @@ class GetStatusView(APIView):
         except Exception as e:
             logger.exception("Status fetch failed")
             return Response({"error": str(e)}, status=400)
-        
+
 
 class OpenDayView(APIView):
     """REST endpoint to open a fiscal day.
@@ -136,4 +144,3 @@ class CloseDayView(APIView):
         except Exception as e:
             logger.exception("Close day failed")
             return Response({"error": str(e)}, status=400)
-

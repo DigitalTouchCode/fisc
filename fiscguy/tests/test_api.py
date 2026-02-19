@@ -271,19 +271,19 @@ class SubmitReceiptTest(APILibraryTestSetup):
         """Test successful receipt submission."""
         mock_handler = MagicMock()
         mock_handler_class.return_value = mock_handler
-        
+
         # Mock generate_receipt_data to return the expected dict format
         mock_handler.generate_receipt_data.return_value = {
             "receipt_string": "FISCALINVOICEUSD1...",
             "receipt_data": {"receiptTotal": 45.0, "receiptGlobalNo": 1},
         }
-        
+
         # Mock crypto methods
         mock_handler.crypto.generate_receipt_hash_and_signature.return_value = {
             "hash": "test-hash",
             "signature": "test-signature",
         }
-        
+
         # Mock submit_receipt
         mock_handler.submit_receipt.return_value = {"receiptID": 123}
 
@@ -340,19 +340,19 @@ class SubmitReceiptTest(APILibraryTestSetup):
         """Test submitting receipt with multiple tax types."""
         mock_handler = MagicMock()
         mock_handler_class.return_value = mock_handler
-        
+
         # Mock generate_receipt_data to return the expected dict format
         mock_handler.generate_receipt_data.return_value = {
             "receipt_string": "FISCALINVOICEUSD1...",
             "receipt_data": {"receiptTotal": 45.0, "receiptGlobalNo": 1},
         }
-        
+
         # Mock crypto methods
         mock_handler.crypto.generate_receipt_hash_and_signature.return_value = {
             "hash": "test-hash",
             "signature": "test-signature",
         }
-        
+
         # Mock submit_receipt
         mock_handler.submit_receipt.return_value = {"receiptID": 124}
 

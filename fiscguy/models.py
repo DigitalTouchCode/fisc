@@ -158,9 +158,7 @@ class Receipt(models.Model):
         CREDIT_NOTE = "creditnote", "Creditnote"
         DEBIT_NOTE = "debitnote", "Debitnote"
 
-    receipt_number = models.CharField(
-        unique=True, max_length=255, null=True, blank=True
-    )
+    receipt_number = models.CharField(unique=True, max_length=255, null=True, blank=True)
     receipt_type = models.CharField(
         choices=ReceiptType, default=ReceiptType.FISCAL_INVOICE, max_length=255
     )

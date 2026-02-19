@@ -17,6 +17,15 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Security
 
+### [Unreleased]
+
+### Added
+- buyer feature crud via endpoint and via api (a user can now attach buyer data on the receipt payload)
+- Zimra ping method: used to report that the device is online
+
+## Removed
+- redudant imports from the ini_device.py
+
 ## [0.1.4] - 2026-02-09
 
 ### Fixed

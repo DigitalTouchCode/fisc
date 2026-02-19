@@ -24,23 +24,17 @@ class ReceiptService:
         receipt = serializer.save()
 
         receipt = (
-            Receipt.objects.select_related("buyer")
-            .prefetch_related("lines")
-            .get(id=receipt.id)
+            Receipt.objects.select_related("buyer").prefetch_related("lines").get(id=receipt.id)
         )
         receipt_items = receipt.lines.all()
 
         try:
             # Receipt formatting
-            receipt_data = self.receipt_handler.generate_receipt_data(
-                receipt, receipt_items
-            )
+            receipt_data = self.receipt_handler.generate_receipt_data(receipt, receipt_items)
 
             # Hash & signature
-            hash_sig_data = (
-                self.receipt_handler.crypto.generate_receipt_hash_and_signature(
-                    receipt_data["receipt_string"]
-                )
+            hash_sig_data = self.receipt_handler.crypto.generate_receipt_hash_and_signature(
+                receipt_data["receipt_string"]
             )
             receipt.hash_value = hash_sig_data["hash"]
             receipt.signature = hash_sig_data["signature"]
@@ -54,9 +48,7 @@ class ReceiptService:
             receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
 
             # Update counters
-            self.receipt_handler._update_fiscal_counters(
-                receipt, receipt_data["receipt_data"]
-            )
+            self.receipt_handler._update_fiscal_counters(receipt, receipt_data["receipt_data"])
 
             # Submit receipt to ZIMRA
             submission_res = self.receipt_handler.submit_receipt(
@@ -64,7 +56,7 @@ class ReceiptService:
                 hash_sig_data["signature"],
                 receipt_data["receipt_data"],
             )
-            
+
             receipt.submitted = True
             receipt.zimra_inv_id = submission_res.get("receiptID", "")
             receipt.save()

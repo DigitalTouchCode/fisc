@@ -50,7 +50,7 @@ class ZIMRACrypto:
                 self._cert_manager = self._private_key_path_provided
             else:
                 return None
-        
+
         if isinstance(self._cert_manager, CertTempManager):
             return self._cert_manager._key_path
         return self._cert_manager
@@ -104,9 +104,7 @@ class ZIMRACrypto:
         private_key = self.load_private_key()
 
         try:
-            signature = private_key.sign(
-                data.encode(), padding.PKCS1v15(), hashes.SHA256()
-            )
+            signature = private_key.sign(data.encode(), padding.PKCS1v15(), hashes.SHA256())
 
             return base64.b64encode(signature).decode()
         except Exception as e:
@@ -211,9 +209,7 @@ class ZIMRACrypto:
             return f"{tax_amount_cents}{sales_amount_cents}"
 
         # Sort taxes by taxID and taxCode
-        sorted_taxes = sorted(
-            receipt_taxes, key=lambda x: (x["taxID"], x.get("taxCode", ""))
-        )
+        sorted_taxes = sorted(receipt_taxes, key=lambda x: (x["taxID"], x.get("taxCode", "")))
 
         # Concatenate all tax lines
         tax_string = "".join(format_tax_line(tax) for tax in sorted_taxes)
@@ -260,9 +256,7 @@ class ZIMRACrypto:
         # generate 2048-bit RSA key
         keypair = crypto.PKey()
         keypair.generate_key(crypto.TYPE_RSA, 2048)
-        private_key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, keypair).decode(
-            "utf-8"
-        )
+        private_key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, keypair).decode("utf-8")
 
         # build CSR
         common_name = f"ZIMRA-{device_sn}-{int(device_id):010d}"
@@ -279,19 +273,13 @@ class ZIMRACrypto:
         subject.CN = common_name
 
         csr_request.add_extensions(
-            [
-                crypto.X509Extension(
-                    b"subjectAltName", False, f"DNS:{common_name}".encode("utf-8")
-                )
-            ]
+            [crypto.X509Extension(b"subjectAltName", False, f"DNS:{common_name}".encode("utf-8"))]
         )
 
         csr_request.set_pubkey(keypair)
         csr_request.sign(keypair, "sha256")
 
-        csr_pem = crypto.dump_certificate_request(
-            crypto.FILETYPE_PEM, csr_request
-        ).decode("utf-8")
+        csr_pem = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csr_request).decode("utf-8")
 
         # save to DB
         cert_record.certificate_key = private_key_pem

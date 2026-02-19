@@ -74,13 +74,7 @@ class ReceiptLineCreateSerializer(serializers.ModelSerializer):
 class BuyerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Buyer
-        fields = [
-            "id",
-            "name",
-            "address",
-            "tin_number",
-            "vat_numberr",
-        ]
+        fields = ["id", "name", "address", "tin_number", "trade_name", "email", "phonenumber"]
 
 
 class ReceiptSerializer(serializers.ModelSerializer):
@@ -126,9 +120,7 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
                     {"credit_note_reference": "This field is required for credit notes"}
                 )
 
-            if not Receipt.objects.filter(
-                receipt_number=attrs["credit_note_reference"]
-            ).exists():
+            if not Receipt.objects.filter(receipt_number=attrs["credit_note_reference"]).exists():
                 raise serializers.ValidationError(
                     {"credit_note_reference": "Referenced receipt does not exist"}
                 )
@@ -149,20 +141,20 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
         with transaction.atomic():
 
             # validate tin number
-            if len(buyer_data['tin_number']) != 10:
+            if len(buyer_data["tin_number"]) != 10:
                 raise serializers.ValidationError(
                     {"buyer": "Tin number is incorrect, must be ten digit."}
                 )
 
             buyer = Buyer.objects.get_or_create(
-                tin_number = buyer_data['tin_number'].strip(),
+                tin_number=buyer_data["tin_number"].strip(),
                 defaults={
-                    "name": buyer_data['name'].strip(), # registered name
+                    "name": buyer_data["name"].strip(),  # registered name
                     "emai": buyer_data["email"].strip(),
-                    "trade_name": buyer_data["trade_name"].strip(), # trade name e.g branch name
-                    "phonenumber":buyer_data["phonenumber"].strip(),
-                    "address": buyer_data['address'].strip()
-                }
+                    "trade_name": buyer_data["trade_name"].strip(),  # trade name e.g branch name
+                    "phonenumber": buyer_data["phonenumber"].strip(),
+                    "address": buyer_data["address"].strip(),
+                },
             )
 
             receipt = Receipt.objects.create(**validated_data)
