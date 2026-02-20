@@ -23,8 +23,23 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 - buyer feature crud via endpoint and via api (a user can now attach buyer data on the receipt payload)
 - Zimra ping method: used to report that the device is online
 
+### Added
+- ZIMRA online heartbeat scheduler
+- Background ping execution without Redis
+- Engine-level scheduled task module (tasks.py)
+
+### Changed
+- Internal structure of ping_device
+
 ## Removed
 - redudant imports from the ini_device.py
+
+### Known Issues
+- Scheduler stops if main process exits
+- No multiprocessing support yet
+
+### Notes
+- Alpha release for testing only.
 
 ## [0.1.4] - 2026-02-09
 
