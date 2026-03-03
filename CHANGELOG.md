@@ -19,11 +19,9 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### [Unreleased]
 
-### Added
-- buyer feature crud via endpoint and via api (a user can now attach buyer data on the receipt payload)
+## unrelesed
+buyer feature crud via endpoint and via api (a user can now attach buyer data on the receipt payload)
 - Zimra ping method: used to report that the device is online
-
-### Added
 - ZIMRA online heartbeat scheduler
 - Background ping execution without Redis
 - Engine-level scheduled task module (tasks.py)
