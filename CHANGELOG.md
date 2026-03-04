@@ -25,6 +25,7 @@ buyer feature crud via endpoint and via api (a user can now attach buyer data on
 - ZIMRA online heartbeat scheduler
 - Background ping execution without Redis
 - Engine-level scheduled task module (tasks.py)
+- flake8 config
 
 ### Changed
 - Internal structure of ping_device

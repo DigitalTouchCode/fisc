@@ -8,19 +8,20 @@ endpoint or making external network calls.
 
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
+
 from django.test import TestCase
 
+from fiscguy import api
 from fiscguy.models import (
-    Device,
-    FiscalDay,
-    FiscalCounter,
-    Receipt,
-    Taxes,
-    Configuration,
     Buyer,
     Certs,
+    Configuration,
+    Device,
+    FiscalCounter,
+    FiscalDay,
+    Receipt,
+    Taxes,
 )
-from fiscguy import api
 
 
 class APILibraryTestSetup(TestCase):
@@ -82,7 +83,6 @@ class APILibraryTestSetup(TestCase):
         self.buyer = Buyer.objects.create(
             name="Test Buyer",
             tin_number="1234567890",
-            vat_numberr="VAT-BUYER-001",
         )
 
         # Reset module-level caches to avoid pollution between tests
@@ -302,7 +302,7 @@ class SubmitReceiptTest(APILibraryTestSetup):
                     "tax_name": "standard rated 15.5%",
                 }
             ],
-            "buyer": self.buyer.id,
+            "buyer": [],
         }
 
         result = api.submit_receipt(receipt_payload)
@@ -328,7 +328,7 @@ class SubmitReceiptTest(APILibraryTestSetup):
                     "tax_name": "nonexistent tax type",
                 }
             ],
-            "buyer": self.buyer.id,
+            "buyer": [],
         }
 
         with self.assertRaises(Exception):
@@ -387,7 +387,7 @@ class SubmitReceiptTest(APILibraryTestSetup):
                     "tax_name": "exempt",
                 },
             ],
-            "buyer": self.buyer.id,
+            "buyer": [],
         }
 
         result = api.submit_receipt(receipt_payload)

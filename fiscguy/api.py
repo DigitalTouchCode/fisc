@@ -13,18 +13,16 @@ This module encapsulates business logic previously in views,
 providing a clean library interface for both API and programmatic use.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
+
 from loguru import logger
 
-from fiscguy.models import Device, FiscalDay, Taxes
+from fiscguy.models import Configuration, Device, FiscalDay, Taxes
+from fiscguy.serializers import ConfigurationSerializer, TaxSerializer
 from fiscguy.services.closing_day_service import ClosingDayService
 from fiscguy.services.receipt_service import ReceiptService
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
-from fiscguy.models import Configuration
-from fiscguy.serializers import ConfigurationSerializer
-from fiscguy.serializers import TaxSerializer
-
 
 # Module-level instances
 _device = None
