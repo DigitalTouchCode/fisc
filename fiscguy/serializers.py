@@ -102,7 +102,7 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
             "receipt_type",
             "total_amount",
             "currency",
-            "buyer",
+            # "buyer",
             "lines",
             "payment_terms",
             "credit_note_reference",
@@ -134,13 +134,16 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        buyer_data = validated_data.pop("buyer")
+        # if buyer_data:
+        # buyer_data = validated_data.pop("buyer")
+
         lines_data = validated_data.pop("lines")
         receipt_type = validated_data.get("receipt_type", "").lower()
 
         with transaction.atomic():
 
             # validate tin number
+            """
             if len(buyer_data["tin_number"]) != 10:
                 raise serializers.ValidationError(
                     {"buyer": "Tin number is incorrect, must be ten digit."}
@@ -155,11 +158,11 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
                     "phonenumber": buyer_data["phonenumber"].strip(),
                     "address": buyer_data["address"].strip(),
                 },
-            )
+            )"""
 
             receipt = Receipt.objects.create(**validated_data)
-            receipt.buyer = buyer
-            receipt.save()
+            # receipt.buyer = buyer
+            # sreceipt.save()
 
             for idx, line_data in enumerate(lines_data):
 
