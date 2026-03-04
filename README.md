@@ -1,6 +1,4 @@
-# Fiscguy
-
-# Fiscguy
+# FiscGuy 
 
 [![Tests](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml/badge.svg?branch=release)](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml?query=branch%3Arelease)
 [![Release](https://github.com/digitaltouchcode/fisc/actions/workflows/release.yml/badge.svg?branch=release)](https://github.com/digitaltouchcode/fisc/actions/workflows/release.yml?query=branch%3Arelease)
