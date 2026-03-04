@@ -25,7 +25,6 @@ from fiscguy.models import Configuration
 from fiscguy.serializers import ConfigurationSerializer
 from fiscguy.serializers import TaxSerializer
 
-
 # Module-level instances
 _device = None
 _client = None
