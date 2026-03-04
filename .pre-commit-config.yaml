@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1
+    hooks:
+      - id: isort
+        name: isort (python import sorter)
+        entry: isort
+        language: system
+        types: [python]
+
+  - repo: https://github.com/psf/black
+    rev: 23.9.1
+    hooks:
+      - id: black
+        name: black (python code formatter)
+        language: system
+        types: [python]

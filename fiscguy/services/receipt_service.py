@@ -1,4 +1,5 @@
-from typing import Tuple, Dict, Any
+from typing import Any, Dict, Tuple
+
 from django.db import transaction
 from loguru import logger
 

@@ -7,8 +7,8 @@ from django.db import transaction
 from loguru import logger
 
 from fiscguy.models import Certs, Device, Taxes
-from fiscguy.zimra_crypto import ZIMRACrypto
 from fiscguy.services.configuration_service import create_or_update_config
+from fiscguy.zimra_crypto import ZIMRACrypto
 
 """
 Management command to register a ZIMRA fiscal device and fetch its
@@ -62,10 +62,8 @@ class Command(BaseCommand):
         print("*" * 75)
         print("\nDeveloped by Casper Moyo")
         print("Version 0.1.5\n")
-        print(
-            "Welcome to device registration please input the following provided\
-             information as proveded by ZIMRA\n"
-        )
+        print("Welcome to device registration please input the following provided\
+             information as proveded by ZIMRA\n")
 
         environment = input(
             "Enter yes for production environment and no for test enviroment: "
@@ -193,11 +191,11 @@ class Command(BaseCommand):
         """
         try:
             from fiscguy.models import (
-                FiscalDay,
+                Configuration,
                 FiscalCounter,
+                FiscalDay,
                 Receipt,
                 ReceiptLine,
-                Configuration,
             )
 
             with transaction.atomic():

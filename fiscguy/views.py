@@ -16,15 +16,15 @@ from rest_framework.viewsets import ModelViewSet
 
 # Import public library functions
 from fiscguy.api import (
-    open_day,
     close_day,
-    get_status,
-    submit_receipt,
     get_configuration,
+    get_status,
     get_taxes,
+    open_day,
+    submit_receipt,
 )
-from fiscguy.models import Receipt, Buyer
-from fiscguy.serializers import ReceiptSerializer, BuyerSerializer
+from fiscguy.models import Buyer, Receipt
+from fiscguy.serializers import BuyerSerializer, ReceiptSerializer
 
 
 class ReceiptView(generics.GenericAPIView):
