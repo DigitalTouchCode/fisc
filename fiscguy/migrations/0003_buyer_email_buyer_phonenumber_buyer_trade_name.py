@@ -6,26 +6,26 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('fiscguy', '0002_remove_buyer_email_remove_buyer_phonenumber_and_more'),
+        ("fiscguy", "0002_remove_buyer_email_remove_buyer_phonenumber_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='buyer',
-            name='email',
-            field=models.EmailField(default='cas@s.com', max_length=255),
+            model_name="buyer",
+            name="email",
+            field=models.EmailField(default="cas@s.com", max_length=255),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='buyer',
-            name='phonenumber',
-            field=models.CharField(default='2', max_length=20),
+            model_name="buyer",
+            name="phonenumber",
+            field=models.CharField(default="2", max_length=20),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='buyer',
-            name='trade_name',
-            field=models.CharField(default='s', max_length=100),
+            model_name="buyer",
+            name="trade_name",
+            field=models.CharField(default="s", max_length=100),
             preserve_default=False,
         ),
     ]
