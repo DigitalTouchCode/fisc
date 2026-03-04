@@ -61,7 +61,7 @@ class Command(BaseCommand):
         print("*" + " " * 73 + "*")
         print("*" * 75)
         print("\nDeveloped by Casper Moyo")
-        print("Version 0.1.5\n")
+        print("Version 0.1.4\n")
         print("Welcome to device registration please input the following provided\
              information as proveded by ZIMRA\n")
 
