@@ -1,14 +1,15 @@
 from django.urls import path
+from rest_framework.routers import DefaultRouter
+
 from .views import (
+    BuyerViewset,
     CloseDayView,
     ConfigurationView,
     GetStatusView,
     OpenDayView,
     ReceiptView,
     TaxView,
-    BuyerViewset,
 )
-from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
 router.register(r"buyer/", BuyerViewset, basename="buyer")

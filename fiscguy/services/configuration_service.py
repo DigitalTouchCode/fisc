@@ -1,5 +1,6 @@
-from loguru import logger
 from django.db import transaction
+from loguru import logger
+
 from fiscguy.models import Configuration, Taxes
 
 

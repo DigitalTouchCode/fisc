@@ -1,9 +1,11 @@
-from django.core.management.base import BaseCommand
-from zimra_base import ZIMRAClient
 import time
-from fiscguy.models import Device
+
+from django.core.management.base import BaseCommand
 from loguru import logger
+from zimra_base import ZIMRAClient
+
 from fiscguy.api import _get_client
+from fiscguy.models import Device
 
 
 class Command(BaseCommand):
