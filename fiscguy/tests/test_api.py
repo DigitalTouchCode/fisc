@@ -8,19 +8,20 @@ endpoint or making external network calls.
 
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
+
 from django.test import TestCase
 
+from fiscguy import api
 from fiscguy.models import (
-    Device,
-    FiscalDay,
-    FiscalCounter,
-    Receipt,
-    Taxes,
-    Configuration,
     Buyer,
     Certs,
+    Configuration,
+    Device,
+    FiscalCounter,
+    FiscalDay,
+    Receipt,
+    Taxes,
 )
-from fiscguy import api
 
 
 class APILibraryTestSetup(TestCase):

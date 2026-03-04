@@ -1,10 +1,11 @@
 from collections import defaultdict
 from typing import Any, Dict, Iterable, List, Tuple
+
 from django.utils.timezone import now
+from loguru import logger
+
 from fiscguy.models import Device, FiscalCounter, FiscalDay
 from fiscguy.utils.datetime_now import date_today as today
-
-from loguru import logger
 
 SALE_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 SALE_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")

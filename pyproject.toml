@@ -58,10 +58,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/cassymyo-spec/zimra"
-Documentation = "https://github.com/cassymyo-spec/zimra#readme"
-Repository = "https://github.com/cassymyo-spec/zimra.git"
-Issues = "https://github.com/cassymyo-spec/zimra/issues"
+Homepage = "https://github.com/digitaltouchcode/fisc"
+Documentation = "https://github.com/digitaltouchcode/fisc#readme"
+Repository = "https://github.com/digitaltouchcode/fisc.git"
+Issues = "https://github.com/digitaltouchcode/issues"
 
 [tool.setuptools]
 packages = ["fiscguy"]
@@ -97,7 +97,6 @@ exclude = '''
 
 [tool.isort]
 profile = "black"
-multi_line_mode = 3
 include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
