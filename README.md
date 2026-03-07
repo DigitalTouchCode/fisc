@@ -2,6 +2,8 @@
 
 [![Tests](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml/badge.svg?branch=release)](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml?query=branch%3Arelease)
 
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/fiscguy?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/fiscguy)
+
 A Python library for integrating with ZIMRA (Zimbabwe Revenue Authority) fiscal devices. Provides a simple, Pythonic API for managing fiscal operations including device registration, receipt generation, and fiscal day management.
 
 ## Features
