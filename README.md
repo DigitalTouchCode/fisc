@@ -2,8 +2,6 @@
 
 [![Tests](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml/badge.svg?branch=release)](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml?query=branch%3Arelease)
 
-[![PyPI Downloads](https://static.pepy.tech/personalized-badge/fiscguy?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/fiscguy)
-
 [![PyPI version](https://img.shields.io/pypi/v/fiscguy.svg)](https://pypi.org/project/fiscguy/)
 [![Downloads](https://static.pepy.tech/badge/fiscguy)](https://pepy.tech/project/fiscguy)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
