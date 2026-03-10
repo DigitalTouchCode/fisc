@@ -240,5 +240,5 @@ __all__ = [
     "submit_receipt",
     "get_configuration",
     "get_taxes",
-    "ping",
+    "get_ping",
 ]
