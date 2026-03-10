@@ -83,6 +83,7 @@ class APILibraryTestSetup(TestCase):
         self.buyer = Buyer.objects.create(
             name="Test Buyer",
             tin_number="1234567890",
+            vat_numberr="VAT-BUYER-001",
         )
 
         # Reset module-level caches to avoid pollution between tests
@@ -113,10 +114,8 @@ class GetStatusTest(APILibraryTestSetup):
         }
         mock_client.get_status.return_value = expected_status
 
-        # Call the API
         result = api.get_status()
 
-        # Assertions
         self.assertEqual(result, expected_status)
         mock_client.get_status.assert_called_once()
 
@@ -222,7 +221,6 @@ class CloseDayTest(APILibraryTestSetup):
 
         result = api.close_day()
 
-        # Assertions
         self.assertEqual(result, expected_status)
         mock_client.close_day.assert_called_once()
         mock_client.get_status.assert_called_once()
@@ -302,14 +300,15 @@ class SubmitReceiptTest(APILibraryTestSetup):
                     "tax_name": "standard rated 15.5%",
                 }
             ],
-            "buyer": [],
+            "buyer": {
+                "buyerRegisterName": self.buyer.name,
+                "buyerTIN": self.buyer.tin_number,
+            },
         }
 
         result = api.submit_receipt(receipt_payload)
 
-        # Assertions
         self.assertIsNotNone(result)
-        # Verify receipt was created in DB
         self.assertTrue(Receipt.objects.filter(receipt_type="fiscalinvoice").exists())
 
     def test_submit_receipt_invalid_tax_name_raises(self):
@@ -328,11 +327,13 @@ class SubmitReceiptTest(APILibraryTestSetup):
                     "tax_name": "nonexistent tax type",
                 }
             ],
-            "buyer": [],
+            "buyer": {
+                "buyerRegisterName": self.buyer.name,
+                "buyerTIN": self.buyer.tin_number,
+            },
         }
 
         with self.assertRaises(Exception):
-            # Should raise during tax resolution
             api.submit_receipt(receipt_payload)
 
     @patch("fiscguy.api.ZIMRAReceiptHandler")
@@ -387,7 +388,10 @@ class SubmitReceiptTest(APILibraryTestSetup):
                     "tax_name": "exempt",
                 },
             ],
-            "buyer": [],
+            "buyer": {
+                "buyerRegisterName": self.buyer.name,
+                "buyerTIN": self.buyer.tin_number,
+            },
         }
 
         result = api.submit_receipt(receipt_payload)
