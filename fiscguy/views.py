@@ -18,6 +18,7 @@ from rest_framework.viewsets import ModelViewSet
 from fiscguy.api import (
     close_day,
     get_configuration,
+    get_ping,
     get_status,
     get_taxes,
     open_day,
@@ -113,6 +114,18 @@ class GetStatusView(APIView):
             return Response(status_payload, status=status.HTTP_200_OK)
         except Exception as e:
             logger.exception("Status fetch failed")
+            return Response({"error": str(e)}, status=400)
+
+
+class DevicePing(APIView):
+    """End point foor device ping"""
+
+    def get(self, request):
+        try:
+            response = get_ping()
+            return Response(response, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("Ping failed")
             return Response({"error": str(e)}, status=400)
 
 
