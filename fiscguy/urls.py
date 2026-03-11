@@ -5,6 +5,7 @@ from .views import (
     BuyerViewset,
     CloseDayView,
     ConfigurationView,
+    DevicePing,
     GetStatusView,
     OpenDayView,
     ReceiptView,
@@ -17,6 +18,7 @@ router.register(r"buyer/", BuyerViewset, basename="buyer")
 app_name = "fiscguy"
 
 urlpatterns = [
+    path("get-ping/", DevicePing.as_view(), name="ping"),
     path("taxes/", TaxView.as_view(), name="taxes"),
     path("open-day/", OpenDayView.as_view(), name="open"),
     path("close-day/", CloseDayView.as_view(), name="close"),

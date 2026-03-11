@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 
 
 class Device(models.Model):
@@ -190,14 +190,6 @@ class Receipt(models.Model):
     is_credit_note = models.BooleanField(default=False, null=True)
     credit_note_reason = models.CharField(max_length=255, null=True, blank=True)
     credit_note_reference = models.CharField(max_length=255, null=True, blank=True)
-
-    def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-
-        if is_new and not self.receipt_number:
-            self.receipt_number = f"R-{self.id:06d}"
-            super().save(update_fields=["receipt_number"])
 
     def __str__(self):
         return f"Receipt No: {self.receipt_number} | Type: {self.receipt_type} | Total: {self.total_amount}"

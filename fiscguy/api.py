@@ -218,6 +218,20 @@ def get_taxes() -> list:
     return TaxSerializer(taxes, many=True).data
 
 
+def get_ping() -> int:
+    """
+    Get ping details from zimra
+
+    Retturns:
+        {
+            deviceID (str),
+            reportingFrequency (int)
+        }
+    """
+    client = _get_client()
+    return client.ping()
+
+
 # module-level shortcuts
 __all__ = [
     "open_day",
@@ -226,4 +240,5 @@ __all__ = [
     "submit_receipt",
     "get_configuration",
     "get_taxes",
+    "get_ping",
 ]

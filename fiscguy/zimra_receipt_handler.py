@@ -9,6 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from time import sleep
+from typing import Any, Dict, List
 
 import qrcode
 from django.core.files.base import ContentFile
@@ -65,7 +66,7 @@ class ZIMRAReceiptHandler:
                 self._client = None
         return self._client
 
-    def _get_receipt_global_number(self, receipt):
+    def _get_receipt_global_number(self, receipt: Receipt) -> int:
         """
         Fetch the last receiptGlobalNo from Receipts.
 
@@ -75,9 +76,10 @@ class ZIMRAReceiptHandler:
         last_receipt = Receipt.objects.exclude(id=receipt.id).order_by("-created_at").first()
         last_global_no = last_receipt.global_number if last_receipt else 0
         new_global_no = int(last_global_no) + 1
+
         return new_global_no
 
-    def generate_receipt_data(self, receipt: Receipt, receipt_items: list):
+    def generate_receipt_data(self, receipt, receipt_items: List) -> Dict[str, Any]:
         """
         Transform receipt data to ZIMRA receipt format.
         Supports FiscalInvoice and CreditNote.
@@ -126,11 +128,6 @@ class ZIMRAReceiptHandler:
                     "salesAmountWithTax": float("0.00"),
                 }
             )
-
-            # buyer data according to zimra only registered name and buyer tin are mandatory
-            buyerData = [
-                {"buyerRegisteredName": receipt.buyer.name, "buyerTIN": receipt.buyer.tin_number}
-            ]
 
             # Build receipt lines
             for index, item in enumerate(receipt_items, start=1):
@@ -195,13 +192,12 @@ class ZIMRAReceiptHandler:
                 "receiptCurrency": receipt.currency.upper(),
                 "receiptCounter": fiscal_day.receipt_counter + 1,
                 "receiptGlobalNo": self._get_receipt_global_number(receipt),
-                "invoiceNo": receipt.receipt_number,
+                "invoiceNo": f"R-{self._get_receipt_global_number(receipt)}",
                 "receiptNotes": (
                     receipt.credit_note_reason
                     if is_credit_note
                     else "Thank you for shopping with us!"
                 ),
-                "buyerData": buyerData,
                 "receiptDate": timestamp(),
                 "receiptLinesTaxInclusive": True,
                 "receiptLines": receipt_lines,
@@ -225,6 +221,13 @@ class ZIMRAReceiptHandler:
 
                 receipt_data["creditDebitNote"] = {"receiptID": original_receipt.zimra_inv_id}
 
+            # buyer data according to zimra only registered name and buyer tin are mandatory
+            if receipt.buyer:
+                receipt_data["buyerData"] = {
+                    "buyerRegisterName": receipt.buyer.name,
+                    "buyerTIN": receipt.buyer.tin_number,
+                }
+
             # Generate signature string
             signature_string = self.crypto.generate_receipt_signature_string(
                 device_id=self.device.device_id,
@@ -246,7 +249,9 @@ class ZIMRAReceiptHandler:
             logger.exception("Error generating receipt data")
             return {"error": str(e)}
 
-    def submit_receipt(self, hash_value, signature, receipt_data):
+    def submit_receipt(
+        self, hash_value: str, signature: str, receipt_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Submit receipt to ZIMRA and handle offline storage, QR code generation, and fiscal counters.
 
@@ -278,7 +283,9 @@ class ZIMRAReceiptHandler:
             logger.error(f"Error in submit_receipt_with_storage: {e}")
             return {"error": str(e)}
 
-    def _generate_qr_code(self, receipt, receipt_data, signature):
+    def _generate_qr_code(
+        self, receipt: Receipt, receipt_data: Dict[str, Any], signature: str
+    ) -> None:
         """
         Generate and save QR code for invoice.
 
@@ -328,7 +335,7 @@ class ZIMRAReceiptHandler:
             logger.error(f"Error generating QR code: {e}")
             raise
 
-    def _update_fiscal_counters(self, receipt, receipt_data):
+    def _update_fiscal_counters(self, receipt: dict, receipt_data: dict) -> None:
         """
         Update fiscal counters based on receipt data.
 
