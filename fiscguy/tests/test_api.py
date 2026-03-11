@@ -83,7 +83,10 @@ class APILibraryTestSetup(TestCase):
         self.buyer = Buyer.objects.create(
             name="Test Buyer",
             tin_number="1234567890",
-            vat_numberr="VAT-BUYER-001",
+            trade_name="test company",
+            email="email@email.com",
+            address="123 test avenue",
+            phonenumber="0778587612",
         )
 
         # Reset module-level caches to avoid pollution between tests
@@ -301,8 +304,12 @@ class SubmitReceiptTest(APILibraryTestSetup):
                 }
             ],
             "buyer": {
-                "buyerRegisterName": self.buyer.name,
-                "buyerTIN": self.buyer.tin_number,
+                "name": self.buyer.name,
+                "tin_number": self.buyer.tin_number,
+                "trade_name": self.buyer.trade_name,
+                "email": self.buyer.email,
+                "address": self.buyer.address,
+                "phonenumber": self.buyer.phonenumber,
             },
         }
 
@@ -328,8 +335,12 @@ class SubmitReceiptTest(APILibraryTestSetup):
                 }
             ],
             "buyer": {
-                "buyerRegisterName": self.buyer.name,
-                "buyerTIN": self.buyer.tin_number,
+                "name": self.buyer.name,
+                "tin_number": self.buyer.tin_number,
+                "trade_name": self.buyer.trade_name,
+                "email": self.buyer.email,
+                "address": self.buyer.address,
+                "phonenumber": self.buyer.phonenumber,
             },
         }
 
@@ -389,8 +400,12 @@ class SubmitReceiptTest(APILibraryTestSetup):
                 },
             ],
             "buyer": {
-                "buyerRegisterName": self.buyer.name,
-                "buyerTIN": self.buyer.tin_number,
+                "name": self.buyer.name,
+                "tin_number": self.buyer.tin_number,
+                "trade_name": self.buyer.trade_name,
+                "email": self.buyer.email,
+                "address": self.buyer.address,
+                "phonenumber": self.buyer.phonenumber,
             },
         }
 
