@@ -48,6 +48,9 @@ class ReceiptService:
             # Assign global number
             receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
 
+            # Assign global number to receipt number
+            receipt.receipt_number = f"R-{receipt.global_number:08d}"
+
             # Update counters
             self.receipt_handler._update_fiscal_counters(receipt, receipt_data["receipt_data"])
 
