@@ -211,18 +211,23 @@ class ClosingDayService:
     def build_balance_by_money_type(self) -> str:
         strings: List[str] = []
 
-        for c in self.counters:
+        counters = [
+            c
+            for c in self.counters
+            if c.fiscal_counter_type.lower() == "balancebymoneytype" and c.fiscal_counter_value != 0
+        ]
 
-            if c.fiscal_counter_type.lower() != "balancebymoneytype":
-                continue
+        # sorting: currency -> moneyType
+        counters = sorted(
+            counters,
+            key=lambda c: (
+                c.fiscal_counter_currency.upper(),
+                (c.fiscal_counter_money_type or "").upper(),
+            ),
+        )
 
-            if (
-                c.fiscal_counter_type.lower() == "balancebymoneytype"
-                and c.fiscal_counter_value == 0
-            ):
-                continue
-
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
+        for c in counters:
+            base = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
 
             strings.append(
                 f"{base}{c.fiscal_counter_money_type}{self._money_value(c.fiscal_counter_value)}"
@@ -256,6 +261,8 @@ class ClosingDayService:
             f"{credit_tax_by_tax}"
             f"{balance_by_money}"
         ).upper()
+
+        logger.info(f"Closing string: {closing_string}")
 
         signature = self.receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
 

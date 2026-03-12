@@ -292,7 +292,7 @@ class SubmitReceiptTest(APILibraryTestSetup):
             "receipt_type": "fiscalinvoice",
             "currency": "USD",
             "total_amount": Decimal("45.00"),
-            "payment_terms": "cash",
+            "payment_terms": "Cash",
             "lines": [
                 {
                     "product": "Test Product",
@@ -372,7 +372,7 @@ class SubmitReceiptTest(APILibraryTestSetup):
             "receipt_type": "fiscalinvoice",
             "currency": "USD",
             "total_amount": Decimal("45.00"),
-            "payment_terms": "cash",
+            "payment_terms": "Cash",
             "lines": [
                 {
                     "product": "Product 1",
@@ -415,6 +415,108 @@ class SubmitReceiptTest(APILibraryTestSetup):
         self.assertTrue(Receipt.objects.filter(receipt_type="fiscalinvoice").exists())
         receipt = Receipt.objects.get(receipt_type="fiscalinvoice")
         self.assertEqual(receipt.lines.count(), 3)
+
+
+class SubmitReceiptPaymentMethodTest(APILibraryTestSetup):
+    """Test submitting receipts with different payment methods."""
+
+    def setUp(self):
+        super().setUp()
+        self.fiscal_day = FiscalDay.objects.create(
+            day_no=1,
+            is_open=True,
+            receipt_counter=0,
+        )
+
+    def _build_receipt_payload(self, payment_method):
+        """Helper to create a standard receipt payload with a given payment method."""
+        return {
+            "receipt_type": "fiscalinvoice",
+            "currency": "USD",
+            "total_amount": Decimal("100.00"),
+            "payment_terms": payment_method,
+            "lines": [
+                {
+                    "product": "Test Product",
+                    "quantity": Decimal("1"),
+                    "unit_price": Decimal("100.00"),
+                    "line_total": Decimal("100.00"),
+                    "tax_amount": Decimal("0"),
+                    "tax_name": "Standard rated 15.5%",
+                }
+            ],
+            "buyer": {
+                "name": self.buyer.name,
+                "tin_number": self.buyer.tin_number,
+                "trade_name": self.buyer.trade_name,
+                "email": self.buyer.email,
+                "address": self.buyer.address,
+                "phonenumber": self.buyer.phonenumber,
+            },
+        }
+
+    @patch("fiscguy.api.ZIMRAReceiptHandler")
+    def test_submit_receipt_card_payment(self, mock_handler_class):
+        """Test submitting a receipt with payment method Card."""
+        mock_handler = MagicMock()
+        mock_handler_class.return_value = mock_handler
+        mock_handler.generate_receipt_data.return_value = {
+            "receipt_string": "FISCALINVOICEUSD1...",
+            "receipt_data": {"receiptTotal": 100.0, "receiptGlobalNo": 1},
+        }
+        mock_handler.crypto.generate_receipt_hash_and_signature.return_value = {
+            "hash": "test-hash",
+            "signature": "test-signature",
+        }
+        mock_handler.submit_receipt.return_value = {"receiptID": 200}
+
+        payload = self._build_receipt_payload("Card")
+        result = api.submit_receipt(payload)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(Receipt.objects.filter(payment_terms="Card").exists())
+
+    @patch("fiscguy.api.ZIMRAReceiptHandler")
+    def test_submit_receipt_mobile_wallet_payment(self, mock_handler_class):
+        """Test submitting a receipt with payment method Mobile Wallet."""
+        mock_handler = MagicMock()
+        mock_handler_class.return_value = mock_handler
+        mock_handler.generate_receipt_data.return_value = {
+            "receipt_string": "FISCALINVOICEUSD2...",
+            "receipt_data": {"receiptTotal": 100.0, "receiptGlobalNo": 2},
+        }
+        mock_handler.crypto.generate_receipt_hash_and_signature.return_value = {
+            "hash": "test-hash",
+            "signature": "test-signature",
+        }
+        mock_handler.submit_receipt.return_value = {"receiptID": 201}
+
+        payload = self._build_receipt_payload("MobileWallet")
+        result = api.submit_receipt(payload)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(Receipt.objects.filter(payment_terms="MobileWallet").exists())
+
+    @patch("fiscguy.api.ZIMRAReceiptHandler")
+    def test_submit_receipt_bank_transfer_payment(self, mock_handler_class):
+        """Test submitting a receipt with payment method Bank Transfer."""
+        mock_handler = MagicMock()
+        mock_handler_class.return_value = mock_handler
+        mock_handler.generate_receipt_data.return_value = {
+            "receipt_string": "FISCALINVOICEUSD3...",
+            "receipt_data": {"receiptTotal": 100.0, "receiptGlobalNo": 3},
+        }
+        mock_handler.crypto.generate_receipt_hash_and_signature.return_value = {
+            "hash": "test-hash",
+            "signature": "test-signature",
+        }
+        mock_handler.submit_receipt.return_value = {"receiptID": 202}
+
+        payload = self._build_receipt_payload("BankTransfer")
+        result = api.submit_receipt(payload)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(Receipt.objects.filter(payment_terms="BankTransfer").exists())
 
 
 class GetConfigurationTest(APILibraryTestSetup):

@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 
 import qrcode
 from django.core.files.base import ContentFile
+from django.db import transaction
 from loguru import logger
 
 from fiscguy.models import Certs, Device
@@ -363,9 +364,6 @@ class ZIMRAReceiptHandler:
                         fiscal_counter_currency=receipt.currency.lower(),
                         fiscal_counter_tax_id=tax_id,
                         fiscal_counter_tax_percent=tax_percent,
-                        fiscal_counter_money_type=receipt_data["receiptPayments"][0][
-                            "moneyTypeCode"
-                        ],
                         fiscal_day=fiscal_day,
                         defaults={
                             "fiscal_counter_value": sales_amount_with_tax,
@@ -416,8 +414,6 @@ class ZIMRAReceiptHandler:
                         )
                         fiscal_sale_counter_obj.save()
 
-                    logger.info(f"taxes: {receipt_data['receiptTaxes'][0]['taxAmount']}")
-
                     # CreditNoteTaxByTax
                     if tax_percent and tax_name != "exempt" and tax_name != "zero rated 0%":
                         fiscal_counter_obj, _stbt = FiscalCounter.objects.get_or_create(
@@ -445,6 +441,7 @@ class ZIMRAReceiptHandler:
             fiscal_counter_bal_obj, created_bal = FiscalCounter.objects.get_or_create(
                 fiscal_counter_type="Balancebymoneytype",
                 fiscal_counter_currency=receipt.currency.lower(),
+                fiscal_counter_money_type=receipt.payment_terms,
                 fiscal_day=fiscal_day,
                 defaults={
                     "fiscal_counter_tax_percent": None,
