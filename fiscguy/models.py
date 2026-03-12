@@ -194,7 +194,7 @@ class Receipt(models.Model):
         blank=True,
         related_name="receipts",
     )
-    payment_method = models.CharField(
+    payment_terms = models.CharField(
         max_length=20,
         choices=PaymentMethod.choices,
         default=PaymentMethod.CASH,
