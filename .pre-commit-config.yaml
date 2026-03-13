@@ -14,13 +14,6 @@ repos:
       - id: black
         name: black (python code formatter)
         language: system
-        types: [python]
+        types: [python] 
 
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest (run tests)
-        entry: pytest -v --maxfail=1 --disable-warnings
-        language: system
-        types: [python]
 

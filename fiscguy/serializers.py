@@ -96,6 +96,7 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
 
     credit_note_reference = serializers.CharField(required=False, allow_blank=True)
     credit_note_reason = serializers.CharField(required=False, allow_blank=True)
+    payment_terms = serializers.ChoiceField(choices=Receipt.PaymentMethod.choices)
 
     class Meta:
         model = Receipt
