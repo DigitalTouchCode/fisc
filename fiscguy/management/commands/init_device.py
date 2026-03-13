@@ -62,8 +62,10 @@ class Command(BaseCommand):
         print("*" * 75)
         print("\nDeveloped by Casper Moyo")
         print("Version 0.1.4\n")
-        print("Welcome to device registration please input the following provided\
-             information as proveded by ZIMRA\n")
+        print(
+            "Welcome to device registration please input the following provided\
+             information as proveded by ZIMRA\n"
+        )
 
         environment = input(
             "Enter yes for production environment and no for test enviroment: "

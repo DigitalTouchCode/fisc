@@ -211,18 +211,29 @@ class ClosingDayService:
     def build_balance_by_money_type(self) -> str:
         strings: List[str] = []
 
-        for c in self.counters:
+        payment_order = {
+            "CASH": 1,
+            "CARD": 2,
+            "MOBILEWALLET": 3,
+            "BANKTRANSFER": 4,
+            "COUPON": 5,
+            "CREDIT": 6,
+            "OTHER": 7,
+        }
 
-            if c.fiscal_counter_type.lower() != "balancebymoneytype":
-                continue
+        counters = [
+            c
+            for c in self.counters
+            if c.fiscal_counter_type.lower() == "balancebymoneytype" and c.fiscal_counter_value != 0
+        ]
 
-            if (
-                c.fiscal_counter_type.lower() == "balancebymoneytype"
-                and c.fiscal_counter_value == 0
-            ):
-                continue
+        counters = sorted(
+            counters,
+            key=lambda c: payment_order.get((c.fiscal_counter_money_type or "").upper(), 999),
+        )
 
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
+        for c in counters:
+            base = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
 
             strings.append(
                 f"{base}{c.fiscal_counter_money_type}{self._money_value(c.fiscal_counter_value)}"
@@ -257,6 +268,8 @@ class ClosingDayService:
             f"{balance_by_money}"
         ).upper()
 
+        logger.info(f"Closing string: {closing_string}")
+
         signature = self.receipt_handler.crypto.generate_receipt_hash_and_signature(closing_string)
 
         payload_counters = (
@@ -270,7 +283,7 @@ class ClosingDayService:
         payload: Dict[str, Any] = {
             "deviceID": self.device.device_id,
             "fiscalDayNo": self.fiscal_day.day_no,
-            "fiscalDayDate": self._today(),
+            "fiscalDayDate": self.fiscal_day.created_at.strftime("%Y-%m-%d"),
             "fiscalDayCounters": payload_counters,
             "fiscalDayDeviceSignature": signature,
             "receiptCounter": self.fiscal_day.receipt_counter,

@@ -151,6 +151,14 @@ def submit_receipt(receipt_data: Dict[str, Any]) -> Dict[str, Any]:
                 "receipt_type": str,
                 "currency": str,
                 "total_amount": float,
+                "payment_terms": str,
+                "buyer": {
+                    "name": str,
+                    "address": str,
+                    "phonenumber": str,
+                    "tin_number": str,
+                    "email": str,
+                },
                 "lines": [
                     {
                         "product": str,
