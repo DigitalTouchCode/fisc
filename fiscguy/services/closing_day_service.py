@@ -211,19 +211,25 @@ class ClosingDayService:
     def build_balance_by_money_type(self) -> str:
         strings: List[str] = []
 
+        payment_order = {
+            "CASH": 1,
+            "CARD": 2,
+            "MOBILEWALLET": 3,
+            "BANKTRANSFER": 4,
+            "COUPON": 5,
+            "CREDIT": 6,
+            "OTHER": 7,
+        }
+
         counters = [
             c
             for c in self.counters
             if c.fiscal_counter_type.lower() == "balancebymoneytype" and c.fiscal_counter_value != 0
         ]
 
-        # sorting: currency -> moneyType
         counters = sorted(
             counters,
-            key=lambda c: (
-                c.fiscal_counter_currency.upper(),
-                (c.fiscal_counter_money_type or "").upper(),
-            ),
+            key=lambda c: payment_order.get((c.fiscal_counter_money_type or "").upper(), 999),
         )
 
         for c in counters:
@@ -277,7 +283,7 @@ class ClosingDayService:
         payload: Dict[str, Any] = {
             "deviceID": self.device.device_id,
             "fiscalDayNo": self.fiscal_day.day_no,
-            "fiscalDayDate": self._today(),
+            "fiscalDayDate": self.fiscal_day.created_at.strftime("%Y-%m-%d"),
             "fiscalDayCounters": payload_counters,
             "fiscalDayDeviceSignature": signature,
             "receiptCounter": self.fiscal_day.receipt_counter,
