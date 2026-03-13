@@ -64,7 +64,7 @@ class Command(BaseCommand):
         print("Version 0.1.4\n")
         print(
             "Welcome to device registration please input the following provided\
-             information as proveded by ZIMRA\n"
+            information as proveded by ZIMRA\n"
         )
 
         environment = input(
