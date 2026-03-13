@@ -2,6 +2,7 @@
 # 2 normal receipt multiple tax lines
 # 3 normal credit note one tax line
 # 4 normal credit note multiple tax lines
+# mock
 
 
 class TestReceiptSubmissionFormats:
