@@ -152,15 +152,15 @@ class Receipt(models.Model):
     """
     Receiipt model
     """
-
-    class PaymentMethod(models.TextChoices):
-        CASH = "Cash", "Cash"
-        CARD = "Card", "Card"
-        MOBILE_WALLET = "MobileWallet", "Mobile Wallet"
-        BANK_TRANSFER = "BankTransfer", "Bank Transfer"
-        COUPON = "Coupon", "Coupon"
-        CREDIT = "Credit", "Credit"
-        OTHER = "Other", "Other"
+    
+   class PaymentMethod(models.TextChoices):
+      CASH = "Cash", "Cash"
+      CARD = "Card", "Card"
+      MOBILE_WALLET = "MobileWallet", "Mobile Wallet"
+      BANK_TRANSFER = "BankTransfer", "Bank Transfer"
+      COUPON = "Coupon", "Coupon"
+      CREDIT = "Credit", "Credit"
+      OTHER = "Other", "Other"
 
     class ReceiptType(models.TextChoices):
         FISCAL_INVOICE = "fiscalinvoice", "Fiscal Invoice"
@@ -199,6 +199,7 @@ class Receipt(models.Model):
         choices=PaymentMethod.choices,
         default=PaymentMethod.CASH,
     )
+    
     submitted = models.BooleanField(default=False, null=True)
     is_credit_note = models.BooleanField(default=False, null=True)
     credit_note_reason = models.CharField(max_length=255, null=True, blank=True)
