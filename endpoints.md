@@ -126,8 +126,8 @@ Your main ERP system needs to map its receipt data to the FiscGuy API format. Be
     "name": "Customer Name",       // customer_name
     "address": "Customer Address", // customer_address
     "phonenumber": "+263123456789", // customer_phone
-    "tin_number": "123456789",     // customer_tin (optional)
-    "email": "customer@example.com" // customer_email (optional)
+    "tin_number": "123456789",     // customer_tin 
+    "email": "customer@example.com" // customer_email
   },
   "lines": [                       // From your ERP: line_items
     {
@@ -157,6 +157,7 @@ Your main ERP system needs to map its receipt data to the FiscGuy API format. Be
       "quantity": 1,                      // quantity
       "unit_price": "-100.00",            // unit_price (negative)
       "line_total": "-100.00",            // line_total (negative)
+      "tax_amount": "",
       "tax_name": "standard rated 15.5%"  // tax_name (from tax mapping)
     }
   ]
@@ -178,10 +179,8 @@ curl -X GET http://localhost:8000/api/fiscguy/taxes/
 ERP_TAX_MAPPING = {
     # Your ERP Tax Code → FiscGuy Tax Name
     "STD_VAT": "standard rated 15.5%",
-    "ZERO_VAT": "zero rated",
+    "ZERO_VAT": "zero rated 0%",
     "EXEMPT": "exempt",
-    "WITHHOLDING": "withholding tax",
-    "IMPORT_VAT": "import vat",
 }
 
 def get_fiscguy_tax_name(erp_tax_code):
@@ -419,12 +418,6 @@ After successful testing, migrate to production:
   - Exempt (0%)
   - Any other tax types as required
 
-#### Step 4: Verify Production Setup
-Test your production setup by:
-- Checking device connectivity with ping endpoint
-- Verifying configuration details
-- Submitting test receipts to production environment
-
 ### Skip Device Initialization
 - **No need** to run `python manage.py init_device`
 - **Copy existing production certificates** to the Certs model via Django admin
@@ -635,17 +628,6 @@ Currently, the API does not require authentication. Ensure you secure these endp
   ```
 - **Notes**: Returns empty object `{}` if no configuration exists
 
-#### Ping Device
-- **Endpoint**: `GET /api/fiscguy/get-ping/`
-- **Description**: Pings the ZIMRA device to check connectivity
-- **Response**:
-  ```json
-  {
-    "deviceID": "DEVICE123",
-    "reportingFrequency": 3600
-  }
-  ```
-
 ### Tax Information
 
 #### Get Available Taxes
@@ -655,16 +637,16 @@ Currently, the API does not require authentication. Ensure you secure these endp
   ```json
   [
     {
-      "id": 1,
-      "code": "STD",
+      "id": 557, // provided by zimra, itts good to always crosscheck
+      "code": "557",
       "name": "standard rated 15.5%",
       "tax_id": 1,
       "percent": 15.5
     },
     {
       "id": 2,
-      "code": "ZERO",
-      "name": "zero rated",
+      "code": "2",
+      "name": "zero rated 0%",
       "tax_id": 2,
       "percent": 0.0
     }
@@ -738,7 +720,6 @@ All successful responses follow REST conventions:
 ### Complete Migration Flow
 ```bash
 # 1. Verify migration setup (after completing Steps 1-4 above)
-curl -X GET http://localhost:8000/api/fiscguy/get-ping/
 curl -X GET http://localhost:8000/api/fiscguy/get-status/
 curl -X GET http://localhost:8000/api/fiscguy/configuration/
 
@@ -774,7 +755,6 @@ curl -X GET http://localhost:8000/api/fiscguy/close-day/
 ### Migration Verification Checklist
 After completing the migration setup, verify:
 
-- [ ] **Device Ping**: `GET /api/fiscguy/get-ping/` returns device info
 - [ ] **Configuration**: `GET /api/fiscguy/configuration/` shows your company details
 - [ ] **Taxes**: `GET /api/fiscguy/taxes/` lists your tax types
 - [ ] **Status**: `GET /api/fiscguy/get-status/` shows device status
