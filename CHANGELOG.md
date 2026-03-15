@@ -8,9 +8,6 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 ### Added
 - Buyer feature CRUD via endpoint and via API (users can now attach buyer data on receipt payload)
 - ZIMRA ping method: report that the device is online
-- ZIMRA online heartbeat scheduler
-- Background ping execution without Redis
-- Engine-level scheduled task module (`tasks.py`)
 - flake8 configuration
 
 ### Changed
