@@ -140,7 +140,7 @@ class ZIMRAClient:
         active_day.is_open = False
         active_day.save()
 
-        sleep(10)
+        sleep(8)
 
         return self.get_status()
 

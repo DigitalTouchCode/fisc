@@ -193,7 +193,7 @@ class ZIMRAReceiptHandler:
                 "receiptCurrency": receipt.currency.upper(),
                 "receiptCounter": fiscal_day.receipt_counter + 1,
                 "receiptGlobalNo": self._get_receipt_global_number(receipt),
-                "invoiceNo": f"R-{self._get_receipt_global_number(receipt)}",
+                "invoiceNo": f"R-{self._get_receipt_global_number(receipt):08d}",
                 "receiptNotes": (
                     receipt.credit_note_reason
                     if is_credit_note
@@ -240,6 +240,8 @@ class ZIMRAReceiptHandler:
                 receipt_taxes=receipt_data["receiptTaxes"],
                 previous_receipt_hash=receipt_data["previousReceiptHash"],
             )
+
+            logger.info(f"Receipt data: {receipt_data}")
 
             return {
                 "receipt_string": signature_string,
