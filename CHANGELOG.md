@@ -3,15 +3,17 @@
 All notable changes to Fiscguy are documented in this file.  
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## 0.1.5 - 2026-03-16
 
 ### Added
 - Buyer feature CRUD via endpoint and via API (users can now attach buyer data on receipt payload)
 - ZIMRA ping method: report that the device is online
 - flake8 configuration
+- Multiple payment methods
 
 ### Changed
 - Internal structure of `ping_device`
+- receipt number to match ZIMRA receiot global number.
 
 ### Fixed
 - Redundant imports removed from `init_device.py`
@@ -21,16 +23,6 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Removed
 - Redundant imports from `init_device.py`
-
-### Security
-- None
-
-### Known Issues
-- Scheduler stops if main process exits
-- No multiprocessing support yet
-
-### Notes
-- Alpha release for testing only
 
 ## [0.1.4] - 2026-02-09
 
