@@ -4,13 +4,10 @@ import tempfile
 import threading
 from pathlib import Path
 from time import sleep
-from zoneinfo import ZoneInfo
 
 import requests
-from django.utils import timezone
 from loguru import logger
 
-from fiscguy.utils.datetime_now import date_today as today
 from fiscguy.utils.datetime_now import datetime_now as timestamp
 
 from .models import Certs, Configuration, Device, FiscalDay
@@ -94,12 +91,6 @@ class ZIMRAClient:
         except requests.RequestException as exc:
             logger.error(f"FDMS error [{method} {url}]: {exc}")
             raise
-
-    @staticmethod
-    def now_iso():
-        return (
-            timezone.now().astimezone(ZoneInfo("Africa/Harare")).replace(microsecond=0).isoformat()
-        )
 
     def get_status(self) -> dict:
         return self._request("GET", "getStatus").json()
