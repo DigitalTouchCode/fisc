@@ -8,11 +8,9 @@ import binascii
 import hashlib
 
 import OpenSSL.crypto as crypto
-from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.x509.oid import NameOID
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -192,7 +190,6 @@ class ZIMRACrypto:
         def format_tax_line(tax):
             """Format a single tax line for signature"""
             if tax.get("taxPercent") is not None:
-                logger.info(f"tax percent raw: {tax['taxPercent']}")
                 if isinstance(tax["taxPercent"], int):
                     tax_percent = f"{tax['taxPercent']}.00"
                 else:
@@ -248,10 +245,6 @@ class ZIMRACrypto:
         """
         # validate or create Cert record
         cert_record, created = Certs.objects.get_or_create(production=env)
-
-        if cert_record.certificate_key and cert_record.csr:
-            logger.info("Private key and CSR already exist – reusing them")
-            return cert_record.certificate_key, cert_record.csr
 
         # generate 2048-bit RSA key
         keypair = crypto.PKey()

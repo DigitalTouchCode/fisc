@@ -650,7 +650,7 @@ class APIErrorHandlingTest(APILibraryTestSetup):
     def test_close_day_with_invalid_counters(self):
         """Test close_day with missing fiscal counters."""
         # Create fiscal day with no counters
-        fiscal_day = FiscalDay.objects.create(
+        FiscalDay.objects.create(
             day_no=1,
             is_open=True,
             receipt_counter=0,

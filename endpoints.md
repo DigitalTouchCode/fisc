@@ -13,14 +13,14 @@ FiscGuy runs as a standalone Django service that:
 
 ```
 Main ERP System          Fiscalization Service (FiscGuy)     ZIMRA FDMS
-       │                           │                           │
+       │                            │                           │
        ├───> Submit Receipt ───────>│                           │
-       │                           ├───> Format & Sign ───────>│
-       │                           │                           │
+       │                            ├───> Format & Sign ───────>│
+       │                            │                           │
        ├───> Get Status ───────────>│<───> Response ────────────│
-       │                           │                           │
+       │                            │                           │
        └───> Close Day ────────────>│                           │
-                                   │
+                                    │
 ```
 
 ## Service Setup Steps
@@ -175,7 +175,6 @@ curl -X GET http://localhost:8000/api/fiscguy/taxes/
 
 #### Step 2: Create Tax Mapping in Your ERP
 ```python
-# Example tax mapping in your ERP system
 ERP_TAX_MAPPING = {
     # Your ERP Tax Code → FiscGuy Tax Name
     "STD_VAT": "standard rated 15.5%",
@@ -229,7 +228,7 @@ class FiscalizationClient:
         if response.status_code == 201:
             return response.json()
         else:
-            raise Exception(f"Fiscalization failed: {response.text}")
+            raise # comes from fiscguy
     
     def _map_receipt_format(self, erp_data):
         """Map ERP receipt format to FiscGuy format"""
@@ -388,18 +387,16 @@ Test your ERP integration by submitting receipts through the API endpoints to ve
 #### Step 3: Production Migration
 After successful testing, migrate to production:
 
-##### 3.1 Replace Certificates via Django Admin
+##### 3.1 Replace Certificates via Django Admin  if cert and key available or use the init_device and opt for production
 - Access Django Admin → `Certs` model
 - Edit existing test certificate record
 - Replace `cert_file` with your production certificate
 - Replace `key_file` with your production private key
-- Keep the same device link
 
 ##### 3.2 Update Device for Production
 - Access Django Admin → `Device` model
 - Edit your test device record
 - Update `device_id` to your production device ID
-- Update `branch_id` to your production branch ID
 - Change `environment` from "test" to "production"
 
 ##### 3.3 Update Production Configuration
@@ -414,7 +411,7 @@ After successful testing, migrate to production:
 - Access Django Admin → `Taxes` model
 - Update tax records to match production requirements:
   - Standard VAT (15.5%)
-  - Zero-rated (0%)
+  - Zero-rated 0% (0%)
   - Exempt (0%)
   - Any other tax types as required
 
@@ -637,7 +634,7 @@ Currently, the API does not require authentication. Ensure you secure these endp
   ```json
   [
     {
-      "id": 557, // provided by zimra, itts good to always crosscheck
+      "id": 557, // provided by zimra, itts good to always cross-check
       "code": "557",
       "name": "standard rated 15.5%",
       "tax_id": 1,

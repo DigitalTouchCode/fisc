@@ -107,13 +107,17 @@ class ZIMRAReceiptHandler:
             fiscal_day = FiscalDay.objects.filter(is_open=True).first()
             if not fiscal_day:
                 logger.info("No fiscal day open, auto-opening a new fiscal day")
+
                 try:
                     open_day_result = self.client.open_day() if self.client else None
+
                     if not open_day_result or open_day_result.get("error"):
                         return {"error": "Failed to auto-open fiscal day"}
+
                     fiscal_day = FiscalDay.objects.filter(is_open=True).first()
                     if not fiscal_day:
                         return {"error": "No fiscal day open"}
+
                 except Exception as e:
                     logger.error(f"Error auto-opening fiscal day: {e}")
                     return {"error": f"Failed to auto-open fiscal day: {str(e)}"}
@@ -240,8 +244,6 @@ class ZIMRAReceiptHandler:
                 receipt_taxes=receipt_data["receiptTaxes"],
                 previous_receipt_hash=receipt_data["previousReceiptHash"],
             )
-
-            logger.info(f"Receipt data: {receipt_data}")
 
             return {
                 "receipt_string": signature_string,
