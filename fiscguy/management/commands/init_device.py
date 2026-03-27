@@ -51,17 +51,13 @@ class Command(BaseCommand):
     help = "Interactive registration of a new ZIMRA device"
 
     def handle(self, *args, **options):
-        print("\n" + "*" * 75)
-        print("*" + " " * 73 + "*")
-        print("*  ****  **  ****   ****   ****    **  **  **   **  ")
-        print("*  **    **  **     **     **      **  **  **   **  ")
-        print("*  ****  **  ****   **     ** **   **  **   *****   ")
-        print("*  **    **    **   **     **  **  **  **     **    ")
-        print("*  **    **  ****   ****   ****     ****      **    ")
-        print("*" + " " * 73 + "*")
-        print("*" * 75)
+        print("  ****  **  ****   ****   ****    **  **  **   **  ")
+        print("  **    **  **     **     **      **  **  **   **  ")
+        print("  ****  **  ****   **     ** **   **  **   *****   ")
+        print("  **    **    **   **     **  **  **  **     **    ")
+        print("  **    **  ****   ****   ****     ****      **    ")
         print("\nDeveloped by Casper Moyo")
-        print("Version 0.1.4\n")
+        print("Version 0.1.6\n")
         print("Welcome to device registration please input the following provided\
              information as proveded by ZIMRA\n")
 
