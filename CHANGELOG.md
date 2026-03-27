@@ -3,11 +3,18 @@
 All notable changes to Fiscguy are documented in this file.  
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/).
 
-## 0.1.6
+## [Unreleased 0.1.6]
+
+### Added
+- Receipt global numbers are now sourced from FDMS (`lastReceiptGlobalNo + 1`) and persisted
+  locally. If the local value differs from FDMS, a warning is logged and FDMS is used as the
+  source of truth.
+- Fiscal day opening service now persists `lastFiscalDayNo + 1` from FDMS, keeping the local
+  database in sync with FDMS at all times.
 
 ### Removed
-- Removed deprecated `pyOpenSSL` (`OpenSSL.crypto`) usage from `ZIMRACrypto.generate_key_and_csr`; replaced with the `cryptography` library already present as a dependency
-
+- Removed deprecated `pyOpenSSL` (`OpenSSL.crypto`) usage from `ZIMRACrypto.generate_key_and_csr`
+  and replaced it with the `cryptography` library, which was already a project dependency.
 
 ## 0.1.5 - 2026-03-16
 
