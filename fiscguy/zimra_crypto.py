@@ -7,10 +7,11 @@ import base64
 import binascii
 import hashlib
 
-import OpenSSL.crypto as crypto
+from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.x509.oid import NameOID
 from dotenv import load_dotenv
 from loguru import logger
 
