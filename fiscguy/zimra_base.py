@@ -98,26 +98,8 @@ class ZIMRAClient:
     def get_config(self) -> dict:
         return self._request("GET", "getConfig").json()
 
-    def open_day(self) -> dict:
-        active_day = FiscalDay.objects.filter(is_open=True).first()
-        if active_day:
-            return {
-                "success": True,
-                "message": f"Fiscal day {active_day.day_no} already open",
-            }
-        last_day = FiscalDay.objects.order_by("-id").first()
-        next_day_no = last_day.day_no + 1 if last_day else 1
-
-        payload = {
-            "fiscalDayOpened": timestamp(),
-            "fiscalDayNo": next_day_no,
-        }
-
+    def open_day(self, payload: dict) -> dict:
         response = self._request("POST", "openDay", json=payload).json()
-        logger.info(f"FDMS response for openDay: {response}")
-
-        FiscalDay.objects.create(day_no=next_day_no, is_open=True, receipt_counter=0)
-
         return response
 
     def close_day(self, payload: dict) -> dict:
@@ -131,7 +113,7 @@ class ZIMRAClient:
         active_day.is_open = False
         active_day.save()
 
-        sleep(8)
+        sleep(5)
 
         return self.get_status()
 

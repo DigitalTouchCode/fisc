@@ -13,9 +13,10 @@ from typing import Any, Dict, List
 
 import qrcode
 from django.core.files.base import ContentFile
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from loguru import logger
 
+from fiscguy.exceptions import ReceiptSubmissionError
 from fiscguy.models import Certs, Device
 from fiscguy.utils.datetime_now import datetime_now as timestamp
 
@@ -69,14 +70,52 @@ class ZIMRAReceiptHandler:
 
     def _get_receipt_global_number(self, receipt: Receipt) -> int:
         """
-        Fetch the last receiptGlobalNo from Receipts.
+        Derive the next receiptGlobalNo by querying FDMS status.
+
+        FDMS is the source of truth. If the local last global number differs,
+        a warning is logged and FDMS wins.
 
         Returns:
-            int: new global receipt number, or 0 if no receipts exist
+            int: the next global receipt number (lastReceiptGlobalNo + 1)
+
+        Raises:
+            ReceiptSubmissionError: if the FDMS call fails, the response is
+                malformed, or the local DB query fails.
         """
-        last_receipt = Receipt.objects.exclude(id=receipt.id).order_by("-created_at").first()
-        last_global_no = last_receipt.global_number if last_receipt else 0
-        new_global_no = int(last_global_no) + 1
+        try:
+            res = self.client.get_status()
+        except Exception as exc:
+            logger.exception(f"Failed to fetch FDMS status for device {self._device}")
+            raise ReceiptSubmissionError("Could not retrieve FDMS status") from exc
+
+        raw = res.get("lastReceiptGlobalNo")
+        if raw is None:
+            raise ReceiptSubmissionError(
+                f"FDMS status response missing 'lastReceiptGlobalNo' for device {self._device}"
+            )
+
+        try:
+            fdms_last_global_no = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ReceiptSubmissionError(
+                f"Invalid 'lastReceiptGlobalNo' value from FDMS: {raw!r}"
+            ) from exc
+
+        try:
+            last_receipt = Receipt.objects.exclude(id=receipt.id).order_by("-created_at").first()
+
+            last_global_no = last_receipt.global_number if last_receipt else 0
+
+            if last_global_no != fdms_last_global_no:
+                logger.warning(
+                    f"Global no mismatch for device {self._device}: "
+                    f"local={last_global_no}, fdms={fdms_last_global_no}. Deferring to FDMS."
+                )
+            new_global_no = fdms_last_global_no + 1
+
+        except DatabaseError as exc:
+            logger.exception(f"Failed to query receipts for device {self._device}")
+            raise ReceiptSubmissionError("Failed to get last receipt global number") from exc
 
         return new_global_no
 

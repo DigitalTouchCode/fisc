@@ -21,11 +21,12 @@ from fiscguy.api import (
     get_ping,
     get_status,
     get_taxes,
-    open_day,
     submit_receipt,
 )
-from fiscguy.models import Buyer, Receipt
+from fiscguy.exceptions import FiscalDayError
+from fiscguy.models import Buyer, Device, Receipt
 from fiscguy.serializers import BuyerSerializer, ReceiptSerializer
+from fiscguy.services.open_day_service import OpenDayService
 
 
 class ReceiptView(generics.GenericAPIView):
@@ -130,30 +131,48 @@ class DevicePing(APIView):
 
 
 class OpenDayView(APIView):
-    """REST endpoint to open a fiscal day.
-
-    GET: Open a new fiscal day
+    """
+    POST: Open a new fiscal day for the registered device.
     """
 
-    def get(self, request):
+    def post(self, request):
+        device = Device.objects.first()
+        if not device:
+            return Response({"error": "No device registered"}, status=status.HTTP_404_NOT_FOUND)
+
         try:
-            result = open_day()
+            result = OpenDayService(device).open_day()
             return Response(result, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.exception("Open day failed")
-            return Response({"error": str(e)}, status=400)
+        except FiscalDayError as exc:
+            logger.warning(f"Failed to open fiscal day for device {device}: {exc}")
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            logger.exception(f"Unexpected error opening fiscal day for device {device}")
+            return Response(
+                {"error": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class CloseDayView(APIView):
-    """REST endpoint to close the fiscal day.
-
-    GET: Close the open fiscal day (build counters, sign, submit)
+    """
+    POST: Close the open fiscal day (build counters, sign, submit).
     """
 
-    def get(self, request):
+    def post(self, request):
+        device = Device.objects.first()
+        if not device:
+            return Response({"error": "No device registered"}, status=status.HTTP_404_NOT_FOUND)
+
         try:
-            status_payload = close_day()
-            return Response(status_payload, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.exception("Close day failed")
-            return Response({"error": str(e)}, status=400)
+            result = close_day()
+            return Response(result, status=status.HTTP_200_OK)
+        except FiscalDayError as exc:
+            logger.warning(f"Failed to close fiscal day for device {device}: {exc}")
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            logger.exception(f"Unexpected error closing fiscal day for device {device}")
+            return Response(
+                {"error": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
