@@ -7,10 +7,11 @@ import base64
 import binascii
 import hashlib
 
-import OpenSSL.crypto as crypto
+from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.x509.oid import NameOID
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -232,49 +233,52 @@ class ZIMRACrypto:
 
     @staticmethod
     def generate_key_and_csr(device_sn: str, device_id: int, env: bool = True):
-        """
-        Generates a new RSA private key and a CSR, stores both in the Certs table.
-
-        Args:
-            device_sn (str): Device serial number
-            device_id (int): Device ID
-            env (bool): True for production, False for test
-
-        Returns:
-            tuple: (private_key_pem, csr_pem)
-        """
-        # validate or create Cert record
         cert_record, created = Certs.objects.get_or_create(production=env)
 
-        # generate 2048-bit RSA key
-        keypair = crypto.PKey()
-        keypair.generate_key(crypto.TYPE_RSA, 2048)
-        private_key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, keypair).decode("utf-8")
+        if cert_record.certificate_key and cert_record.csr:
+            logger.info("Private key and CSR already exist – reusing them")
+            return cert_record.certificate_key, cert_record.csr
 
-        # build CSR
-        common_name = f"ZIMRA-{device_sn}-{int(device_id):010d}"
-
-        csr_request = crypto.X509Req()
-        subject = csr_request.get_subject()
-
-        # Subject fields ZIMRA way
-        subject.C = "ZW"
-        subject.ST = "Zimbabwe"
-        subject.L = "Harare"
-        subject.O = "Zimbabwe Revenue Authority"
-        subject.OU = "FDMS"
-        subject.CN = common_name
-
-        csr_request.add_extensions(
-            [crypto.X509Extension(b"subjectAltName", False, f"DNS:{common_name}".encode("utf-8"))]
+        # Generate 2048-bit RSA key
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend(),
         )
 
-        csr_request.set_pubkey(keypair)
-        csr_request.sign(keypair, "sha256")
+        private_key_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode("utf-8")
 
-        csr_pem = crypto.dump_certificate_request(crypto.FILETYPE_PEM, csr_request).decode("utf-8")
+        # Build CSR
+        common_name = f"ZIMRA-{device_sn}-{int(device_id):010d}"
 
-        # save to DB
+        csr = (
+            x509.CertificateSigningRequestBuilder()
+            .subject_name(
+                x509.Name(
+                    [
+                        x509.NameAttribute(NameOID.COUNTRY_NAME, "ZW"),
+                        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Zimbabwe"),
+                        x509.NameAttribute(NameOID.LOCALITY_NAME, "Harare"),
+                        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Zimbabwe Revenue Authority"),
+                        x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, "FDMS"),
+                        x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+                    ]
+                )
+            )
+            .add_extension(
+                x509.SubjectAlternativeName([x509.DNSName(common_name)]),
+                critical=False,
+            )
+            .sign(private_key, hashes.SHA256(), default_backend())
+        )
+
+        csr_pem = csr.public_bytes(serialization.Encoding.PEM).decode("utf-8")
+
+        # Save to DB
         cert_record.certificate_key = private_key_pem
         cert_record.csr = csr_pem
         cert_record.save()
