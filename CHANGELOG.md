@@ -3,6 +3,12 @@
 All notable changes to Fiscguy are documented in this file.  
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/).
 
+## 0.1.6
+
+### Removed
+- Removed deprecated `pyOpenSSL` (`OpenSSL.crypto`) usage from `ZIMRACrypto.generate_key_and_csr`; replaced with the `cryptography` library already present as a dependency
+
+
 ## 0.1.5 - 2026-03-16
 
 ### Added
