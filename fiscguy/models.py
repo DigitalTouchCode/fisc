@@ -135,7 +135,7 @@ class FiscalCounter(models.Model):
     fiscal_counter_tax_percent = models.DecimalField(
         max_digits=5, decimal_places=2, default=0.00, null=True, blank=True
     )
-    fiscal_counter_tax_id = models.IntegerField(default=3)
+    fiscal_counter_tax_id = models.IntegerField(default=3, null=True, blank=True)
     fiscal_counter_money_type = models.CharField(
         max_length=20, choices=MONEY_TYPE_CHOICES, default=CASH, null=True
     )

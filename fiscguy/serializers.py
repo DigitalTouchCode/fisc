@@ -2,9 +2,6 @@ from django.db import transaction
 from rest_framework import serializers
 
 from fiscguy.models import Buyer, Configuration, Receipt, ReceiptLine, Taxes
-from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
-
-receipt_handler = ZIMRAReceiptHandler()
 
 
 class ConfigurationSerializer(serializers.ModelSerializer):

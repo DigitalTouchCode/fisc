@@ -12,9 +12,31 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 - Fiscal day opening service now persists `lastFiscalDayNo + 1` from FDMS, keeping the local
   database in sync with FDMS at all times.
 
+### Fixed
+- `OpenDayView`, `CloseDayView` and `DevicePing` now correctly use `POST` instead of `GET`, as both endpoints
+  perform state-changing operations.
+- `ClosingDayService`: fiscal day date in the closing hash string now uses the date the fiscal
+  day was opened (`fiscal_day.created_at`) instead of today's date, matching what FDMS holds
+  on record.
+- `ClosingDayService`: byTax counters are now sorted by `(currency ASC, taxID ASC)` before
+  concatenation, matching the required ordering in spec section 13.3.1.
+- `ClosingDayService`: zero-value counters are now excluded from all builders. Previously
+  `SaleByTax` and `CreditNoteByTax` had no zero filter, violating the spec rule that zero-value
+  counters must not be submitted.
+- `ClosingDayService`: `_money_value` now uses `int(round(value * 100))` instead of
+  `int(value * 100)` to prevent floating point truncation (e.g. `699.75 * 100 = 69974.99`
+  becoming `69974` instead of `69975`).
+- `ZIMRAReceiptHandler`: `CreditNoteByTax` counter now correctly uses `sales_amount_with_tax`
+  per tax group instead of `receipt_data["receiptTotal"]`. Previously the full receipt total
+  was written once per tax group, inflating the counter and causing `CountersMismatch` on
+  close day.
+
 ### Removed
 - Removed deprecated `pyOpenSSL` (`OpenSSL.crypto`) usage from `ZIMRACrypto.generate_key_and_csr`
   and replaced it with the `cryptography` library, which was already a project dependency.
+- `api.py` it had a module level caching which was causing a memory leak.
+- `ClosingDayService`: removed unused `_today()` method and its `date_today` import after
+  the closing string was corrected to use `fiscal_day.created_at` directly.
 
 ## 0.1.5 - 2026-03-16
 

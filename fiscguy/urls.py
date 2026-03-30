@@ -9,6 +9,7 @@ from .views import (
     GetStatusView,
     OpenDayView,
     ReceiptView,
+    SyncConfigurationView,
     TaxView,
 )
 
@@ -25,4 +26,5 @@ urlpatterns = [
     path("get-status/", GetStatusView.as_view(), name="status"),
     path("receipts/", ReceiptView.as_view(), name="receipts"),
     path("configuration/", ConfigurationView.as_view(), name="configuration"),
+    path("sync-config/", SyncConfigurationView.as_view(), name="sync-config"),
 ] + router.urls

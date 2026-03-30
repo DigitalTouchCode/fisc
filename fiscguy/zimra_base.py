@@ -3,14 +3,12 @@ import shutil
 import tempfile
 import threading
 from pathlib import Path
-from time import sleep
 
 import requests
 from loguru import logger
 
-from fiscguy.utils.datetime_now import datetime_now as timestamp
-
-from .models import Certs, Configuration, Device, FiscalDay
+from fiscguy.exceptions import DeviceRegistrationError
+from fiscguy.models import Certs, Configuration, Device
 
 
 class ZIMRAClient:
@@ -92,49 +90,87 @@ class ZIMRAClient:
             logger.error(f"FDMS error [{method} {url}]: {exc}")
             raise
 
+    def register_device(self, payload: dict) -> dict:
+        """
+        Register the device via the public FDMS endpoint.
+        Does not require certs — uses a plain requests.post.
+
+        Raises:
+            DeviceRegistrationError: on request failure or empty response.
+        """
+        domain = "fdmsapi.zimra.co.zw" if self.device.production else "fdmsapitest.zimra.co.zw"
+        url = f"https://{domain}/Public/v1/{self.device.device_id}/RegisterDevice"
+
+        logger.info(
+            f"Registering device {self.device.device_id}, " f"production={self.device.production}"
+        )
+
+        try:
+            response = requests.post(
+                url,
+                timeout=self.TIMEOUT,
+                json=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "deviceModelName": self.device.device_model_name,
+                    "deviceModelVersion": self.device.device_model_version,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as exc:
+            logger.exception(f"FDMS registration request failed [{url}]: {exc}")
+            raise DeviceRegistrationError("Device registration request failed") from exc
+
+        if not data:
+            raise DeviceRegistrationError("FDMS returned an empty registration response")
+
+        return data
+
     def get_status(self) -> dict:
         return self._request("GET", "getStatus").json()
 
     def get_config(self) -> dict:
         return self._request("GET", "getConfig").json()
 
+    def ping(self) -> dict:
+        return self._request("POST", "ping", json={}).json()
+
     def open_day(self, payload: dict) -> dict:
-        response = self._request("POST", "openDay", json=payload).json()
-        return response
+        return self._request("POST", "openDay", json=payload).json()
 
-    def close_day(self, payload: dict) -> dict:
+    def close_day(self, payload: dict) -> requests.Response:
+        """
+        Submit the close-day payload to FDMS.
 
-        active_day = FiscalDay.objects.filter(is_open=True).first()
-        if not active_day:
-            return {"error": "No open fiscal day to close"}
-
-        self._request("POST", "CloseDay", data=json.dumps(payload))
-
-        active_day.is_open = False
-        active_day.save()
-
-        sleep(5)
-
-        return self.get_status()
+        Returns the raw Response so callers can inspect status/headers.
+        DB updates and post-close logic belong in ClosingDayService.
+        """
+        return self._request("POST", "CloseDay", data=json.dumps(payload))
 
     def submit_receipt(self, receipt_payload: dict, hash_value: str, signature: str) -> dict:
         receipt_payload["receipt"]["receiptDeviceSignature"] = {
             "hash": hash_value,
             "signature": signature,
         }
-
+        logger.info(f"Submitting receipt for device {self.device.device_id}")
         return self._request("POST", "SubmitReceipt", json=receipt_payload).json()
 
-    def ping(self) -> dict:
-        return self._request("GET", "ping")
-
+    # Lifecycle
     def close(self):
         with self._lock:
             try:
-                self.session.close()
+                if self.session:
+                    self.session.close()
             finally:
                 shutil.rmtree(self._temp_dir, ignore_errors=True)
-                logger.info(f"ZIMRA client closed for device {self.device.device_id}")
+                logger.info(f"ZIMRAClient closed — device={self.device.device_id}")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
 
     def __del__(self):
         try:
