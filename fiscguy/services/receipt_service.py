@@ -20,12 +20,7 @@ class ReceiptService:
     @transaction.atomic
     def create_and_submit_receipt(self, data: dict) -> tuple[Receipt, dict]:
         """
-        Validate, persist, process, and submit a receipt to ZIMRA.
-
-        If FDMS is offline the receipt is saved locally and queued for
-        background sync. The submission result will contain
-        ``{"submitted": False, "queued": True}`` in that case.
-
+        Validate, persist, process, and submit a receipt to ZIMRA
         Args:
             data: raw receipt payload from the request.
 
