@@ -1,72 +1,53 @@
-from typing import Any, Dict, Tuple
-
 from django.db import transaction
 from loguru import logger
 
-from fiscguy.models import Receipt
+from fiscguy.exceptions import ReceiptSubmissionError
+from fiscguy.models import Device, Receipt
 from fiscguy.serializers import ReceiptCreateSerializer
+from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 
 
 class ReceiptService:
     """
-    Service to handle creation and submission of receipts.
+    Validates and persists a receipt, then delegates processing and
+    FDMS submission to ZIMRAReceiptHandler.
     """
 
-    def __init__(self, receipt_handler: Any):
-        self.receipt_handler = receipt_handler
+    def __init__(self, device: Device):
+        self.device = device
+        self.receipt_handler = ZIMRAReceiptHandler(device)
 
     @transaction.atomic
-    def create_and_submit_receipt(
-        self, validated_data: Dict[str, Any]
-    ) -> Tuple[Any, Dict[str, Any]]:
+    def create_and_submit_receipt(self, data: dict) -> tuple[Receipt, dict]:
+        """
+        Validate, persist, process, and submit a receipt to ZIMRA.
 
-        serializer = ReceiptCreateSerializer(data=validated_data)
+        If FDMS is offline the receipt is saved locally and queued for
+        background sync. The submission result will contain
+        ``{"submitted": False, "queued": True}`` in that case.
+
+        Args:
+            data: raw receipt payload from the request.
+
+        Returns:
+            Tuple of (Receipt instance, submission result dict).
+
+        Raises:
+            ValidationError: if the payload fails serializer validation.
+            ReceiptSubmissionError: if processing or submission fails.
+        """
+        serializer = ReceiptCreateSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         receipt = serializer.save()
 
         receipt = (
             Receipt.objects.select_related("buyer").prefetch_related("lines").get(id=receipt.id)
         )
-        receipt_items = receipt.lines.all()
 
         try:
-            # Receipt formatting
-            receipt_data = self.receipt_handler.generate_receipt_data(receipt, receipt_items)
-
-            # Hash & signature
-            hash_sig_data = self.receipt_handler.crypto.generate_receipt_hash_and_signature(
-                receipt_data["receipt_string"]
-            )
-            receipt.hash_value = hash_sig_data["hash"]
-            receipt.signature = hash_sig_data["signature"]
-
-            # QR code generation
-            self.receipt_handler._generate_qr_code(
-                receipt, receipt_data["receipt_data"], hash_sig_data["signature"]
-            )
-
-            # Assign global number
-            receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
-
-            # Assign global number to receipt number
-            receipt.receipt_number = f"R-{receipt.global_number:08d}"
-
-            # Update counters
-            self.receipt_handler._update_fiscal_counters(receipt, receipt_data["receipt_data"])
-
-            # Submit receipt to ZIMRA
-            submission_res = self.receipt_handler.submit_receipt(
-                hash_sig_data["hash"],
-                hash_sig_data["signature"],
-                receipt_data["receipt_data"],
-            )
-
-            receipt.submitted = True
-            receipt.zimra_inv_id = submission_res.get("receiptID", "")
-            receipt.save()
-
-        except Exception as e:
-            logger.exception(f"Receipt processing failed for {receipt.id}")
+            submission_result = self.receipt_handler.process_and_submit(receipt)
+        except ReceiptSubmissionError:
+            logger.exception(f"Receipt processing failed for receipt {receipt.id}")
             raise
 
-        return receipt, submission_res
+        return receipt, submission_result

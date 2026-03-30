@@ -1,11 +1,13 @@
 from collections import defaultdict
+from time import sleep
 from typing import Any, Dict, Iterable, List, Tuple
 
-from django.utils.timezone import now
 from loguru import logger
 
+from fiscguy.exceptions import CloseDayError
 from fiscguy.models import Device, FiscalCounter, FiscalDay
-from fiscguy.utils.datetime_now import date_today as today
+from fiscguy.zimra_base import ZIMRAClient
+from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 
 SALE_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 SALE_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
@@ -22,13 +24,13 @@ class ClosingDayService:
         fiscal_day: FiscalDay,
         fiscal_counters: Iterable[FiscalCounter],
         tax_map: Dict[int, str],
-        receipt_handler: Any,
     ) -> None:
         self.device = device
         self.fiscal_day = fiscal_day
-        self.counters = fiscal_counters
+        self.counters = list(fiscal_counters)
         self.tax_map = tax_map
-        self.receipt_handler = receipt_handler
+        self.receipt_handler = ZIMRAReceiptHandler(self.device)
+        self.client = ZIMRAClient(self.device)
 
         self.sale_by_tax_payload: List[Dict[str, Any]] = []
         self.sale_tax_by_tax_payload: List[Dict[str, Any]] = []
@@ -36,19 +38,47 @@ class ClosingDayService:
         self.credit_tax_by_tax_payload: List[Dict[str, Any]] = []
         self.balance_by_money_payload: List[Dict[str, Any]] = []
 
-    def _today(self) -> str:
-        return today()
-
     def _money_value(self, value: float) -> int:
-        return int(value * 100)
+        """Convert a currency value to cents (integer), preserving sign."""
+        return int(round(value * 100))
+
+    def _fmt_tax_percent(self, tax_percent) -> str:
+        """
+        Format tax percent for the closing signature string per ZIMRA spec
+        (section 13.3.1):
+          - Always two decimal places: 15 → "15.00", 0 → "0.00", 14.5 → "14.50"
+          - Exempt (None) → empty string ""
+        """
+        if tax_percent is None:
+            return ""
+        return f"{float(tax_percent):.2f}"
+
+    def _sort_by_tax_id(self, counters: List[FiscalCounter]) -> List[FiscalCounter]:
+        """
+        Sort counters by (currency ascending, tax_id ascending) as required
+        by ZIMRA spec section 13.3.1 for byTax counter types.
+        """
+        return sorted(
+            counters,
+            key=lambda c: (
+                (c.fiscal_counter_currency or "").upper(),
+                c.fiscal_counter_tax_id if c.fiscal_counter_tax_id is not None else 0,
+            ),
+        )
 
     def build_sale_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
-        for c in self.counters:
-            if c.fiscal_counter_type.lower() != "salebytax":
-                continue
+        # Filter, then sort by currency + tax_id per spec
+        relevant = self._sort_by_tax_id(
+            [
+                c
+                for c in self.counters
+                if c.fiscal_counter_type.lower() == "salebytax" and c.fiscal_counter_value != 0
+            ]  # spec: zero-value counters must not be submitted
+        )
 
+        for c in relevant:
             tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
 
             if "standard" in tax_name:
@@ -58,13 +88,8 @@ class ClosingDayService:
             else:
                 key = "exempt"
 
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
-
-            tax_part: str = (
-                str(c.fiscal_counter_tax_percent)
-                if c.fiscal_counter_tax_percent is not None
-                else ""
-            )
+            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
+            tax_part: str = self._fmt_tax_percent(c.fiscal_counter_tax_percent)
 
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
@@ -87,24 +112,20 @@ class ClosingDayService:
     def build_sale_tax_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
-        for c in self.counters:
+        relevant = self._sort_by_tax_id(
+            [
+                c
+                for c in self.counters
+                if c.fiscal_counter_type.lower() == "saletaxbytax" and c.fiscal_counter_value != 0
+            ]  # spec: zero-value counters must not be submitted
+        )
 
-            if c.fiscal_counter_type.lower() != "saletaxbytax":
-                continue
-
-            if c.fiscal_counter_type.lower() == "saletaxbytax" and c.fiscal_counter_value == 0:
-                continue
-
+        for c in relevant:
             tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
             key: str = "zero" if "zero" in tax_name else "standard"
 
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
-
-            tax_part: str = (
-                str(c.fiscal_counter_tax_percent)
-                if c.fiscal_counter_tax_percent is not None
-                else ""
-            )
+            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
+            tax_part: str = self._fmt_tax_percent(c.fiscal_counter_tax_percent)
 
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
@@ -127,10 +148,17 @@ class ClosingDayService:
     def build_credit_note_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
-        for c in self.counters:
-            if c.fiscal_counter_type.lower() != "creditnotebytax":
-                continue
+        # spec: zero-value counters must not be submitted
+        relevant = self._sort_by_tax_id(
+            [
+                c
+                for c in self.counters
+                if c.fiscal_counter_type.lower() == "creditnotebytax"
+                and c.fiscal_counter_value != 0
+            ]
+        )
 
+        for c in relevant:
             tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
 
             if "standard" in tax_name:
@@ -140,14 +168,10 @@ class ClosingDayService:
             else:
                 key = "exempt"
 
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
+            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
+            tax_part: str = self._fmt_tax_percent(c.fiscal_counter_tax_percent)
 
-            tax_part: str = (
-                str(c.fiscal_counter_tax_percent)
-                if c.fiscal_counter_tax_percent is not None
-                else ""
-            )
-
+            # Value is already negative (set correctly by _update_fiscal_counters_inner)
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
             self.credit_by_tax_payload.append(
@@ -169,27 +193,24 @@ class ClosingDayService:
     def build_credit_note_tax_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
-        for c in self.counters:
-            if c.fiscal_counter_type.lower() != "creditnotetaxbytax":
-                continue
+        # spec: zero-value counters must not be submitted
+        relevant = self._sort_by_tax_id(
+            [
+                c
+                for c in self.counters
+                if c.fiscal_counter_type.lower() == "creditnotetaxbytax"
+                and c.fiscal_counter_value != 0
+            ]
+        )
 
-            if (
-                c.fiscal_counter_type.lower() == "creditnotetaxbytax"
-                and c.fiscal_counter_value == 0
-            ):
-                continue
-
+        for c in relevant:
             tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
             key: str = "zero" if "zero" in tax_name else "standard"
 
-            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
+            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
+            tax_part: str = self._fmt_tax_percent(c.fiscal_counter_tax_percent)
 
-            tax_part: str = (
-                str(c.fiscal_counter_tax_percent)
-                if c.fiscal_counter_tax_percent is not None
-                else ""
-            )
-
+            # Value is already negative (set correctly by _update_fiscal_counters_inner)
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
             self.credit_tax_by_tax_payload.append(
@@ -211,29 +232,21 @@ class ClosingDayService:
     def build_balance_by_money_type(self) -> str:
         strings: List[str] = []
 
-        payment_order = {
-            "CASH": 1,
-            "CARD": 2,
-            "MOBILEWALLET": 3,
-            "BANKTRANSFER": 4,
-            "COUPON": 5,
-            "CREDIT": 6,
-            "OTHER": 7,
-        }
-
-        counters = [
-            c
-            for c in self.counters
-            if c.fiscal_counter_type.lower() == "balancebymoneytype" and c.fiscal_counter_value != 0
-        ]
-
         counters = sorted(
-            counters,
-            key=lambda c: payment_order.get((c.fiscal_counter_money_type or "").upper(), 999),
+            [
+                c
+                for c in self.counters
+                if c.fiscal_counter_type.lower() == "balancebymoneytype"
+                and c.fiscal_counter_value != 0
+            ],
+            key=lambda c: (
+                (c.fiscal_counter_currency or "").upper(),
+                (c.fiscal_counter_money_type or "").upper(),
+            ),
         )
 
         for c in counters:
-            base = c.fiscal_counter_type.lower() + c.fiscal_counter_currency
+            base = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
 
             strings.append(
                 f"{base}{c.fiscal_counter_money_type}{self._money_value(c.fiscal_counter_value)}"
@@ -250,7 +263,7 @@ class ClosingDayService:
 
         return "".join(strings)
 
-    def close_day(self) -> Tuple[str, Dict[str, Any]]:
+    def close_day(self) -> Dict[str, Any]:
         sale_by_tax: str = self.build_sale_by_tax()
         sale_tax_by_tax: str = self.build_sale_tax_by_tax()
         credit_by_tax: str = self.build_credit_note_by_tax()
@@ -260,7 +273,7 @@ class ClosingDayService:
         closing_string: str = (
             f"{self.device.device_id}"
             f"{self.fiscal_day.day_no}"
-            f"{self._today()}"
+            f"{self.fiscal_day.created_at.strftime('%Y-%m-%d')}"
             f"{sale_by_tax}"
             f"{sale_tax_by_tax}"
             f"{credit_by_tax}"
@@ -289,4 +302,26 @@ class ClosingDayService:
             "receiptCounter": self.fiscal_day.receipt_counter,
         }
 
-        return closing_string, payload
+        logger.info(payload)
+        self.client.close_day(payload)
+
+        sleep(10)
+
+        status = self.client.get_status()
+
+        if not status:
+            raise CloseDayError("FDMS returned an empty response")
+
+        fiscal_day_status = status.get("fiscalDayStatus", "")
+
+        if fiscal_day_status == "FiscalDayClosed":
+            self.fiscal_day.is_open = False
+            self.fiscal_day.save()
+            return status
+
+        if fiscal_day_status == "FiscalDayCloseFailed":
+            error_code = status.get("fiscalDayClosingErrorCode", "unknown")
+            raise CloseDayError(f"FDMS rejected the close day request (errorCode={error_code})")
+
+        logger.warning(f"Unexpected fiscalDayStatus from FDMS: {status}")
+        raise CloseDayError(f"Unexpected FDMS status: {fiscal_day_status!r}")

@@ -1,23 +1,22 @@
 """
 ZIMRA Receipt Handler
 Handles receipt generation, signing, and submission to ZIMRA FDMS.
-Inherits from base ZIMRA class.
+Supports offline mode — receipts are saved locally and synced automatically
+when FDMS becomes reachable again.
 """
 
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
-from time import sleep
-from typing import Any, Dict, List
 
 import qrcode
 from django.core.files.base import ContentFile
-from django.db import DatabaseError, transaction
+from django.db import DatabaseError
 from loguru import logger
 
 from fiscguy.exceptions import ReceiptSubmissionError
-from fiscguy.models import Certs, Device
+from fiscguy.models import Device
 from fiscguy.utils.datetime_now import datetime_now as timestamp
 
 from .models import FiscalCounter, FiscalDay, Receipt, Taxes
@@ -27,61 +26,128 @@ from .zimra_crypto import ZIMRACrypto
 
 class ZIMRAReceiptHandler:
     """
-    Extended ZIMRA class that handles receipt generation, signing, and submission.
-
-    This class inherits from the base ZIMRA class and adds functionality for:
-    - Generating receipt data from invoices
-    - Signing receipts with device signature
-    - Submitting receipts to ZIMRA FDMS
-    - Managing offline receipt storage
-    - Generating QR codes for receipts
-    - Managing fiscal counters
+    Handles receipt generation, signing, QR code creation, fiscal counter
+    updates, and submission to ZIMRA FDMS.
     """
 
-    def __init__(self):
-        """Initialize receipt handler with crypto utilities"""
-        super().__init__()
-        self._device = None
-        self._certs = None
-        self._client = None
+    def __init__(self, device: Device):
+        self._device = device
+        self._client: ZIMRAClient | None = None
         self.crypto = ZIMRACrypto()
-        logger.info("ZIMRAReceiptHandler initialized")
 
     @property
-    def device(self):
-        if self._device is None:
-            self._device = Device.objects.first()
-        return self._device
-
-    @property
-    def certs(self):
-        if self._certs is None:
-            self._certs = Certs.objects.first()
-        return self._certs
-
-    @property
-    def client(self):
+    def client(self) -> ZIMRAClient | None:
+        """
+        Return a cached ZIMRA client, or None if FDMS is unreachable.
+        Callers must check for None when offline tolerance is required.
+        """
         if self._client is None:
-            try:
-                self._client = ZIMRAClient(self.device)
-            except Exception:
-                self._client = None
+            self._client = ZIMRAClient(self._device)
         return self._client
 
-    def _get_receipt_global_number(self, receipt: Receipt) -> int:
-        """
-        Derive the next receiptGlobalNo by querying FDMS status.
+    @property
+    def is_online(self) -> bool:
+        return self.client is not None
 
-        FDMS is the source of truth. If the local last global number differs,
-        a warning is logged and FDMS wins.
+    def process_and_submit(self, receipt: Receipt) -> dict:
+        """
+        Full pipeline: generate → hash/sign → QR code → counters → submit.
+
+        If FDMS is offline the receipt is saved locally with a provisional
+        global number and returned with ``submitted=False, queued=True``.
+
+        Args:
+            receipt: a fully hydrated Receipt instance (select_related buyer,
+                     prefetch_related lines already applied by the caller).
 
         Returns:
-            int: the next global receipt number (lastReceiptGlobalNo + 1)
+            dict `.
+            On successful FDMS submission also contains ``"receiptID"``.
 
         Raises:
-            ReceiptSubmissionError: if the FDMS call fails, the response is
-                malformed, or the local DB query fails.
+            ReceiptSubmissionError: for any unrecoverable processing error.
         """
+        fiscal_day = self._ensure_fiscal_day_open()
+
+        receipt_items = receipt.lines.all()
+
+        receipt_data = self._build_receipt_data(receipt, receipt_items, fiscal_day)
+
+        hash_sig = self.crypto.generate_receipt_hash_and_signature(receipt_data["receipt_string"])
+
+        receipt.hash_value = hash_sig["hash"]
+        receipt.signature = hash_sig["signature"]
+        receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
+        receipt.receipt_number = f"R-{receipt.global_number:08d}"
+
+        self._generate_qr_code(receipt, receipt_data["receipt_data"], hash_sig["signature"])
+        self._update_fiscal_counters(receipt, receipt_data["receipt_data"])
+
+        if not self.is_online:
+            receipt.submitted = False
+            receipt.queued = True
+            receipt.save()
+            logger.warning(
+                f"FDMS offline — receipt {receipt.receipt_number} saved locally and queued for sync"
+            )
+            return {"submitted": False, "queued": True}
+
+        submission_res = self._submit_to_fdms(
+            hash_sig["hash"], hash_sig["signature"], receipt_data["receipt_data"]
+        )
+
+        receipt.submitted = True
+        receipt.queued = False
+        receipt.zimra_inv_id = submission_res.get("receiptID", "")
+        receipt.save()
+
+        return {"submitted": True, "queued": False, **submission_res}
+
+    def _ensure_fiscal_day_open(self) -> FiscalDay:
+        """
+        Return the currently open fiscal day, auto-opening one if needed.
+
+        Raises:
+            ReceiptSubmissionError: if no day can be opened.
+        """
+        fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+
+        if fiscal_day:
+            return fiscal_day
+
+        logger.info(f"No open fiscal day for device {self._device} — attempting auto-open")
+
+        if not self.is_online:
+            raise ReceiptSubmissionError(
+                "No open fiscal day and FDMS is unreachable — cannot auto-open"
+            )
+
+        from fiscguy.services.open_day_service import OpenDayService
+
+        try:
+            OpenDayService(self._device).open_day()
+        except Exception as exc:
+            raise ReceiptSubmissionError("Failed to auto-open fiscal day") from exc
+
+        fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+
+        if not fiscal_day:
+            raise ReceiptSubmissionError("Fiscal day still not open after auto-open attempt")
+
+        return fiscal_day
+
+    def _get_next_global_number(self, receipt: Receipt) -> int:
+        """
+        Return the next receipt global number.
+
+        Online:  query FDMS for lastReceiptGlobalNo and return +1.
+                 Logs a warning if local DB differs.
+        Raises:
+            ReceiptSubmissionError: on malformed FDMS response or DB error.
+        """
+        return self._next_global_number_from_fdms(receipt)
+
+    def _next_global_number_from_fdms(self, receipt: Receipt) -> int:
         try:
             res = self.client.get_status()
         except Exception as exc:
@@ -95,409 +161,354 @@ class ZIMRAReceiptHandler:
             )
 
         try:
-            fdms_last_global_no = int(raw)
+            fdms_last = int(raw)
         except (TypeError, ValueError) as exc:
             raise ReceiptSubmissionError(
-                f"Invalid 'lastReceiptGlobalNo' value from FDMS: {raw!r}"
+                f"Invalid 'lastReceiptGlobalNo' from FDMS: {raw!r}"
             ) from exc
 
+        local_last = self._local_last_global_number(receipt)
+
+        if local_last != fdms_last:
+            logger.warning(
+                f"receiptGlobalNo mismatch for device {self._device}: "
+                f"local={local_last}, fdms={fdms_last}. Deferring to FDMS."
+            )
+
+        return fdms_last + 1
+
+    def _local_last_global_number(self, receipt: Receipt) -> int:
         try:
-            last_receipt = Receipt.objects.exclude(id=receipt.id).order_by("-created_at").first()
-
-            last_global_no = last_receipt.global_number if last_receipt else 0
-
-            if last_global_no != fdms_last_global_no:
-                logger.warning(
-                    f"Global no mismatch for device {self._device}: "
-                    f"local={last_global_no}, fdms={fdms_last_global_no}. Deferring to FDMS."
-                )
-            new_global_no = fdms_last_global_no + 1
-
+            last = Receipt.objects.exclude(id=receipt.id).order_by("-created_at").first()
         except DatabaseError as exc:
             logger.exception(f"Failed to query receipts for device {self._device}")
             raise ReceiptSubmissionError("Failed to get last receipt global number") from exc
 
-        return new_global_no
+        return last.global_number if (last and last.global_number) else 0
 
-    def generate_receipt_data(self, receipt, receipt_items: List) -> Dict[str, Any]:
+    def _build_receipt_data(self, receipt: Receipt, receipt_items, fiscal_day: FiscalDay) -> dict:
         """
-        Transform receipt data to ZIMRA receipt format.
-        Supports FiscalInvoice and CreditNote.
-
-        Args:
-            receipt: Receipt object
-            receipt_items: QuerySet of ReceiptLine objects
+        Transform a Receipt into the ZIMRA receipt payload.
 
         Returns:
-            receipt_string, receipt_data or (error_message, None)
+            {"receipt_string": str, "receipt_data": dict}
+
+        Raises:
+            ReceiptSubmissionError: on any processing failure.
         """
         try:
-            is_credit_note = receipt.receipt_type.lower() == "creditnote"
+            return self._build_receipt_data_inner(receipt, receipt_items, fiscal_day)
+        except ReceiptSubmissionError:
+            raise
+        except Exception as exc:
+            logger.exception("Unexpected error building receipt data")
+            raise ReceiptSubmissionError("Failed to build receipt data") from exc
 
-            # Get last receipt (for previousReceiptHash)
-            last_receipt = (
-                Receipt.objects.exclude(id=receipt.id)
-                .exclude(hash_value__isnull=True)
-                .order_by("-created_at")
-                .first()
-            )
+    def _build_receipt_data_inner(
+        self, receipt: Receipt, receipt_items, fiscal_day: FiscalDay
+    ) -> dict:
+        is_credit_note = receipt.receipt_type.lower() == "creditnote"
 
-            # Fiscal day - auto-open if first sell
-            fiscal_day = FiscalDay.objects.filter(is_open=True).first()
-            if not fiscal_day:
-                logger.info("No fiscal day open, auto-opening a new fiscal day")
+        last_receipt = (
+            Receipt.objects.exclude(id=receipt.id)
+            .exclude(hash_value__isnull=True)
+            .order_by("-created_at")
+            .first()
+        )
 
-                try:
-                    open_day_result = self.client.open_day() if self.client else None
+        receipt_lines = []
+        tax_group_totals: dict = defaultdict(
+            lambda: {"taxAmount": Decimal("0"), "salesAmountWithTax": Decimal("0")}
+        )
 
-                    if not open_day_result or open_day_result.get("error"):
-                        return {"error": "Failed to auto-open fiscal day"}
+        for index, item in enumerate(receipt_items, start=1):
+            unit_price = Decimal(str(item.unit_price))
+            quantity = Decimal(str(item.quantity))
+            line_total = unit_price * quantity
 
-                    fiscal_day = FiscalDay.objects.filter(is_open=True).first()
-                    if not fiscal_day:
-                        return {"error": "No fiscal day open"}
+            tax_id = item.tax_type.tax_id
+            tax_percent = Decimal(str(item.tax_type.percent))
+            tax_name = item.tax_type.name.lower()
 
-                except Exception as e:
-                    logger.error(f"Error auto-opening fiscal day: {e}")
-                    return {"error": f"Failed to auto-open fiscal day: {str(e)}"}
+            if tax_name in ("exempt", "zero rated 0%"):
+                tax_amount = Decimal("0")
+            else:
+                tax_amount = line_total * (tax_percent / (Decimal("100") + tax_percent))
 
-                # Wait 5 seconds after auto opening to allow ZIMRA to process
-                sleep(5)
+            key = (tax_id, tax_percent, tax_name)
+            tax_group_totals[key]["taxAmount"] += tax_amount
+            tax_group_totals[key]["salesAmountWithTax"] += line_total
 
-            # Containers
-            receipt_lines = []
-            tax_group_totals = defaultdict(
-                lambda: {
-                    "taxAmount": float("0.00"),
-                    "salesAmountWithTax": float("0.00"),
+            line_data = {
+                "receiptLineType": "Sale",
+                "receiptLineNo": index,
+                "receiptLineHSCode": "01010101",
+                "receiptLineName": item.product,
+                "receiptLinePrice": float(unit_price),
+                "receiptLineQuantity": float(quantity),
+                "receiptLineTotal": float(round(line_total, 2)),
+                "taxID": tax_id,
+            }
+            if tax_name != "exempt":
+                line_data["taxPercent"] = float(tax_percent)
+
+            receipt_lines.append(line_data)
+
+        receipt_taxes = []
+        for (tax_id, tax_percent, tax_name), totals in tax_group_totals.items():
+            tax_obj = {
+                "taxID": tax_id,
+                "taxAmount": float(round(totals["taxAmount"], 2)),
+                "salesAmountWithTax": float(round(totals["salesAmountWithTax"], 2)),
+            }
+            if tax_name != "exempt":
+                tax_obj["taxPercent"] = float(tax_percent)
+            receipt_taxes.append(tax_obj)
+
+        # Resolve global number once and reuse
+        global_no = self._get_next_global_number(receipt)
+
+        receipt_data = {
+            "receiptType": receipt.receipt_type,
+            "receiptCurrency": receipt.currency.upper(),
+            "receiptCounter": fiscal_day.receipt_counter + 1,
+            "receiptGlobalNo": global_no,
+            "invoiceNo": f"R-{global_no:08d}",
+            "receiptNotes": (
+                receipt.credit_note_reason if is_credit_note else "Thank you for shopping with us!"
+            ),
+            "receiptDate": timestamp(),
+            "receiptLinesTaxInclusive": True,
+            "receiptLines": receipt_lines,
+            "receiptTaxes": receipt_taxes,
+            "receiptPayments": [
+                {
+                    "moneyTypeCode": receipt.payment_terms,
+                    "paymentAmount": float(receipt.total_amount),
                 }
-            )
+            ],
+            "receiptTotal": float(receipt.total_amount),
+            "receiptPrintForm": "Receipt48",
+            "previousReceiptHash": (
+                "" if fiscal_day.receipt_counter == 0 else last_receipt.hash_value
+            ),
+        }
 
-            # Build receipt lines
-            for index, item in enumerate(receipt_items, start=1):
+        if is_credit_note:
+            try:
+                original = Receipt.objects.get(receipt_number=receipt.credit_note_reference)
+            except Receipt.DoesNotExist as exc:
+                raise ReceiptSubmissionError(
+                    f"Credit note references unknown receipt: {receipt.credit_note_reference}"
+                ) from exc
+            receipt_data["creditDebitNote"] = {"receiptID": original.zimra_inv_id}
 
-                unit_price = item.unit_price
-
-                quantity = item.quantity
-                line_total = unit_price * quantity
-
-                tax_id = item.tax_type.tax_id
-                tax_percent = item.tax_type.percent
-                tax_name = item.tax_type.name.lower()
-
-                # Tax calculation
-                if tax_name in ["exempt", "zero rated 0%"]:
-                    tax_amount = float("0.00")
-                else:
-                    tax_amount = line_total * (tax_percent / (float("100.00") + tax_percent))
-
-                # Accumulate tax totals
-                key = (tax_id, tax_percent, tax_name)
-                tax_group_totals[key]["taxAmount"] += tax_amount
-                tax_group_totals[key]["salesAmountWithTax"] += line_total
-
-                # Receipt line
-                line_data = {
-                    "receiptLineType": "Sale",
-                    "receiptLineNo": index,
-                    "receiptLineHSCode": "01010101",
-                    "receiptLineName": item.product,
-                    "receiptLinePrice": float(unit_price),
-                    "receiptLineQuantity": float(quantity),
-                    "receiptLineTotal": float(line_total),
-                    "taxID": tax_id,
-                }
-
-                if tax_name != "exempt":
-                    line_data["taxPercent"] = float(tax_percent)
-
-                receipt_lines.append(line_data)
-
-            # Build receiptTaxes
-            receipt_taxes = []
-            for (tax_id, tax_percent, tax_name), totals in tax_group_totals.items():
-                tax_obj = {
-                    "taxID": tax_id,
-                    "taxAmount": round(totals["taxAmount"], 2),
-                    "salesAmountWithTax": round(totals["salesAmountWithTax"], 2),
-                }
-
-                if tax_name != "exempt":
-                    tax_obj["taxPercent"] = float(tax_percent)
-
-                receipt_taxes.append(tax_obj)
-
-            # Receipt totals
-            receipt_total = receipt.total_amount
-
-            # Base receipt payload
-            receipt_data = {
-                "receiptType": receipt.receipt_type,
-                "receiptCurrency": receipt.currency.upper(),
-                "receiptCounter": fiscal_day.receipt_counter + 1,
-                "receiptGlobalNo": self._get_receipt_global_number(receipt),
-                "invoiceNo": f"R-{self._get_receipt_global_number(receipt):08d}",
-                "receiptNotes": (
-                    receipt.credit_note_reason
-                    if is_credit_note
-                    else "Thank you for shopping with us!"
-                ),
-                "receiptDate": timestamp(),
-                "receiptLinesTaxInclusive": True,
-                "receiptLines": receipt_lines,
-                "receiptTaxes": receipt_taxes,
-                "receiptPayments": [
-                    {
-                        "moneyTypeCode": receipt.payment_terms,
-                        "paymentAmount": float(receipt_total),
-                    }
-                ],
-                "receiptTotal": float(receipt_total),
-                "receiptPrintForm": "Receipt48",
-                "previousReceiptHash": (
-                    "" if fiscal_day.receipt_counter == 0 else last_receipt.hash_value
-                ),
+        if receipt.buyer:
+            receipt_data["buyerData"] = {
+                "buyerRegisterName": receipt.buyer.name,
+                "buyerTIN": receipt.buyer.tin_number,
             }
 
-            # Credit Note
-            if is_credit_note:
-                original_receipt = Receipt.objects.get(receipt_number=receipt.credit_note_reference)
+        signature_string = self.crypto.generate_receipt_signature_string(
+            device_id=self._device.device_id,
+            receipt_type=receipt_data["receiptType"],
+            receipt_currency=receipt_data["receiptCurrency"],
+            receipt_global_no=receipt_data["receiptGlobalNo"],
+            receipt_date=receipt_data["receiptDate"],
+            receipt_total=receipt_data["receiptTotal"],
+            receipt_taxes=receipt_data["receiptTaxes"],
+            previous_receipt_hash=receipt_data["previousReceiptHash"],
+        )
 
-                receipt_data["creditDebitNote"] = {"receiptID": original_receipt.zimra_inv_id}
+        return {"receipt_string": signature_string, "receipt_data": receipt_data}
 
-            # buyer data according to zimra only registered name and buyer tin are mandatory
-            if receipt.buyer:
-                receipt_data["buyerData"] = {
-                    "buyerRegisterName": receipt.buyer.name,
-                    "buyerTIN": receipt.buyer.tin_number,
-                }
-
-            # Generate signature string
-            signature_string = self.crypto.generate_receipt_signature_string(
-                device_id=self.device.device_id,
-                receipt_type=receipt_data["receiptType"],
-                receipt_currency=receipt_data["receiptCurrency"],
-                receipt_global_no=receipt_data["receiptGlobalNo"],
-                receipt_date=receipt_data["receiptDate"],
-                receipt_total=receipt_data["receiptTotal"],
-                receipt_taxes=receipt_data["receiptTaxes"],
-                previous_receipt_hash=receipt_data["previousReceiptHash"],
-            )
-
-            return {
-                "receipt_string": signature_string,
-                "receipt_data": receipt_data,
-            }
-
-        except Exception as e:
-            logger.exception("Error generating receipt data")
-            return {"error": str(e)}
-
-    def submit_receipt(
-        self, hash_value: str, signature: str, receipt_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _submit_to_fdms(self, hash_value: str, signature: str, receipt_data: dict) -> dict:
         """
-        Submit receipt to ZIMRA and handle offline storage, QR code generation, and fiscal counters.
+        Submit a receipt to ZIMRA FDMS and increment the fiscal day counter.
 
-        Args:
-            hash_value (str): Receipt hash
-            signature (str): Receipt signature
-            receipt_data (dict): Receipt data
-
-        Returns:
-            dict: Response from ZIMRA
+        Raises:
+            ReceiptSubmissionError: if the request fails.
         """
         try:
-            # Submit to ZIMRA using the ZIMRA client instance.
-            if not self.client:
-                raise RuntimeError("ZIMRA client not initialised")
-
             response = self.client.submit_receipt({"receipt": receipt_data}, hash_value, signature)
+        except Exception as exc:
+            logger.exception(f"FDMS submission failed for device {self._device}")
+            raise ReceiptSubmissionError("FDMS receipt submission failed") from exc
 
-            logger.info(f"Receipt submission response: {response}")
+        logger.info(f"FDMS submission response for device {self._device}: {response}")
 
+        try:
             fiscal_day = FiscalDay.objects.filter(is_open=True).first()
             if fiscal_day:
                 fiscal_day.receipt_counter += 1
                 fiscal_day.save()
+        except DatabaseError:
+            # Counter mismatch is recoverable — log and continue
+            logger.exception(f"Failed to increment receipt counter for device {self._device}")
 
-            return response
+        return response
 
-        except Exception as e:
-            logger.error(f"Error in submit_receipt_with_storage: {e}")
-            return {"error": str(e)}
-
-    def _generate_qr_code(
-        self, receipt: Receipt, receipt_data: Dict[str, Any], signature: str
-    ) -> None:
+    def _generate_qr_code(self, receipt: Receipt, receipt_data: dict, signature: str) -> None:
         """
-        Generate and save QR code for invoice.
+        Generate and save the QR code and verification code to the receipt.
 
-        Args:
-            receipt: Receipt object
-            receipt_data (dict): Receipt data
-            signature (str): Receipt signature
+        Raises:
+            ReceiptSubmissionError: if QR generation fails.
         """
         try:
-
-            base_url = (
-                f"https://fdmsapi.zimra.co.zw/Device/v1/{self.device.device_id}"
-                if self.certs.production
-                else f"https://fdmsapitest.zimra.co.zw/Device/v1/{self.device.device_id}"
+            base = (
+                f"https://fdmsapi.zimra.co.zw/Device/v1/{self._device.device_id}"
+                if self._device.production
+                else f"https://fdmsapitest.zimra.co.zw/Device/v1/{self._device.device_id}"
             )
 
-            device_id = f"00000{self.device.device_id}"
+            device_id = f"00000{self._device.device_id}"
             receipt_date = datetime.strptime(
                 receipt_data["receiptDate"], "%Y-%m-%dT%H:%M:%S"
             ).strftime("%d%m%Y")
             receipt_global_no = str(receipt_data["receiptGlobalNo"]).zfill(10)
-            receipt_qr_data = self.crypto.generate_verification_code(signature).replace("-", "")
+            verification_code = self.crypto.generate_verification_code(signature)
+            qr_data = verification_code.replace("-", "")
 
-            full_url = f"{base_url}/{device_id}{receipt_date}{receipt_global_no}{receipt_qr_data}"
+            full_url = f"{base}/{device_id}{receipt_date}{receipt_global_no}{qr_data}"
 
-            # Generate QR code
             qr = qrcode.make(full_url)
             qr_io = BytesIO()
             qr.save(qr_io, format="PNG")
             qr_io.seek(0)
 
-            # Save QR code to invoice
             receipt.qr_code.save(
                 f"qr_{receipt.receipt_number}.png",
                 ContentFile(qr_io.getvalue()),
                 save=False,
             )
-
-            # Generate and save verification code
-            code = self.crypto.generate_verification_code(signature)
-            receipt.code = code
+            receipt.code = verification_code
             receipt.save()
 
-            logger.info(f"QR code and verification code saved for invoice {receipt.receipt_number}")
-
-        except Exception as e:
-            logger.error(f"Error generating QR code: {e}")
-            raise
-
-    def _update_fiscal_counters(self, receipt: dict, receipt_data: dict) -> None:
-        """
-        Update fiscal counters based on receipt data.
-
-        Args:
-            receipt: receipt object
-            receipt_data (dict): Receipt data
-        """
-        try:
-            fiscal_day = FiscalDay.objects.filter(is_open=True).first()
-            tax_id = None
-            for tax in receipt_data.get("receiptTaxes", []):
-                tax_id = tax["taxID"]
-                tax_amount = tax["taxAmount"]
-                sales_amount_with_tax = tax["salesAmountWithTax"]
-
-                tax_name = Taxes.objects.filter(tax_id=tax_id).first().name.lower()
-
-                # dont assign for no exempt
-                tax_percent = tax.get("taxPercent") if not tax_name == "exempt" else None
-
-                if receipt_data["receiptType"].lower() == "fiscalinvoice":
-                    # SaleByTax counter
-                    sale_by_tax_counter, created_sbt = FiscalCounter.objects.get_or_create(
-                        fiscal_counter_type="SaleByTax",
-                        fiscal_counter_currency=receipt.currency.lower(),
-                        fiscal_counter_tax_id=tax_id,
-                        fiscal_counter_tax_percent=tax_percent,
-                        fiscal_day=fiscal_day,
-                        defaults={
-                            "fiscal_counter_value": sales_amount_with_tax,
-                        },
-                    )
-
-                    if not created_sbt:
-                        sale_by_tax_counter.fiscal_counter_value += Decimal(sales_amount_with_tax)
-                        sale_by_tax_counter.save()
-
-                    # SaleTaxByTax counter
-                    if tax_percent and tax_name != "exempt" and tax_name != "zero rated 0%":
-                        sale_tax_by_tax_counter, created_stbt = FiscalCounter.objects.get_or_create(
-                            fiscal_counter_type="SaleTaxByTax",
-                            fiscal_counter_currency=receipt.currency.lower(),
-                            fiscal_counter_tax_id=tax_id,
-                            fiscal_counter_tax_percent=tax_percent,
-                            fiscal_counter_money_type=None,
-                            fiscal_day=fiscal_day,
-                            defaults={
-                                "fiscal_counter_value": tax_amount,
-                            },
-                        )
-
-                        if tax_name != "exempt" and tax_name != "zero rated 0%":
-                            if not created_stbt:
-                                sale_tax_by_tax_counter.fiscal_counter_value += Decimal(tax_amount)
-                                sale_tax_by_tax_counter.save()
-
-                elif receipt_data["receiptType"].lower() == "creditnote":
-                    # CreditNoteByTax
-                    fiscal_sale_counter_obj, _sbt = FiscalCounter.objects.get_or_create(
-                        fiscal_counter_type="CreditNoteByTax",
-                        created_at__date=datetime.today(),
-                        fiscal_counter_currency=receipt.currency.lower(),
-                        fiscal_day=fiscal_day,
-                        defaults={
-                            "fiscal_counter_tax_percent": tax_percent,
-                            "fiscal_counter_tax_id": tax_id,
-                            "fiscal_counter_money_type": receipt.payment_terms,
-                            "fiscal_counter_value": receipt_data["receiptTotal"],
-                        },
-                    )
-
-                    if not _sbt:
-                        fiscal_sale_counter_obj.fiscal_counter_value += Decimal(
-                            receipt_data["receiptTotal"]
-                        )
-                        fiscal_sale_counter_obj.save()
-
-                    # CreditNoteTaxByTax
-                    if tax_percent and tax_name != "exempt" and tax_name != "zero rated 0%":
-                        fiscal_counter_obj, _stbt = FiscalCounter.objects.get_or_create(
-                            fiscal_counter_type="CreditNoteTaxByTax",
-                            created_at__date=datetime.today(),
-                            fiscal_counter_currency=receipt.currency.lower(),
-                            fiscal_day=fiscal_day,
-                            defaults={
-                                "fiscal_counter_tax_percent": tax_percent,
-                                "fiscal_counter_tax_id": tax_id,
-                                "fiscal_counter_money_type": None,
-                                "fiscal_counter_value": receipt_data["receiptTaxes"][0][
-                                    "taxAmount"
-                                ],
-                            },
-                        )
-
-                        if not _stbt:
-                            fiscal_counter_obj.fiscal_counter_value += Decimal(
-                                receipt_data["receiptTaxes"][0]["taxAmount"]
-                            )
-                            fiscal_counter_obj.save()
-
-            # Balance By Money Type counter
-            fiscal_counter_bal_obj, created_bal = FiscalCounter.objects.get_or_create(
-                fiscal_counter_type="Balancebymoneytype",
-                fiscal_counter_currency=receipt.currency.lower(),
-                fiscal_counter_money_type=receipt.payment_terms,
-                fiscal_day=fiscal_day,
-                defaults={
-                    "fiscal_counter_tax_percent": None,
-                    "fiscal_counter_tax_id": tax_id,
-                    "fiscal_counter_money_type": receipt.payment_terms,
-                    "fiscal_counter_value": receipt.total_amount,
-                },
+            logger.info(
+                f"QR code saved for receipt {receipt.receipt_number} " f"(device {self._device})"
             )
 
-            if not created_bal:
-                fiscal_counter_bal_obj.fiscal_counter_value += Decimal(receipt.total_amount)
-                fiscal_counter_bal_obj.save()
+        except Exception as exc:
+            logger.exception(f"QR code generation failed for receipt {receipt.receipt_number}")
+            raise ReceiptSubmissionError("Failed to generate QR code") from exc
 
-        except Exception as e:
-            logger.error(f"Error updating fiscal counters: {e}")
+    def _update_fiscal_counters(self, receipt: Receipt, receipt_data: dict) -> None:
+        """
+        Update FiscalCounter rows for SaleByTax, SaleTaxByTax,
+        CreditNoteByTax, CreditNoteTaxByTax, and BalanceByMoneyType.
+
+        Raises:
+            ReceiptSubmissionError: if any DB operation fails.
+        """
+        try:
+            self._update_fiscal_counters_inner(receipt, receipt_data)
+        except ReceiptSubmissionError:
             raise
+        except Exception as exc:
+            logger.exception(f"Unexpected error updating fiscal counters for device {self._device}")
+            raise ReceiptSubmissionError("Failed to update fiscal counters") from exc
+
+    def _update_fiscal_counters_inner(self, receipt: Receipt, receipt_data: dict) -> None:
+        fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+
+        receipt_type = receipt_data["receiptType"].lower()
+        receipt_taxes = receipt_data.get("receiptTaxes", [])
+
+        for tax in receipt_taxes:
+            tax_id = tax["taxID"]
+            tax_amount = Decimal(str(tax["taxAmount"]))
+            sales_amount_with_tax = Decimal(str(tax["salesAmountWithTax"]))  # per-group amount
+
+            tax_obj = Taxes.objects.filter(tax_id=tax_id).first()
+            tax_name = tax_obj.name.lower() if tax_obj else ""
+            tax_percent = Decimal(str(tax["taxPercent"])) if tax_name not in ("exempt",) else None
+
+            if receipt_type == "fiscalinvoice":
+                self._upsert_counter(
+                    counter_type="SaleByTax",
+                    currency=receipt.currency.lower(),
+                    tax_id=tax_id,
+                    tax_percent=tax_percent,
+                    fiscal_day=fiscal_day,
+                    amount=sales_amount_with_tax,
+                )
+
+                if tax_percent and tax_name not in ("exempt", "zero rated 0%"):
+                    self._upsert_counter(
+                        counter_type="SaleTaxByTax",
+                        currency=receipt.currency.lower(),
+                        tax_id=tax_id,
+                        tax_percent=tax_percent,
+                        fiscal_day=fiscal_day,
+                        amount=tax_amount,
+                    )
+
+            elif receipt_type == "creditnote":
+                self._upsert_counter(
+                    counter_type="CreditNoteByTax",
+                    currency=receipt.currency.lower(),
+                    tax_id=tax_id,
+                    tax_percent=tax_percent,
+                    fiscal_day=fiscal_day,
+                    amount=sales_amount_with_tax,
+                )
+
+                if tax_percent and tax_name not in ("exempt", "zero rated 0%"):
+                    self._upsert_counter(
+                        counter_type="CreditNoteTaxByTax",
+                        currency=receipt.currency.lower(),
+                        tax_id=tax_id,
+                        tax_percent=tax_percent,
+                        fiscal_day=fiscal_day,
+                        amount=tax_amount,
+                    )
+
+        # BalanceByMoneyType
+        balance_amount = (
+            Decimal(str(receipt.total_amount))
+            if receipt_type == "creditnote"
+            else Decimal(str(receipt.total_amount))
+        )
+        self._upsert_counter(
+            counter_type="Balancebymoneytype",
+            currency=receipt.currency.lower(),
+            tax_id=None,
+            tax_percent=None,
+            fiscal_day=fiscal_day,
+            amount=balance_amount,
+            money_type=receipt.payment_terms,
+        )
+
+    def _upsert_counter(
+        self,
+        counter_type: str,
+        currency: str,
+        tax_id,
+        tax_percent,
+        fiscal_day: FiscalDay,
+        amount: Decimal,
+        money_type: str | None = None,
+    ) -> None:
+        """
+        Get-or-create a FiscalCounter and increment its value.
+
+        Raises:
+            ReceiptSubmissionError: on DB failure.
+        """
+        try:
+            counter, created = FiscalCounter.objects.get_or_create(
+                fiscal_counter_type=counter_type,
+                fiscal_counter_currency=currency,
+                fiscal_counter_tax_id=tax_id,
+                fiscal_counter_tax_percent=tax_percent,
+                fiscal_counter_money_type=money_type,
+                fiscal_day=fiscal_day,
+                defaults={"fiscal_counter_value": amount},
+            )
+            if not created:
+                counter.fiscal_counter_value += amount
+                counter.save()
+        except DatabaseError as exc:
+            logger.exception(f"Failed to upsert {counter_type} counter for device {self._device}")
+            raise ReceiptSubmissionError(f"Failed to update {counter_type} fiscal counter") from exc
