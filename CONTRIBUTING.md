@@ -274,7 +274,7 @@ Include:
 
 - Open an issue for discussion
 - Check existing issues/PRs first
-- Email: fiscal@example.com
+- Email: cassymyo@gmail.com
 
 ## License
 
