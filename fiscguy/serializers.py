@@ -156,6 +156,7 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Receipt
         fields = [
+            "device",
             "receipt_type",
             "total_amount",
             "currency",

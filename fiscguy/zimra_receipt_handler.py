@@ -151,11 +151,9 @@ class ZIMRAReceiptHandler:
                 f"Invalid 'lastReceiptGlobalNo' from FDMS: {raw!r}"
             ) from exc
 
-        local_last = (
-            self._local_last_global_number(receipt) + 1
-        )  # +1 because we want the next number
-        logger.info(f"globals: {fdms_last} : {local_last}")
-        if local_last != (fdms_last + 1):
+        local_last = self._local_last_global_number(receipt)
+
+        if local_last != fdms_last:
             logger.warning(
                 f"receiptGlobalNo mismatch for device {self._device}: "
                 f"local={local_last}, fdms={fdms_last}. Deferring to FDMS."
@@ -171,7 +169,6 @@ class ZIMRAReceiptHandler:
                 .order_by("-created_at")
                 .first()
             )
-            logger.info(last.global_number)
         except DatabaseError as exc:
             logger.exception(f"Failed to query receipts for device {self._device}")
             raise ReceiptSubmissionError("Failed to get last receipt global number") from exc

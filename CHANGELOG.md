@@ -26,6 +26,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   recorded in the database.
 
 ### Fixed
+- `ReceiptCreateSerializer`: added `device` field to serializer's `fields` list so that the device
+  relation is properly saved when creating receipts. Previously, the device ID passed from
+  `ReceiptService` was being ignored during validation, resulting in receipts being created
+  without an associated device.
 - `OpenDayView`, `CloseDayView` and `DevicePing` now correctly use `POST` instead of `GET`, as both endpoints
   perform state-changing operations.
 - `ClosingDayService`: fiscal day date in the closing hash string now uses the date the fiscal
