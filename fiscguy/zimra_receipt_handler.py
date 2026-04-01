@@ -77,21 +77,11 @@ class ZIMRAReceiptHandler:
         self._generate_qr_code(receipt, receipt_data["receipt_data"], hash_sig["signature"])
         self._update_fiscal_counters(receipt, receipt_data["receipt_data"])
 
-        if not self.is_online:
-            receipt.submitted = False
-            receipt.queued = True
-            receipt.save()
-            logger.warning(
-                f"FDMS offline — receipt {receipt.receipt_number} saved locally and queued for sync"
-            )
-            return {"submitted": False, "queued": True}
-
         submission_res = self._submit_to_fdms(
             hash_sig["hash"], hash_sig["signature"], receipt_data["receipt_data"]
         )
 
         receipt.submitted = True
-        receipt.queued = False
         receipt.zimra_inv_id = submission_res.get("receiptID", "")
         receipt.save()
 
@@ -104,7 +94,7 @@ class ZIMRAReceiptHandler:
         Raises:
             ReceiptSubmissionError: if no day can be opened.
         """
-        fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+        fiscal_day = FiscalDay.objects.filter(device=self._device, is_open=True).first()
 
         if fiscal_day:
             return fiscal_day
@@ -123,7 +113,7 @@ class ZIMRAReceiptHandler:
         except Exception as exc:
             raise ReceiptSubmissionError("Failed to auto-open fiscal day") from exc
 
-        fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+        fiscal_day = FiscalDay.objects.filter(device=self._device, is_open=True).first()
 
         if not fiscal_day:
             raise ReceiptSubmissionError("Fiscal day still not open after auto-open attempt")
@@ -161,9 +151,11 @@ class ZIMRAReceiptHandler:
                 f"Invalid 'lastReceiptGlobalNo' from FDMS: {raw!r}"
             ) from exc
 
-        local_last = self._local_last_global_number(receipt)
-
-        if local_last != fdms_last:
+        local_last = (
+            self._local_last_global_number(receipt) + 1
+        )  # +1 because we want the next number
+        logger.info(f"globals: {fdms_last} : {local_last}")
+        if local_last != (fdms_last + 1):
             logger.warning(
                 f"receiptGlobalNo mismatch for device {self._device}: "
                 f"local={local_last}, fdms={fdms_last}. Deferring to FDMS."
@@ -173,7 +165,13 @@ class ZIMRAReceiptHandler:
 
     def _local_last_global_number(self, receipt: Receipt) -> int:
         try:
-            last = Receipt.objects.exclude(id=receipt.id).order_by("-created_at").first()
+            last = (
+                Receipt.objects.filter(device=self._device)
+                .exclude(id=receipt.id)
+                .order_by("-created_at")
+                .first()
+            )
+            logger.info(last.global_number)
         except DatabaseError as exc:
             logger.exception(f"Failed to query receipts for device {self._device}")
             raise ReceiptSubmissionError("Failed to get last receipt global number") from exc
@@ -332,7 +330,7 @@ class ZIMRAReceiptHandler:
         logger.info(f"FDMS submission response for device {self._device}: {response}")
 
         try:
-            fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+            fiscal_day = FiscalDay.objects.filter(device=self._device, is_open=True).first()
             if fiscal_day:
                 fiscal_day.receipt_counter += 1
                 fiscal_day.save()

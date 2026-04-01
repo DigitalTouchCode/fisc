@@ -320,7 +320,7 @@ class Command(BaseCommand):
             response = requests.post(url, json=payload, headers=headers, timeout=(5, 30))
             response.raise_for_status()
             data = response.json()
-            logger.info("RegisterDevice response: {}", data)
+            logger.success("RegisterDevice response: {}", data)
 
             signed_cert = data.get("certificate")
             if not signed_cert:

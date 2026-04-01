@@ -1,12 +1,11 @@
-from django.db import transaction
 from loguru import logger
 from rest_framework import generics, status
+from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from fiscguy.exceptions import (
-    CertificateError,
     CloseDayError,
     ConfigurationError,
     DevicePingError,
@@ -18,11 +17,9 @@ from fiscguy.models import Buyer, Configuration, Device, FiscalDay, Receipt, Tax
 from fiscguy.serializers import (
     BuyerSerializer,
     ConfigurationSerializer,
-    DeviceSerializer,
     ReceiptSerializer,
     TaxSerializer,
 )
-from fiscguy.services.certs_service import CertificateService
 from fiscguy.services.closing_day_service import ClosingDayService
 from fiscguy.services.configuration_service import ConfigurationService
 from fiscguy.services.open_day_service import OpenDayService
@@ -31,20 +28,40 @@ from fiscguy.services.receipt_service import ReceiptService
 from fiscguy.services.status_service import StatusService
 
 
+class ReceiptCursorPagination(CursorPagination):
+    """
+    Cursor-based pagination for receipts.
+    Provides efficient pagination for large result sets.
+    """
+
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+    ordering = "-created_at"
+
+
 class ReceiptView(APIView):
     """REST endpoint to list and submit receipts.
 
-    GET: List all receipts
+    GET: List all receipts with cursor pagination
     POST: Create and submit a receipt to ZIMRA
     """
 
     serializer_class = ReceiptSerializer
     queryset = Receipt.objects.all()
+    pagination_class = ReceiptCursorPagination
 
     def get(self, request):
-        """List receipts ordered by creation date."""
-        data = self.queryset.order_by("created_at").select_related("buyer")
-        return Response(ReceiptSerializer(data, many=True).data)
+        """List receipts with cursor pagination, including receipt lines."""
+        queryset = (
+            self.queryset.select_related("buyer").prefetch_related("lines").order_by("-created_at")
+        )
+
+        paginator = self.pagination_class()
+        paginated_queryset = paginator.paginate_queryset(queryset, request)
+
+        serializer = ReceiptSerializer(paginated_queryset, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
         device = Device.objects.first()
@@ -85,14 +102,17 @@ class BuyerViewset(ModelViewSet):
 
 
 class ConfigurationView(APIView):
-    """REST endpoint to get device configuration.
-
+    """
+    REST endpoint to get device configuration.
     GET: Fetch stored taxpayer configuration
     """
 
     def get(self, request):
         try:
-            config = Configuration.objects.first()
+            device = Device.objects.first()
+            if not device:
+                return Response({}, status=status.HTTP_200_OK)
+            config = Configuration.objects.filter(device=device).first()
             if not config:
                 return Response({}, status=status.HTTP_200_OK)
             return Response(ConfigurationSerializer(config).data, status=status.HTTP_200_OK)
@@ -102,8 +122,8 @@ class ConfigurationView(APIView):
 
 
 class TaxView(APIView):
-    """REST endpoint to list available taxes.
-
+    """
+    REST endpoint to list available taxes.
     GET: Fetch all configured tax types
     """
 
@@ -117,8 +137,8 @@ class TaxView(APIView):
 
 
 class GetStatusView(APIView):
-    """REST endpoint to get device and fiscal day status.
-
+    """
+    REST endpoint to get device and fiscal day status.
     GET: Fetch status from ZIMRA FDMS
     """
 
@@ -144,7 +164,10 @@ class GetStatusView(APIView):
 
 
 class DevicePing(APIView):
-    """End point foor device ping"""
+    """
+    End point for device ping
+    POST: Ping the device to check/report connectivity with ZIMRA FDMS
+    """
 
     def post(self, request):
         device = Device.objects.first()
@@ -217,8 +240,13 @@ class CloseDayView(APIView):
     def post(self, request):
         try:
             device = Device.objects.first()
+            if not device:
+                return Response(
+                    {"error": "No device registered"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
-            fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+            fiscal_day = FiscalDay.objects.filter(device=device, is_open=True).first()
             if not fiscal_day:
                 return Response(
                     {"error": "No open fiscal day to close"},
@@ -258,7 +286,7 @@ class SyncConfigurationView(APIView):
 
         try:
             ConfigurationService(device).config()
-            return Response(status=status.HTTP_200_OK)
+            return Response({"message": "Configuration Synced"}, status=status.HTTP_200_OK)
         except ConfigurationError as exc:
             logger.exception(f"Manual configuration sync failed: {device} : {exc}")
             return Response(
@@ -270,38 +298,4 @@ class SyncConfigurationView(APIView):
             return Response(
                 {"error": "An unexpected error occurred"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-class DeviceRegistrationView(APIView):
-    """POST /register-device/ — Register a new tenant and device pair."""
-
-    def post(self, request):
-        serializer = DeviceSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            with transaction.atomic():
-                device = serializer.save()
-                CertificateService(device).issue_certificate()
-                ConfigurationService(device).config()
-
-            return Response(
-                {
-                    "success": True,
-                    "message": "Device and tenant registered successfully",
-                    "tenant_id": device.tenant.id,
-                    "device_id": device.id,
-                    "tenant_slug": device.tenant.slug,
-                },
-                status=status.HTTP_201_CREATED,
-            )
-        except (ConfigurationError, CertificateError) as exc:
-            logger.error(f"Device registration failed: {exc}")
-            return Response({"error": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        except Exception:
-            logger.exception("Unexpected error during device registration")
-            return Response(
-                {"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

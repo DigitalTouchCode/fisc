@@ -22,6 +22,9 @@ class ReceiptService:
         """
         Validate, persist, process, and submit a receipt to ZIMRA.
 
+        The entire operation is atomic: if submission fails, the receipt
+        is rolled back and NOT saved to the database.
+
         Args:
             data: raw receipt payload from the request.
 
@@ -32,6 +35,7 @@ class ReceiptService:
             ValidationError: if the payload fails serializer validation.
             ReceiptSubmissionError: if processing or submission fails.
         """
+        data["device"] = self.device.id
         serializer = ReceiptCreateSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         receipt = serializer.save()
@@ -42,8 +46,8 @@ class ReceiptService:
 
         try:
             submission_result = self.receipt_handler.process_and_submit(receipt)
-        except ReceiptSubmissionError:
-            logger.exception(f"Receipt processing failed for receipt {receipt.id}")
+        except ReceiptSubmissionError as exc:
+            logger.exception(f"Receipt processing failed for receipt {receipt.id} — rolling back")
             raise
 
         return receipt, submission_result

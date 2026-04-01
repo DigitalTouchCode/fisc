@@ -68,11 +68,11 @@ class CertificateService:
     def _persist_certificate(self, signed_cert: str) -> None:
         """Write the signed certificate to the database inside a transaction."""
         try:
-            tenant_cert = Certs.objects.filter().first()
+            tenant_cert = Certs.objects.filter(device=self.device).first()
         except ObjectDoesNotExist as exc:
-            logger.error("No certificate record found for tenant={}", self.device)
+            logger.error("No certificate record found for device={}", self.device)
             raise CertNotFoundError(
-                f"Certificate record not found for tenant {self.device!r}."
+                f"Certificate record not found for device {self.device!r}."
             ) from exc
 
         try:
@@ -80,5 +80,5 @@ class CertificateService:
                 tenant_cert.certificate = signed_cert
                 tenant_cert.save(update_fields=["certificate"])
         except Exception as exc:
-            logger.error(f"Failed to persist certificate for tenant={self.device} — {exc}")
+            logger.error(f"Failed to persist certificate for device={self.device} — {exc}")
             raise PersistenceError("Could not save the signed certificate.") from exc

@@ -40,7 +40,7 @@ class ZIMRACrypto:
     @property
     def private_key_path(self):
         if self._cert_manager is None:
-            c = Certs.objects.first()
+            c = Certs.objects.filter(device__isnull=False).first()
             if c:
                 self._cert_manager = CertTempManager(c.certificate, c.certificate_key)
             elif self._private_key_path_provided:
@@ -306,10 +306,8 @@ class ZIMRACrypto:
         try:
             with transaction.atomic():
                 cert_record, _ = Certs.objects.get_or_create(
-                    device=device, production=env, defaults={"tenant": device.tenant}
+                    device=device,
                 )
-
-                cert_record.tenant = device.tenant
                 cert_record.certificate_key = private_key_pem
                 cert_record.csr = csr_pem
                 cert_record.save()

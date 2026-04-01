@@ -9,8 +9,8 @@ class DeviceSerializer(serializers.ModelSerializer):
         model = Device
         fields = [
             "id",
-            "tenant",
             "org_name",
+            "activation_key",
             "device_id",
             "device_model_name",
             "device_serial_number",
@@ -19,13 +19,6 @@ class DeviceSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
-
-        def validate_device_id(self, value):
-            if not value or len(value.strip()) < 3:
-                raise serializers.ValidationError(
-                    "Device ID must be at least 5 characters and above."
-                )
-            return value.strip()
 
 
 class ConfigurationSerializer(serializers.ModelSerializer):
@@ -37,13 +30,17 @@ class ConfigurationSerializer(serializers.ModelSerializer):
         model = Configuration
         fields = [
             "id",
+            "device",
             "tax_payer_name",
             "tin_number",
             "vat_number",
             "address",
             "phone_number",
             "email",
+            "created_at",
+            "updated_at",
         ]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 
 class TaxSerializer(serializers.ModelSerializer):
@@ -54,6 +51,7 @@ class TaxSerializer(serializers.ModelSerializer):
     class Meta:
         model = Taxes
         fields = "__all__"
+        read_only_fields = ["id", "created_at"]
 
 
 class ReceiptLineSerializer(serializers.ModelSerializer):
@@ -70,7 +68,9 @@ class ReceiptLineSerializer(serializers.ModelSerializer):
             "unit_price",
             "line_total",
             "tax_amount",
+            "tax_type",
         ]
+        read_only_fields = ["id"]
 
 
 class ReceiptLineCreateSerializer(serializers.ModelSerializer):
@@ -95,12 +95,23 @@ class ReceiptLineCreateSerializer(serializers.ModelSerializer):
 class BuyerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Buyer
-        fields = ["id", "name", "address", "tin_number", "trade_name", "email", "phonenumber"]
+        fields = [
+            "id",
+            "name",
+            "address",
+            "tin_number",
+            "trade_name",
+            "email",
+            "phonenumber",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 
 class ReceiptSerializer(serializers.ModelSerializer):
     """
-    Receipt Serialiazerr
+    Receipt Serializer
     """
 
     lines = ReceiptLineSerializer(many=True, read_only=True)
@@ -108,7 +119,30 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Receipt
-        fields = "__all__"
+        fields = [
+            "id",
+            "device",
+            "receipt_number",
+            "receipt_type",
+            "total_amount",
+            "qr_code",
+            "code",
+            "currency",
+            "global_number",
+            "hash_value",
+            "signature",
+            "zimra_inv_id",
+            "buyer",
+            "payment_terms",
+            "submitted",
+            "is_credit_note",
+            "credit_note_reason",
+            "credit_note_reference",
+            "lines",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 
 class ReceiptCreateSerializer(serializers.ModelSerializer):
@@ -215,6 +249,9 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
 
                     if line_data.get("line_total", 0) > 0:
                         line_data["line_total"] *= -1
+
+                    receipt.is_credit_note = True
+                    receipt.save()
 
                 ReceiptLine.objects.create(receipt=receipt, **line_data)
 

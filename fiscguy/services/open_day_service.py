@@ -33,7 +33,9 @@ class OpenDayService:
             raise FiscalDayError("Failed to open fiscal day unexpectedly") from exc
 
     def _open_day_atomic(self) -> dict:
-        active_day = FiscalDay.objects.select_for_update().filter(is_open=True).first()
+        active_day = (
+            FiscalDay.objects.select_for_update().filter(device=self.device, is_open=True).first()
+        )
         if active_day:
             logger.info(f"Fiscal day {active_day.day_no} already open for device {self.device}")
             return {
@@ -54,7 +56,7 @@ class OpenDayService:
 
     def _resolve_next_day_no(self) -> int:
         fdms_last_day_no = self._fetch_fdms_last_day_no()
-        last_local_day = FiscalDay.objects.order_by("-id").first()
+        last_local_day = FiscalDay.objects.filter(device=self.device).order_by("-id").first()
 
         if last_local_day is None or last_local_day.day_no != fdms_last_day_no:
             logger.warning(
@@ -102,6 +104,7 @@ class OpenDayService:
 
     def _persist_fiscal_day(self, day_no: int) -> FiscalDay:
         fiscal_day = FiscalDay.objects.create(
+            device=self.device,
             day_no=day_no,
             is_open=True,
             receipt_counter=0,

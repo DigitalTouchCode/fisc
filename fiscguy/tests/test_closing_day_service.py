@@ -26,9 +26,10 @@ def device(db):
 
 
 @pytest.fixture
-def configuration(db):
+def configuration(db, device):
     """Create test configuration."""
     return Configuration.objects.create(
+        device=device,
         tax_payer_name="Test Taxpayer",
         tax_inclusive=True,
         tin_number="123456789",
@@ -40,9 +41,10 @@ def configuration(db):
 
 
 @pytest.fixture
-def certs(db):
+def certs(db, device):
     """Create test certificates."""
     return Certs.objects.create(
+        device=device,
         csr="-----BEGIN CERTIFICATE REQUEST-----\ntest\n-----END CERTIFICATE REQUEST-----",
         certificate="-----BEGIN CERTIFICATE-----\ntest-cert\n-----END CERTIFICATE-----",
         certificate_key="-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----",

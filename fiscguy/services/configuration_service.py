@@ -43,23 +43,25 @@ class ConfigurationService:
             raise ConfigurationError("Configuration update failed unexpectedly") from exc
 
     def _persist_configuration(self, res: dict) -> Configuration:
-        config = Configuration.objects.filter().first()
         address = self._format_address(res.get("deviceBranchAddress") or {})
         contacts = res.get("deviceBranchContacts") or {}
 
-        if config is None:
-            config = Configuration.objects.create(
-                tax_payer_name=res.get("taxPayerName", "DEFAULT TAXPAYER"),
-                tax_inclusive=res.get("taxInclusive", True),
-                tin_number=res.get("taxPayerTIN", ""),
-                vat_number=res.get("vatNumber", ""),
-                address=address,
-                phone_number=contacts.get("phoneNo", ""),
-                email=contacts.get("email", ""),
-                url=res.get("qrUrl"),
-            )
-            logger.info(f"Created configuration for device {self.device}")
-        else:
+        config, created = Configuration.objects.get_or_create(
+            device=self.device,
+            defaults={
+                "tax_payer_name": res.get("taxPayerName", "DEFAULT TAXPAYER"),
+                "tax_inclusive": res.get("taxInclusive", True),
+                "tin_number": res.get("taxPayerTIN", ""),
+                "vat_number": res.get("vatNumber", ""),
+                "address": address,
+                "phone_number": contacts.get("phoneNo", ""),
+                "email": contacts.get("email", ""),
+                "url": res.get("qrUrl"),
+            },
+        )
+
+        if not created:
+            # Update existing config
             config.tax_payer_name = res.get("taxPayerName", config.tax_payer_name)
             config.tax_inclusive = res.get("taxInclusive", config.tax_inclusive)
             config.tin_number = res.get("taxPayerTIN", config.tin_number)
@@ -68,8 +70,11 @@ class ConfigurationService:
             config.phone_number = contacts.get("phoneNo", config.phone_number)
             config.email = contacts.get("email", config.email)
             config.url = res.get("qrUrl", config.url)
+
             config.save()
             logger.info(f"Updated configuration for device {self.device}")
+        else:
+            logger.info(f"Created configuration for device {self.device}")
 
         return config
 

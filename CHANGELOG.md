@@ -11,6 +11,19 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   source of truth.
 - Fiscal day opening service now persists `lastFiscalDayNo + 1` from FDMS, keeping the local
   database in sync with FDMS at all times.
+- Cursor-based pagination for receipt listing endpoint (`GET /api/receipts/`). Supports
+  configurable page sizes via `?page_size=N` parameter (max 100 items).
+- Receipt lines are now included in paginated receipt list responses via `prefetch_related()`.
+
+### Changed
+- Monetary fields in models now use `DecimalField` instead of `FloatField` for precise financial
+  calculations:
+  - `Taxes.percent`: `DecimalField(max_digits=5, decimal_places=2)`
+  - `Receipt.total_amount`: `DecimalField(max_digits=12, decimal_places=2)`
+  - `ReceiptLine.quantity`, `unit_price`, `line_total`, `tax_amount`: `DecimalField` with appropriate precision
+- Receipt submission now uses database transactions to ensure atomic operations: if any error occurs
+  during submission (processing, signing, or FDMS submission), the receipt is rolled back and NOT
+  recorded in the database.
 
 ### Fixed
 - `OpenDayView`, `CloseDayView` and `DevicePing` now correctly use `POST` instead of `GET`, as both endpoints
@@ -30,10 +43,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   per tax group instead of `receipt_data["receiptTotal"]`. Previously the full receipt total
   was written once per tax group, inflating the counter and causing `CountersMismatch` on
   close day.
-<<<<<<< HEAD
-=======
-- `Udate fiscal counter`. prevent race condition by using F for row level db locking.
->>>>>>> refs/remotes/origin/release
+- `Update fiscal counter`. prevents race condition by using F for row level db locking.
 
 ### Removed
 - Removed deprecated `pyOpenSSL` (`OpenSSL.crypto`) usage from `ZIMRACrypto.generate_key_and_csr`

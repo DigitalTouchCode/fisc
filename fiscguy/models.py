@@ -6,10 +6,16 @@ class Device(models.Model):
     activation_key = models.CharField(max_length=255)
     device_id = models.CharField(max_length=100, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    device_model_name = models.CharField(max_length=255, null=True)
-    device_serial_number = models.CharField(max_length=255, null=True)
-    device_model_version = models.CharField(max_length=255, null=True)
+    device_model_name = models.CharField(max_length=255, null=True, blank=True)
+    device_serial_number = models.CharField(max_length=255, null=True, blank=True)
+    device_model_version = models.CharField(max_length=255, null=True, blank=True)
     production = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["device_id"]),
+        ]
 
     def __str__(self):
         return f"{self.org_name} - {self.device_id}"
@@ -20,6 +26,9 @@ class Configuration(models.Model):
     Zimra taxpayer configuration
     """
 
+    device = models.OneToOneField(
+        Device, on_delete=models.CASCADE, related_name="configuration", null=True, blank=True
+    )
     tax_payer_name = models.CharField(max_length=255)
     tax_inclusive = models.BooleanField(default=True)
     tin_number = models.CharField(max_length=20)
@@ -30,6 +39,11 @@ class Configuration(models.Model):
     url = models.URLField(
         null=True, blank=True
     )  # for zimra either testing or production (the url in config its old)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
     def __str__(self):
         return self.tax_payer_name
@@ -41,10 +55,18 @@ class Certs(models.Model):
     divided between production and testing certs
     """
 
+    device = models.OneToOneField(
+        Device, on_delete=models.CASCADE, related_name="certificate", null=True, blank=True
+    )
     csr = models.TextField()
     certificate = models.TextField()
     certificate_key = models.TextField()
     production = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
     def __str__(self):
         env = "Production" if self.production else "Testing"
@@ -59,7 +81,15 @@ class Taxes(models.Model):
     code = models.CharField(max_length=10)
     name = models.CharField(max_length=100)
     tax_id = models.IntegerField()
-    percent = models.FloatField()
+    percent = models.DecimalField(max_digits=5, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["tax_id"]
+        verbose_name_plural = "Taxes"
+        indexes = [
+            models.Index(fields=["tax_id"]),
+        ]
 
     def __str__(self):
         return f"{self.name}: {self.percent}"
@@ -70,10 +100,21 @@ class FiscalDay(models.Model):
     Fiscal day model (increment with +1 every opening, keeps the receipt counter of the day)
     """
 
+    device = models.ForeignKey(
+        Device, on_delete=models.CASCADE, related_name="fiscal_days", null=True, blank=True
+    )
     day_no = models.IntegerField()
-    receipt_counter = models.IntegerField()
+    receipt_counter = models.IntegerField(default=0)
     is_open = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-day_no"]
+        unique_together = ["device", "day_no"]
+        indexes = [
+            models.Index(fields=["device", "is_open"]),
+        ]
 
     def __str__(self):
         return f"Day No: {self.day_no} | Open: {self.is_open}"
@@ -119,6 +160,9 @@ class FiscalCounter(models.Model):
         (MOBILE_MONEY, "Mobile Money"),
     ]
 
+    device = models.ForeignKey(
+        Device, on_delete=models.CASCADE, related_name="fiscal_counters", null=True, blank=True
+    )
     fiscal_day = models.ForeignKey(
         FiscalDay,
         on_delete=models.CASCADE,
@@ -143,6 +187,13 @@ class FiscalCounter(models.Model):
         max_digits=10, decimal_places=2, default=0.00, null=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["device", "fiscal_day"]),
+        ]
 
     def __str__(self):
         return f": ({self.fiscal_counter_type} - {self.fiscal_counter_currency} - {self.fiscal_counter_value})"
@@ -150,7 +201,7 @@ class FiscalCounter(models.Model):
 
 class Receipt(models.Model):
     """
-    Receiipt model
+    Receipt model
     """
 
     class PaymentMethod(models.TextChoices):
@@ -167,11 +218,14 @@ class Receipt(models.Model):
         CREDIT_NOTE = "creditnote", "Creditnote"
         DEBIT_NOTE = "debitnote", "Debitnote"
 
+    device = models.ForeignKey(
+        Device, on_delete=models.CASCADE, related_name="receipts", null=True, blank=True
+    )
     receipt_number = models.CharField(unique=True, max_length=255, null=True, blank=True)
     receipt_type = models.CharField(
         choices=ReceiptType, default=ReceiptType.FISCAL_INVOICE, max_length=255
     )
-    total_amount = models.FloatField()
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
     qr_code = models.ImageField(upload_to="Zimra_qr_codes", null=True, blank=True)
     code = models.CharField(max_length=20, null=True, blank=True)
     currency = models.CharField(
@@ -183,9 +237,9 @@ class Receipt(models.Model):
     signature = models.TextField()
 
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    zimra_inv_id = models.CharField(max_length=255, null=True)
+    zimra_inv_id = models.CharField(max_length=255, null=True, blank=True)
 
     buyer = models.ForeignKey(
         "Buyer",
@@ -205,6 +259,13 @@ class Receipt(models.Model):
     credit_note_reason = models.CharField(max_length=255, null=True, blank=True)
     credit_note_reference = models.CharField(max_length=255, null=True, blank=True)
 
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["receipt_number"]),
+            models.Index(fields=["device", "-created_at"]),
+        ]
+
     def __str__(self):
         return f"Receipt No: {self.receipt_number} | Type: {self.receipt_type} | Total: {self.total_amount}"
 
@@ -216,11 +277,19 @@ class ReceiptLine(models.Model):
 
     receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name="lines")
     product = models.CharField(max_length=255)
-    quantity = models.IntegerField()
-    unit_price = models.FloatField()
-    line_total = models.FloatField()
-    tax_amount = models.FloatField()
-    tax_type = models.ForeignKey(Taxes, on_delete=models.CASCADE, null=True)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    line_total = models.DecimalField(max_digits=12, decimal_places=2)
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    tax_type = models.ForeignKey(Taxes, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["receipt", "id"]
+        indexes = [
+            models.Index(fields=["receipt"]),
+        ]
 
     def __str__(self):
         return f"{self.product} - {self.line_total}"
@@ -232,11 +301,19 @@ class Buyer(models.Model):
     """
 
     name = models.CharField(max_length=255)
-    address = models.CharField(max_length=255)
-    phonenumber = models.CharField(max_length=20)
-    trade_name = models.CharField(max_length=100)
+    address = models.CharField(max_length=255, blank=True)
+    phonenumber = models.CharField(max_length=20, blank=True)
+    trade_name = models.CharField(max_length=100, blank=True)
     tin_number = models.CharField(max_length=255)
-    email = models.EmailField(max_length=255)
+    email = models.EmailField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["tin_number"]),
+        ]
 
     def __str__(self):
         return self.name

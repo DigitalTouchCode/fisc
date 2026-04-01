@@ -38,9 +38,10 @@ def production_device(db):
 
 
 @pytest.fixture
-def configuration(db):
+def configuration(db, device):
     """Create test configuration."""
     return Configuration.objects.create(
+        device=device,
         tax_payer_name="Test Taxpayer",
         tax_inclusive=True,
         tin_number="123456789",
@@ -52,9 +53,10 @@ def configuration(db):
 
 
 @pytest.fixture
-def certs(db):
+def certs(db, device):
     """Create test certificates."""
     return Certs.objects.create(
+        device=device,
         csr="-----BEGIN CERTIFICATE REQUEST-----\ntest\n-----END CERTIFICATE REQUEST-----",
         certificate="-----BEGIN CERTIFICATE-----\ntest-cert\n-----END CERTIFICATE-----",
         certificate_key="-----BEGIN PRIVATE KEY-----\ntest-key\n-----END PRIVATE KEY-----",
@@ -63,9 +65,10 @@ def certs(db):
 
 
 @pytest.fixture
-def prod_certs(db):
+def prod_certs(db, production_device):
     """Create production certificates."""
     return Certs.objects.create(
+        device=production_device,
         csr="-----BEGIN CERTIFICATE REQUEST-----\nprod\n-----END CERTIFICATE REQUEST-----",
         certificate="-----BEGIN CERTIFICATE-----\nprod-cert\n-----END CERTIFICATE-----",
         certificate_key="-----BEGIN PRIVATE KEY-----\nprod-key\n-----END PRIVATE KEY-----",
@@ -87,8 +90,20 @@ class TestZIMRAClientInitialization:
         assert client.base_url == f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
         assert client.public_url == f"https://fdmsapitest.zimra.co.zw/Public/v1/{device.device_id}"
 
-    def test_client_initialization_production(self, production_device, configuration, prod_certs):
+    def test_client_initialization_production(self, production_device, prod_certs):
         """Test client initializes with production URLs."""
+        # Create a production configuration for the production device
+        prod_config = Configuration.objects.create(
+            device=production_device,
+            tax_payer_name="Prod Taxpayer",
+            tax_inclusive=True,
+            tin_number="987654321",
+            vat_number="654321",
+            address="456 Production Ave",
+            phone_number="+263987654",
+            email="prod@example.com",
+        )
+
         client = ZIMRAClient(production_device)
 
         assert (
@@ -385,6 +400,7 @@ class TestZIMRAClientEdgeCases:
         )
 
         config = Configuration.objects.create(
+            device=device,
             tax_payer_name="Test",
             tax_inclusive=True,
             tin_number="123",

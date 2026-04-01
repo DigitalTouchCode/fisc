@@ -27,13 +27,13 @@ class ZIMRAClient:
     @property
     def config(self):
         if self._config is None:
-            self._config = Configuration.objects.first()
+            self._config = Configuration.objects.filter(device=self.device).first()
         return self._config
 
     @property
     def certs(self):
         if self._certs is None:
-            self._certs = Certs.objects.first()
+            self._certs = Certs.objects.filter(device=self.device).first()
         return self._certs
 
     def _validate_config(self):
