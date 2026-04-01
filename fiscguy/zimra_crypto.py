@@ -1,8 +1,3 @@
-"""
-Cryptographic Utilities for ZIMRA Receipt Signing
-Handles hashing, signing, and verification code generation.
-"""
-
 import base64
 import binascii
 import hashlib

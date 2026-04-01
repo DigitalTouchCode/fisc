@@ -30,6 +30,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   per tax group instead of `receipt_data["receiptTotal"]`. Previously the full receipt total
   was written once per tax group, inflating the counter and causing `CountersMismatch` on
   close day.
+<<<<<<< HEAD
+=======
+- `Udate fiscal counter`. prevent race condition by using F for row level db locking.
+>>>>>>> refs/remotes/origin/release
 
 ### Removed
 - Removed deprecated `pyOpenSSL` (`OpenSSL.crypto`) usage from `ZIMRACrypto.generate_key_and_csr`

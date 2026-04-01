@@ -1,16 +1,9 @@
-"""
-Test suite for Status, Ping, and Configuration services.
-Uses real HTTP client (requests.Session) with mocked HTTP responses.
-Targets ~80% code coverage.
-"""
-
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
 
 from fiscguy.exceptions import (
-    ConfigurationError,
     DevicePingError,
     StatusError,
 )

@@ -1,9 +1,3 @@
-"""
-Test suite for ClosingDayService.
-Uses real HTTP client (requests.Session) with mocked HTTP responses.
-Targets ~80% code coverage.
-"""
-
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, Mock, patch

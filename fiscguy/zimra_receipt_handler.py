@@ -6,6 +6,7 @@ from io import BytesIO
 import qrcode
 from django.core.files.base import ContentFile
 from django.db import DatabaseError
+from django.db.models import F
 from loguru import logger
 
 from fiscguy.exceptions import ReceiptSubmissionError
@@ -500,8 +501,9 @@ class ZIMRAReceiptHandler:
                 defaults={"fiscal_counter_value": amount},
             )
             if not created:
-                counter.fiscal_counter_value += amount
-                counter.save()
+                FiscalCounter.objects.filter(pk=counter.pk).update(
+                    fiscal_counter_value=F("fiscal_counter_value") + amount
+                )
         except DatabaseError as exc:
             logger.exception(f"Failed to upsert {counter_type} counter for device {self._device}")
             raise ReceiptSubmissionError(f"Failed to update {counter_type} fiscal counter") from exc
