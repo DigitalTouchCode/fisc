@@ -1,7 +1,31 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from fiscguy.models import Buyer, Configuration, Receipt, ReceiptLine, Taxes
+from fiscguy.models import Buyer, Configuration, Device, Receipt, ReceiptLine, Taxes
+
+
+class DeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Device
+        fields = [
+            "id",
+            "tenant",
+            "org_name",
+            "device_id",
+            "device_model_name",
+            "device_serial_number",
+            "device_model_version",
+            "production",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+        def validate_device_id(self, value):
+            if not value or len(value.strip()) < 3:
+                raise serializers.ValidationError(
+                    "Device ID must be at least 5 characters and above."
+                )
+            return value.strip()
 
 
 class ConfigurationSerializer(serializers.ModelSerializer):

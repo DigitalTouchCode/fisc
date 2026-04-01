@@ -1,10 +1,3 @@
-"""
-ZIMRA Receipt Handler
-Handles receipt generation, signing, and submission to ZIMRA FDMS.
-Supports offline mode — receipts are saved locally and synced automatically
-when FDMS becomes reachable again.
-"""
-
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal

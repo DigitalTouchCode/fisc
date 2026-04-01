@@ -22,10 +22,6 @@ class ReceiptService:
         """
         Validate, persist, process, and submit a receipt to ZIMRA.
 
-        If FDMS is offline the receipt is saved locally and queued for
-        background sync. The submission result will contain
-        ``{"submitted": False, "queued": True}`` in that case.
-
         Args:
             data: raw receipt payload from the request.
 

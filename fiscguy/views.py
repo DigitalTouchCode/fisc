@@ -1,13 +1,4 @@
-"""
-REST API Views for ZIMRA Fiscal Device.
-
-These views are thin wrappers around the public `fiscguy` library API.
-The core logic resides in `fiscguy.api` and `fiscguy.services`.
-
-For programmatic use, import directly from fiscguy:
-    from fiscguy import open_day, close_day, submit_receipt, ...
-"""
-
+from django.db import transaction
 from loguru import logger
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -15,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from fiscguy.exceptions import (
+    CertificateError,
     CloseDayError,
     ConfigurationError,
     DevicePingError,
@@ -26,9 +18,11 @@ from fiscguy.models import Buyer, Configuration, Device, FiscalDay, Receipt, Tax
 from fiscguy.serializers import (
     BuyerSerializer,
     ConfigurationSerializer,
+    DeviceSerializer,
     ReceiptSerializer,
     TaxSerializer,
 )
+from fiscguy.services.certs_service import CertificateService
 from fiscguy.services.closing_day_service import ClosingDayService
 from fiscguy.services.configuration_service import ConfigurationService
 from fiscguy.services.open_day_service import OpenDayService
@@ -37,7 +31,7 @@ from fiscguy.services.receipt_service import ReceiptService
 from fiscguy.services.status_service import StatusService
 
 
-class ReceiptView(generics.GenericAPIView):
+class ReceiptView(APIView):
     """REST endpoint to list and submit receipts.
 
     GET: List all receipts
@@ -276,4 +270,38 @@ class SyncConfigurationView(APIView):
             return Response(
                 {"error": "An unexpected error occurred"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class DeviceRegistrationView(APIView):
+    """POST /register-device/ — Register a new tenant and device pair."""
+
+    def post(self, request):
+        serializer = DeviceSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                device = serializer.save()
+                CertificateService(device).issue_certificate()
+                ConfigurationService(device).config()
+
+            return Response(
+                {
+                    "success": True,
+                    "message": "Device and tenant registered successfully",
+                    "tenant_id": device.tenant.id,
+                    "device_id": device.id,
+                    "tenant_slug": device.tenant.slug,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except (ConfigurationError, CertificateError) as exc:
+            logger.error(f"Device registration failed: {exc}")
+            return Response({"error": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        except Exception:
+            logger.exception("Unexpected error during device registration")
+            return Response(
+                {"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

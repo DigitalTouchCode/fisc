@@ -6,16 +6,19 @@ Handles hashing, signing, and verification code generation.
 import base64
 import binascii
 import hashlib
+from typing import Tuple
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.x509.oid import NameOID
+from django.db import transaction
 from dotenv import load_dotenv
 from loguru import logger
 
-from fiscguy.models import Certs
+from fiscguy.exceptions import CryptoError, DeviceNotFoundError, PersistenceError
+from fiscguy.models import Certs, Device
 from fiscguy.utils.cert_temp_manager import CertTempManager
 
 load_dotenv()
@@ -232,59 +235,95 @@ class ZIMRACrypto:
         return signature_string
 
     @staticmethod
-    def generate_key_and_csr(device_sn: str, device_id: int, env: bool = True):
-        cert_record, created = Certs.objects.get_or_create(production=env)
+    def generate_key_and_csr(device_sn: str, device_id: int, env: bool = True) -> Tuple:
+        """
+        Generates a new RSA private key and a CSR, stores both in the Certs table.
 
-        if cert_record.certificate_key and cert_record.csr:
-            logger.info("Private key and CSR already exist – reusing them")
-            return cert_record.certificate_key, cert_record.csr
+        Args:
+            device_sn (str): Device serial number
+            device_id (int): Device ID
+            env (bool): True for production, False for test
 
-        # Generate 2048-bit RSA key
-        private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-            backend=default_backend(),
-        )
+        Returns:
+            tuple: (private_key_pem, csr_pem)
+        """
 
-        private_key_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        ).decode("utf-8")
+        try:
+            device = Device.objects.get(device_id=device_id)
+        except Device.DoesNotExist:
+            raise DeviceNotFoundError(f"Device {device_id} not found")
+
+        existing = Certs.objects.filter(device=device, production=env).first()
+        if existing and existing.csr and existing.certificate_key:
+            logger.warning("CSR already exists", device_id=device_id, production=env)
+            return existing.certificate_key, existing.csr
+
+        # Generate private key
+        try:
+            private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=2048,
+                backend=default_backend(),
+            )
+
+            private_key_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            ).decode("utf-8")
+
+        except Exception as e:
+            raise CryptoError("Failed to generate private key") from e
 
         # Build CSR
-        common_name = f"ZIMRA-{device_sn}-{int(device_id):010d}"
+        try:
+            common_name = f"ZIMRA-{device_sn}-{int(device_id):010d}"
 
-        csr = (
-            x509.CertificateSigningRequestBuilder()
-            .subject_name(
-                x509.Name(
-                    [
-                        x509.NameAttribute(NameOID.COUNTRY_NAME, "ZW"),
-                        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Zimbabwe"),
-                        x509.NameAttribute(NameOID.LOCALITY_NAME, "Harare"),
-                        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Zimbabwe Revenue Authority"),
-                        x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, "FDMS"),
-                        x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-                    ]
+            csr = (
+                x509.CertificateSigningRequestBuilder()
+                .subject_name(
+                    x509.Name(
+                        [
+                            x509.NameAttribute(NameOID.COUNTRY_NAME, "ZW"),
+                            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Zimbabwe"),
+                            x509.NameAttribute(NameOID.LOCALITY_NAME, "Harare"),
+                            x509.NameAttribute(
+                                NameOID.ORGANIZATION_NAME, "Zimbabwe Revenue Authority"
+                            ),
+                            x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, "FDMS"),
+                            x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+                        ]
+                    )
                 )
+                .add_extension(
+                    x509.SubjectAlternativeName([x509.DNSName(common_name)]),
+                    critical=False,
+                )
+                .sign(private_key, hashes.SHA256(), default_backend())
             )
-            .add_extension(
-                x509.SubjectAlternativeName([x509.DNSName(common_name)]),
-                critical=False,
-            )
-            .sign(private_key, hashes.SHA256(), default_backend())
-        )
 
-        csr_pem = csr.public_bytes(serialization.Encoding.PEM).decode("utf-8")
+            csr_pem = csr.public_bytes(serialization.Encoding.PEM).decode("utf-8")
+
+        except Exception as e:
+            raise CryptoError("Failed to generate CSR") from e
 
         # Save to DB
-        cert_record.certificate_key = private_key_pem
-        cert_record.csr = csr_pem
-        cert_record.save()
+        try:
+            with transaction.atomic():
+                cert_record, _ = Certs.objects.get_or_create(
+                    device=device, production=env, defaults={"tenant": device.tenant}
+                )
 
-        logger.info(
-            f"Generated new RSA private key and CSR for {'production' if env else 'test'} environment"
-        )
+                cert_record.tenant = device.tenant
+                cert_record.certificate_key = private_key_pem
+                cert_record.csr = csr_pem
+                cert_record.save()
+
+                logger.info(f"Created cert obj: {cert_record.device}")
+
+        except Exception as e:
+            raise PersistenceError("Failed to save certificate data") from e
+
+        logger.info("Generated CSR and private key", device_id=device_id, production=env)
 
         return private_key_pem, csr_pem

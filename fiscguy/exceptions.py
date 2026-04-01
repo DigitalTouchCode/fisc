@@ -108,3 +108,7 @@ class ZIMRAClientError(FiscalisationError):
 
 class CloseDayError(FiscalisationError):
     pass
+
+
+class CertificateError(FiscalisationError):
+    pass
