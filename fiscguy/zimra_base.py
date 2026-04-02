@@ -162,6 +162,7 @@ class ZIMRAClient:
             "hash": hash_value,
             "signature": signature,
         }
+        logger.info(receipt_payload)
         logger.info(f"Submitting receipt for device {self.device.device_id}")
         return self._request("POST", "SubmitReceipt", json=receipt_payload).json()
 
