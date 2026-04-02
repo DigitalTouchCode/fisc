@@ -1,0 +1,41 @@
+site_name: FiscGuy Documentation
+site_description: Modern Python Library for ZIMRA Fiscal Device Integration
+repo_url: https://github.com/digitaltouchcode/fisc
+
+nav:
+  - Home: README.md
+  - Installation: docs/installation.md
+  - Receipt Types: docs/receipt-types.md
+  - Fiscal Counters: docs/fiscal-counters.md
+  - Closing Day: docs/closing-day.md
+  - Certificate Management: docs/certificate-management.md
+  - Error Reference: docs/error-reference.md
+  - Architecture: docs/ARCHITECTURE.md
+  - Changelog: CHANGELOG.md
+  - Contributing: CONTRIBUTING.md
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+  language: en
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [fiscguy]
+
+markdown_extensions:
+  - codehilite
+  - admonition
+  - toc:
+      permalink: true
+
+extra:
+  version: 0.1.6
