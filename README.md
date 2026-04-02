@@ -1,54 +1,69 @@
-<div align="center">
-
 # FiscGuy
 
-[![Tests](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml/badge.svg?branch=release)](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml?query=branch%3Arelease)
-[![PyPI version](https://img.shields.io/pypi/v/fiscguy.svg?v=1)](https://pypi.org/project/fiscguy/)
-[![Downloads](https://static.pepy.tech/badge/fiscguy)](https://pepy.tech/project/fiscguy)
-![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+**ZIMRA Fiscal Device Integration Library** — a Django app that handles the full fiscal device lifecycle: device registration, certificate management, fiscal day operations, and receipt submission to ZIMRA FDMS.
 
-**The Modern Python Library for ZIMRA Fiscal Device Integration**
-
-FiscGuy gives Django applications a simple, Pythonic interface for every fiscal operation required by the Zimbabwe Revenue Authority — receipt submission, fiscal day management, certificate handling, and more. Built on Django REST Framework, it drops into any Django project in minutes.
-
-[Installation](#installation) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [REST Endpoints](#rest-endpoints) • [Docs](#documentation) • [Contributing](#contributing)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/django-4.2%2B-green)](https://www.djangoproject.com/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
 ---
 
-</div>
+## Table of Contents
 
-## Features
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Django Setup](#django-setup)
+- [Device Initialisation](#device-initialisation)
+- [API Reference](#api-reference)
+  - [Fiscal Day](#fiscal-day)
+  - [Receipts](#receipts)
+  - [Buyers](#buyers)
+  - [Configuration & Taxes](#configuration--taxes)
+  - [Device Management](#device-management)
+  - [Certificate Management](#certificate-management)
+- [Data Models](#data-models)
+- [Request & Response Examples](#request--response-examples)
+- [Error Handling](#error-handling)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
 
-- **Six core API functions** — `open_day`, `close_day`, `submit_receipt`, `get_status`, `get_configuration`, `get_taxes`
-- **Full fiscal day lifecycle** — open, manage counters, close with ZIMRA-compliant hash and signature
-- **Receipt types** — Fiscal Invoice, Credit Note, Debit Note with correct counter tracking
-- **Certificate management** — CSR generation, device registration, certificate renewal via `init_device`
-- **Multi-currency** — USD and ZWG support with per-currency counter tracking
-- **Multiple payment methods** — Cash, Card, Mobile Wallet, Bank Transfer, Coupon, Credit, Other
-- **Buyer management** — optional buyer TIN and registration data on receipts
-- **Cursor pagination** — efficient receipt listing for large datasets
-- **Typed exceptions** — every error condition has its own exception class
-- **90%+ test coverage** — mocked ZIMRA and crypto, fast CI
+---
+
+## Overview
+
+FiscGuy plugs into your existing Django project and exposes a REST API that bridges your application to the ZIMRA Fiscal Device Management System (FDMS). It handles:
+
+- **Device registration** — RSA key generation, CSR creation, and ZIMRA certificate issuance
+- **Fiscal day management** — open and close fiscal days, tracking counters per day
+- **Receipt submission** — create fiscal invoices, credit notes, and debit notes; hash, sign, and submit to FDMS
+- **QR code generation** — auto-generated and stored on every submitted receipt
+- **Certificate renewal** — re-issue expired certificates without re-registering the device
+- **Tax & configuration sync** — pull the latest taxpayer config and applicable taxes from FDMS
+
+FiscGuy exposes a REST API you can call from any HTTP client.
 
 ---
 
 ## Requirements
 
-- Python 3.11, 3.12, or 3.13
-- Django 4.2+
-- Django REST Framework 3.14+
+| Requirement | Version |
+|---|---|
+| Python | 3.11, 3.12, or 3.13 |
+| Django | 4.2+ |
+| Django REST Framework | 3.14+ |
 
 ---
 
 ## Installation
 
+### From PyPI
+
 ```bash
 pip install fiscguy
 ```
 
-### From source
+### From Source
 
 ```bash
 git clone https://github.com/digitaltouchcode/fisc.git
@@ -58,37 +73,31 @@ pip install -e ".[dev]"
 
 ---
 
-## Quick Start
+## Django Setup
 
-### 1. Add to Django settings
+### 1. Add to `INSTALLED_APPS`
 
 ```python
 # settings.py
 INSTALLED_APPS = [
-    # ...
-    "fiscguy",
+    "django.contrib.contenttypes",
+    "django.contrib.auth",
     "rest_framework",
+    "fiscguy",
+    # ... your other apps
 ]
 ```
 
-### 2. Run migrations
+### 2. Run Migrations
 
 ```bash
 python manage.py migrate
 ```
 
-### 3. Initialise your device
-
-```bash
-python manage.py init_device
-```
-
-This interactive command collects your device credentials, generates a CSR, registers the device with ZIMRA, and fetches taxes and configuration automatically.
-
-### 4. Include URLs
+### 3. Include URLs
 
 ```python
-# urls.py
+# your_project/urls.py
 from django.urls import path, include
 
 urlpatterns = [
@@ -96,331 +105,901 @@ urlpatterns = [
 ]
 ```
 
-### 5. Submit your first receipt
+All FiscGuy endpoints will then be available under `/fiscguy/`.
+
+### 4. Configure Media Files (for QR Codes)
+
+FiscGuy saves receipt QR codes to `MEDIA_ROOT`. Add the following to your settings:
 
 ```python
-from fiscguy import open_day, submit_receipt, close_day
+# settings.py
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+```
 
-open_day()
+Serve media files in development:
 
-receipt = submit_receipt({
-    "receipt_type": "fiscalinvoice",
-    "currency": "USD",
-    "total_amount": "115.00",
-    "payment_terms": "Cash",
-    "lines": [
-        {
-            "product": "Consulting Service",
-            "quantity": "1",
-            "unit_price": "115.00",
-            "line_total": "115.00",
-            "tax_amount": "15.00",
-            "tax_name": "standard rated 15%",
-        }
-    ],
-})
+```python
+# urls.py
+from django.conf import settings
+from django.conf.urls.static import static
 
-close_day()
+urlpatterns = [
+    ...
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 ```
 
 ---
 
-## API Reference
+## Device Initialisation
 
-FiscGuy exposes six top-level functions. Import them directly from `fiscguy`:
-
-```python
-from fiscguy import open_day, close_day, submit_receipt, get_status, get_configuration, get_taxes
-```
-
-### `open_day()`
-
-Opens a new fiscal day. Syncs the `fiscalDayNo` from FDMS and fetches the latest configuration and taxes.
-
-```python
-from fiscguy import open_day
-
-result = open_day()
-# {"fiscalDayNo": 42, "fiscalDayOpened": "2026-03-30T08:00:00"}
-```
-
-**Raises:** `FiscalDayError` if a day is already open or FDMS rejects the request.
-
----
-
-### `submit_receipt(receipt_data)`
-
-Validates, signs, and submits a receipt to ZIMRA FDMS. Increments fiscal counters. If FDMS is offline, the receipt is saved locally and queued for automatic sync.
-
-```python
-from fiscguy import submit_receipt
-
-receipt = submit_receipt({
-    "receipt_type": "fiscalinvoice",   # fiscalinvoice | creditnote | debitnote
-    "currency": "USD",                 # USD | ZWG
-    "total_amount": "115.00",
-    "payment_terms": "Cash",           # Cash | Card | MobileWallet | BankTransfer | Coupon | Credit | Other
-    "lines": [
-        {
-            "product": "Item name",
-            "quantity": "2",
-            "unit_price": "57.50",
-            "line_total": "115.00",
-            "tax_amount": "15.00",
-            "tax_name": "standard rated 15%",
-        }
-    ],
-    # Optional
-    "buyer": {
-      "name": "Tendai Nyathi",
-      "trade_name": "Nyathi Hardware",
-      "address": "45 Samora Machel Avenue, Harare",
-      "phonenumber": "0773124567",
-      "tin_number": "2045678912",
-      "email": "tendai.nyathi@example.com"
-    },                        # Buyer model ID
-    "credit_note_reason": "...",       # Required for creditnote
-    "credit_note_reference": "R-...", # Required for creditnote — original receipt number
-})
-```
-
-**Returns:** Serialized receipt data including `receipt_number`, `qr_code`, `hash_value`, and `zimra_inv_id`.
-
-**Raises:** `ReceiptSubmissionError` on any processing or FDMS failure.
-
----
-
-### `close_day()`
-
-Builds the fiscal day closing string, signs it with the device private key, and submits it to ZIMRA. Marks the fiscal day as closed in the database.
-
-```python
-from fiscguy import close_day
-
-result = close_day()
-# {"fiscalDayStatus": "FiscalDayClosed", ...}
-```
-
-**Raises:** `CloseDayError` if FDMS rejects the request (e.g. `CountersMismatch`, `BadCertificateSignature`).
-
----
-
-### `get_status()`
-
-Fetches the current device and fiscal day status from FDMS.
-
-```python
-from fiscguy import get_status
-
-status = get_status()
-# {"fiscalDayStatus": "FiscalDayOpened", "lastReceiptGlobalNo": 142, ...}
-```
-
----
-
-### `get_configuration()`
-
-Returns the stored taxpayer configuration.
-
-```python
-from fiscguy import get_configuration
-
-config = get_configuration()
-# {"tax_payer_name": "ACME Ltd", "tin_number": "...", ...}
-```
-
----
-
-### `get_taxes()`
-
-Returns all configured tax types.
-
-```python
-from fiscguy import get_taxes
-
-taxes = get_taxes()
-# [{"tax_id": 1, "name": "Exempt", "percent": "0.00"}, ...]
-```
-
----
-
-## REST Endpoints
-
-When URLs are included, FiscGuy exposes the following endpoints:
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/fiscguy/open-day/` | Open a new fiscal day |
-| `POST` | `/fiscguy/close-day/` | Close the current fiscal day |
-| `GET` | `/fiscguy/get-status/` | Get device and fiscal day status |
-| `POST` | `/fiscguy/get-ping/` | Ping FDMS to report device is online |
-| `GET` | `/fiscguy/receipts/` | List receipts (cursor paginated) |
-| `POST` | `/fiscguy/receipts/` | Submit a new receipt |
-| `GET` | `/fiscguy/receipts/{id}/` | Retrieve a receipt by ID |
-| `GET` | `/fiscguy/configuration/` | Get taxpayer configuration |
-| `POST` | `/fiscguy/sync-config/` | Manually sync configuration from FDMS |
-| `GET` | `/fiscguy/taxes/` | List all tax types |
-| `POST` | `/fiscguy/issue-certificate/` | Renew device certificate |
-| `*` | `/fiscguy/buyer/` | Buyer CRUD (ModelViewSet) |
-
-### Pagination
-
-Receipt listing supports cursor-based pagination:
-
-```
-GET /fiscguy/receipts/?page_size=20
-```
-
-Default page size: `10`. Maximum: `100`.
-
----
-
-## Error Handling
-
-All operations raise typed exceptions. Import them from `fiscguy.exceptions`:
-
-```python
-from fiscguy.exceptions import (
-    ReceiptSubmissionError,
-    CloseDayError,
-    FiscalDayError,
-    ConfigurationError,
-    CertificateError,
-    DevicePingError,
-    StatusError,
-)
-
-try:
-    close_day()
-except CloseDayError as e:
-    print(f"Close day failed: {e}")
-```
-
-| Exception | Raised when |
-|-----------|-------------|
-| `ReceiptSubmissionError` | Receipt processing or FDMS submission fails |
-| `CloseDayError` | FDMS rejects the close day request |
-| `FiscalDayError` | Fiscal day cannot be opened or is already open |
-| `ConfigurationError` | Configuration is missing or sync fails |
-| `CertificateError` | Certificate issuance or renewal fails |
-| `DevicePingError` | Ping to FDMS fails |
-| `StatusError` | Status fetch from FDMS fails |
-| `DeviceRegistrationError` | Device registration with ZIMRA fails |
-| `CryptoError` | RSA signing or hashing fails |
-
----
-
-## Models
-
-FiscGuy adds the following tables to your database:
-
-| Model | Description |
-|-------|-------------|
-| `Device` | Fiscal device registration details |
-| `Configuration` | Taxpayer configuration synced from FDMS |
-| `Certs` | Device certificate and private key |
-| `Taxes` | Tax types synced from FDMS on day open |
-| `FiscalDay` | Daily fiscal period with receipt counter |
-| `FiscalCounter` | Running totals per tax / payment method |
-| `Receipt` | Submitted receipts with hash, signature, QR code |
-| `ReceiptLine` | Individual line items on a receipt |
-| `Buyer` | Optional buyer registration data |
-
-Access them directly:
-
-```python
-from fiscguy.models import Device, Receipt, FiscalDay, Taxes
-
-device = Device.objects.first()
-open_days = FiscalDay.objects.filter(is_open=True)
-receipts = Receipt.objects.select_related("buyer").prefetch_related("lines")
-```
-
----
-
-## Management Commands
-
-### `init_device`
-
-Interactive device setup — run once per device:
+Run this **once** per device before using any other feature. This is the most important setup step.
 
 ```bash
 python manage.py init_device
 ```
 
-The command will:
-1. Prompt for `org_name`, `activation_key`, `device_id`, `device_model_name`, `device_model_version`, `device_serial_number`
-2. Ask whether to use production or testing FDMS
-3. Generate an RSA key pair and CSR
-4. Register the device with ZIMRA to obtain a signed certificate
-5. Fetch and persist configuration and taxes
+You will be prompted interactively:
+
+| Prompt | Example | Description |
+|---|---|---|
+| Environment | `yes` / `no` | `yes` for production, `no` for test |
+| Organisation name | `org_name` | Your registered company name |
+| Device ID | `78412` | Provided by ZIMRA |
+| Activation key | `ABC-123-XYZ` | Provided by ZIMRA |
+| Device model name | `FiscGuy-v1` | Your device model name |
+| Device model version | `1.0.0` | Your device model version |
+| Device serial number | `SN0001` | Your device's serial number |
+
+**What happens during init:**
+
+1. Creates the `Device` record in your database
+2. Generates an RSA key pair and a Certificate Signing Request (CSR)
+3. Registers the device with ZIMRA FDMS (`POST /Public/v1/{device_id}/RegisterDevice`)
+4. Stores the signed certificate in the `Certs` model
+5. Fetches and persists taxpayer configuration and applicable taxes from FDMS
+
+### Switching Environments (Test ↔ Production)
+
+Re-running `init_device` with a different environment will prompt you to confirm deletion of **all existing data** (receipts, fiscal days, counters, configuration, certificates, taxes) before proceeding. Type `YES` to confirm.
+
+| Environment | FDMS URL |
+|---|---|
+| Testing | `https://fdmsapitest.zimra.co.zw` |
+| Production | `https://fdmsapi.zimra.co.zw` |
 
 ---
 
-## Testing
-## Testing
+## API Reference
 
-```bash
-# Run all tests
-pytest
+All endpoints are prefixed with `/fiscguy/` (based on your URL configuration).
 
-# With coverage report
-pytest --cov=fiscguy --cov-report=html
+---
 
-# Run a specific test file
-pytest fiscguy/tests/test_views.py
+### Fiscal Day
 
-# Run a specific test
-pytest fiscguy/tests/test_closing_day_service.py::TestBuildSaleByTax
+#### Open Fiscal Day
+
+Opens a new fiscal day for the registered device. If a fiscal day is already open, returns it immediately. On open, taxpayer configuration is also synced from FDMS.
+
+```
+POST /fiscguy/open-day/
 ```
 
-All tests mock ZIMRA API calls and crypto operations — no network access required.
+**Request body:** none
+
+**Response `200 OK`:**
+```json
+{
+  "success": true,
+  "fiscal_day_no": 42,
+  "fdms_response": { ... }
+}
+```
+
+**Response when already open:**
+```json
+{
+  "success": true,
+  "fiscal_day_no": 42,
+  "message": "Fiscal day 42 already open"
+}
+```
 
 ---
 
-## Documentation
+#### Close Fiscal Day
 
-Full documentation lives in the `docs/` folder:
+Closes the currently open fiscal day. Builds fiscal counters, signs the closing payload, and submits to FDMS.
 
-| Document | Description |
-|----------|-------------|
-| [`docs/installation.md`](docs/installation.md) | Detailed installation and setup guide |
-| [`docs/receipt-types.md`](docs/receipt-types.md) | Fiscal Invoice, Credit Note, Debit Note rules |
-| [`docs/fiscal-counters.md`](docs/fiscal-counters.md) | How counters work and how they are calculated |
-| [`docs/closing-day.md`](docs/closing-day.md) | Closing day hash string and signature spec |
-| [`docs/certificate-management.md`](docs/certificate-management.md) | Certificate lifecycle and renewal |
-| [`docs/error-reference.md`](docs/error-reference.md) | All exceptions and what causes them |
-| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributing guidelines |
+```
+POST /fiscguy/close-day/
+```
+
+**Request body:** none
+
+**Response `200 OK`:**
+```json
+{
+  "success": true,
+  "fiscal_day_no": 42,
+  "fdms_response": { ... }
+}
+```
 
 ---
 
-## Contributing
+### Receipts
 
-Contributions are welcome. Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first.
+#### List Receipts
+
+Returns all receipts in reverse chronological order with cursor-based pagination. Each receipt includes its full buyer object and all line items.
+
+```
+GET /fiscguy/receipts/
+```
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `cursor` | string | — | Pagination cursor from a previous response |
+| `page_size` | integer | `10` | Number of results per page (max `100`) |
+
+**Response `200 OK`:**
+```json
+{
+  "next": "http://example.com/fiscguy/receipts/?cursor=cD0yMDI...",
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "device": 1,
+      "receipt_number": "R-00000001",
+      "receipt_type": "fiscalinvoice",
+      "total_amount": "150.00",
+      "qr_code": "/media/Zimra_qr_codes/receipt_1.png",
+      "code": null,
+      "currency": "USD",
+      "global_number": 1,
+      "hash_value": "abc123...",
+      "signature": "def456...",
+      "zimra_inv_id": "INV-001",
+      "buyer": {
+        "id": 1,
+        "name": "Casy Holdings",
+        "address": "123 Main St, Harare",
+        "tin_number": "2000123456",
+        "trade_name": "Casy Retail",
+        "email": "accounts@casy.co.zw",
+        "phonenumber": "+263771234567",
+        "created_at": "2024-01-15T10:00:00Z",
+        "updated_at": "2024-01-15T10:00:00Z"
+      },
+      "payment_terms": "Cash",
+      "submitted": true,
+      "is_credit_note": false,
+      "credit_note_reason": null,
+      "credit_note_reference": null,
+      "lines": [
+        {
+          "id": 1,
+          "product": "Maize Meal 10kg",
+          "quantity": "2.00",
+          "unit_price": "50.00",
+          "line_total": "100.00",
+          "tax_amount": "13.04",
+          "tax_type": 1
+        },
+        {
+          "id": 2,
+          "product": "Cooking Oil 2L",
+          "quantity": "1.00",
+          "unit_price": "50.00",
+          "line_total": "50.00",
+          "tax_amount": "6.52",
+          "tax_type": 1
+        }
+      ],
+      "created_at": "2024-01-15T10:05:00Z",
+      "updated_at": "2024-01-15T10:05:12Z"
+    }
+  ]
+}
+```
+
+---
+
+#### Create & Submit a Receipt
+
+Creates a receipt, signs it cryptographically, generates a QR code, updates fiscal counters, and submits it to ZIMRA FDMS — all in a single atomic operation. If submission fails, the receipt is **not saved** to the database.
+
+```
+POST /fiscguy/receipts/
+```
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `receipt_type` | string | Yes | `fiscalinvoice`, `creditnote`, or `debitnote` |
+| `total_amount` | decimal | Yes | Total amount (must be negative for credit notes) |
+| `currency` | string | Yes | `USD` or `ZWG` |
+| `payment_terms` | string | Yes | `Cash`, `Card`, `MobileWallet`, `BankTransfer`, `Coupon`, `Credit`, or `Other` |
+| `lines` | array | Yes | One or more receipt line items (see below) |
+| `buyer` | object | No | Full buyer object (see below). Omit for anonymous sales. |
+| `credit_note_reference` | string | Required for `creditnote` | The `receipt_number` of the original receipt being credited |
+| `credit_note_reason` | string | No | Human-readable reason for the credit note |
+
+**Receipt line fields:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `product` | string | Yes | Product or service name |
+| `quantity` | decimal | Yes | Quantity sold |
+| `unit_price` | decimal | Yes | Price per unit |
+| `line_total` | decimal | Yes | Total for this line (`quantity × unit_price`) |
+| `tax_amount` | decimal | Yes | Tax amount for this line |
+| `tax_name` | string | No | Tax name as configured in ZIMRA (e.g. `"Standard rated 15.5"`). Used to link the line to a `Taxes` record. |
+
+**Buyer fields (full object, not an ID):**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Registered business name |
+| `tin_number` | string | Yes | 10-digit ZIMRA TIN number |
+| `address` | string | No | Physical address |
+| `trade_name` | string | No | Trading name / branch name |
+| `email` | string | No | Contact email |
+| `phonenumber` | string | No | Contact phone number |
+
+> **Note on buyers:** The buyer is looked up by `tin_number`. If a buyer with the given TIN already exists, the existing record is reused. If not, a new `Buyer` is created. You always pass the full buyer object — never a buyer ID.
+
+**Example — Fiscal Invoice with a Buyer:**
+
+```json
+{
+  "receipt_type": "fiscalinvoice",
+  "total_amount": "150.00",
+  "currency": "USD",
+  "payment_terms": "Cash",
+  "buyer": {
+    "name": "Casy Holdings",
+    "tin_number": "2000123456",
+    "address": "123 Main St, Harare",
+    "trade_name": "Casy Retail",
+    "email": "accounts@casy.co.zw",
+    "phonenumber": "+263771234567"
+  },
+  "lines": [
+    {
+      "product": "Maize Meal 10kg",
+      "quantity": 2,
+      "unit_price": "50.00",
+      "line_total": "100.00",
+      "tax_amount": "13.04",
+      "tax_name": "Standard rated 15.5"
+    },
+    {
+      "product": "Cooking Oil 2L",
+      "quantity": 1,
+      "unit_price": "50.00",
+      "line_total": "50.00",
+      "tax_amount": "6.52",
+      "tax_name": "Standard rated 15.5"
+    }
+  ]
+}
+```
+
+**Example — Anonymous Fiscal Invoice (no buyer):**
+
+```json
+{
+  "receipt_type": "fiscalinvoice",
+  "total_amount": "25.00",
+  "currency": "USD",
+  "payment_terms": "Card",
+  "lines": [
+    {
+      "product": "Bread",
+      "quantity": 1,
+      "unit_price": "25.00",
+      "line_total": "25.00",
+      "tax_amount": "3.26",
+      "tax_name": "Standard rated 15.5"
+    }
+  ]
+}
+```
+
+**Example — Credit Note:**
+
+```json
+{
+  "receipt_type": "creditnote",
+  "total_amount": "-150.00",
+  "currency": "USD",
+  "payment_terms": "Cash",
+  "credit_note_reference": "R-00000001",
+  "credit_note_reason": "Goods returned by customer",
+  "buyer": {
+    "name": "Casy Holdings",
+    "tin_number": "2000123456",
+    "address": "123 Main St, Harare",
+    "trade_name": "Casy Retail",
+    "email": "accounts@casy.co.zw",
+    "phonenumber": "+263771234567"
+  },
+  "lines": [
+    {
+      "product": "Maize Meal 10kg",
+      "quantity": 2,
+      "unit_price": "50.00",
+      "line_total": "100.00",
+      "tax_amount": "13.04",
+      "tax_name": "Standard rated 15.5"
+    },
+    {
+      "product": "Cooking Oil 2L",
+      "quantity": 1,
+      "unit_price": "50.00",
+      "line_total": "50.00",
+      "tax_amount": "6.52",
+      "tax_name": "Standard rated 15.5"
+    }
+  ]
+}
+```
+
+**Response `201 Created`:**
+
+Returns the full receipt object (same shape as the list endpoint) including `receipt_number`, `global_number`, `hash_value`, `signature`, `zimra_inv_id`, and `qr_code`.
+
+**Response `422 Unprocessable Entity`** (ZIMRA rejected the receipt):
+```json
+{
+  "error": "FDMS returned an error: ..."
+}
+```
+
+---
+
+### Buyers
+
+Buyers are automatically created or retrieved when submitting a receipt (keyed by `tin_number`). The Buyer viewset also provides standalone CRUD endpoints.
+
+#### List Buyers
+
+```
+GET /fiscguy/buyer/
+```
+
+**Response `200 OK`:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Casy Holdings",
+    "address": "123 Main St, Harare",
+    "tin_number": "2000123456",
+    "trade_name": "Casy Retail",
+    "email": "accounts@casy.co.zw",
+    "phonenumber": "+263771234567",
+    "created_at": "2024-01-15T10:00:00Z",
+    "updated_at": "2024-01-15T10:00:00Z"
+  }
+]
+```
+
+#### Create Buyer
+
+```
+POST /fiscguy/buyer/
+```
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Registered business name |
+| `tin_number` | string | Yes | 10-digit ZIMRA TIN number |
+| `address` | string | No | Physical address |
+| `trade_name` | string | No | Trading name / branch name |
+| `email` | string | No | Contact email |
+| `phonenumber` | string | No | Contact phone number |
+
+**Example:**
+```json
+{
+  "name": "Casy Holdings",
+  "tin_number": "2000123456",
+  "address": "123 Main St, Harare",
+  "trade_name": "Casy Retail",
+  "email": "accounts@casy.co.zw",
+  "phonenumber": "+263771234567"
+}
+```
+
+**Response `201 Created`:** Returns the created buyer object.
+
+#### Retrieve Buyer
+
+```
+GET /fiscguy/buyer/{id}/
+```
+
+#### Update Buyer
+
+```
+PUT /fiscguy/buyer/{id}/
+PATCH /fiscguy/buyer/{id}/
+```
+
+#### Delete Buyer
+
+```
+DELETE /fiscguy/buyer/{id}/
+```
+
+---
+
+### Configuration & Taxes
+
+#### Get Configuration
+
+Returns the stored taxpayer configuration for the registered device.
+
+```
+GET /fiscguy/configuration/
+```
+
+**Response `200 OK`:**
+```json
+{
+  "id": 1,
+  "device": 1,
+  "tax_payer_name": "ACME Ltd",
+  "tin_number": "1234567890",
+  "vat_number": "V123456789",
+  "address": "10 Commerce Drive, Harare",
+  "phone_number": "+263771234567",
+  "email": "tax@acme.co.zw",
+  "created_at": "2024-01-01T08:00:00Z",
+  "updated_at": "2024-01-15T09:30:00Z"
+}
+```
+
+Returns `{}` if no device or configuration is found.
+
+---
+
+#### Sync Configuration
+
+Manually pulls the latest configuration from ZIMRA FDMS and updates the local database. This is also called automatically when opening a fiscal day.
+
+```
+POST /fiscguy/sync-config/
+```
+
+**Request body:** none
+
+**Response `200 OK`:**
+```json
+{
+  "message": "Configuration Synced"
+}
+```
+
+---
+
+#### List Taxes
+
+Returns all tax types currently configured in ZIMRA for this device.
+
+```
+GET /fiscguy/taxes/
+```
+
+**Response `200 OK`:**
+```json
+[
+  {
+    "id": 1,
+    "code": "A",
+    "name": "Standard rated 15.5",
+    "tax_id": 1,
+    "percent": "15.00",
+    "created_at": "2024-01-01T08:00:00Z"
+  },
+  {
+    "id": 2,
+    "code": "B",
+    "name": "Zero Rat rated 15.5ed",
+    "tax_id": 2,
+    "percent": "0.00",
+    "created_at": "2024-01-01T08:00:00Z"
+  },
+  {
+    "id": 3,
+    "code": "C",
+    "name": "Exempt",
+    "tax_id": 3,
+    "percent": "0.00",
+    "created_at": "2024-01-01T08:00:00Z"
+  }
+]
+```
+
+---
+
+### Device Management
+
+#### Get Device Status
+
+Fetches the current device and fiscal day status directly from ZIMRA FDMS.
+
+```
+GET /fiscguy/get-status/
+```
+
+**Response `200 OK`:**
+```json
+{
+  "lastFiscalDayNo": 41,
+  "lastReceiptGlobalNo": 150,
+  "fiscalDayStatus": "Closed",
+  ...
+}
+```
+
+---
+
+#### Ping Device
+
+Reports device connectivity to ZIMRA FDMS. Use this to confirm the device is online and communicating correctly.
+
+```
+POST /fiscguy/get-ping/
+```
+
+**Request body:** none
+
+**Response `200 OK`:**
+```json
+{
+  "success": true,
+  ...
+}
+```
+
+---
+
+### Certificate Management
+
+#### Issue / Renew Certificate
+
+Renews the device certificate with ZIMRA FDMS. Use this when the current certificate has expired.
+
+```
+POST /fiscguy/issue-certificate/
+```
+
+**Request body:** none
+
+**Response `200 OK`:**
+```json
+{
+  "message": "Certificate issued successfully"
+}
+```
+
+**Response `422 Unprocessable Entity`** (renewal failed):
+```json
+{
+  "error": "Certificate renewal issuance failed."
+}
+```
+
+---
+
+## Data Models
+
+### Device
+
+Represents a registered ZIMRA fiscal device.
+
+| Field | Type | Description |
+|---|---|---|
+| `org_name` | CharField | Organisation name |
+| `activation_key` | CharField | ZIMRA activation key |
+| `device_id` | CharField (unique) | ZIMRA device identifier |
+| `device_model_name` | CharField | Device model name |
+| `device_serial_number` | CharField | Device serial number |
+| `device_model_version` | CharField | Device model version |
+| `production` | BooleanField | `True` = production, `False` = test |
+| `created_at` | DateTimeField | Auto-set on creation |
+
+---
+
+### Configuration
+
+Taxpayer configuration synced from ZIMRA FDMS. One-to-one with `Device`.
+
+| Field | Type | Description |
+|---|---|---|
+| `device` | OneToOne → Device | Linked device |
+| `tax_payer_name` | CharField | Registered taxpayer name |
+| `tax_inclusive` | BooleanField | Whether prices include tax |
+| `tin_number` | CharField | 10-digit TIN |
+| `vat_number` | CharField | registra rated 15.5tion number |
+| `address` | CharField | Business address |
+| `phone_number` | CharField | Contact phone |
+| `email` | EmailField | Contact email |
+| `url` | URLField | FDMS URL (test or production) |
+
+---
+
+### Certs
+
+TLS client certificate for FDMS communication. One-to-one with `Device`.
+
+| Field | Type | Description |
+|---|---|---|
+| `device` | OneToOne → Device | Linked device |
+| `csr` | TextField | PEM-encoded Certificate Signing Request |
+| `certificate` | TextField | PEM-encoded signed certificate |
+| `certificate_key` | TextField | PEM-encoded private key |
+| `production` | BooleanField | `True` = production certificate |
+
+---
+
+### FiscalDay
+
+A fiscal day record. Increments by 1 each time a day is opened.
+
+| Field | Type | Description |
+|---|---|---|
+| `device` | FK → Device | Linked device |
+| `day_no` | IntegerField | Sequential fiscal day number |
+| `receipt_counter` | IntegerField | Number of receipts in this day |
+| `is_open` | BooleanField | Whether this day is currently open |
+
+---
+
+### FiscalCounter
+
+Running totals for each tax type and money type within a fiscal day. Updated on every receipt submission.
+
+| Field | Type | Description |
+|---|---|---|
+| `device` | FK → Device | Linked device |
+| `fiscal_day` | FK → FiscalDay | Linked fiscal day |
+| `fiscal_counter_type` | CharField | `SaleByTax`, `SaleTaxByTax`, `CreditNoteByTax`, `CreditNoteTaxByTax`, `DebitNoteByTax`, `DebitNoteTaxByTax`, `BalanceByMoneyType`, `Other` |
+| `fiscal_counter_currency` | CharField | `USD` or `ZWG` |
+| `fiscal_counter_tax_percent` | DecimalField | Tax rate for this counter |
+| `fiscal_counter_tax_id` | IntegerField | ZIMRA tax ID for this counter |
+| `fiscal_counter_money_type` | CharField | `Cash`, `Card`, `BankTransfer`, `MobileMoney` |
+| `fiscal_counter_value` | DecimalField | Running total value |
+
+---
+
+### Taxes
+
+Tax types applicable to this device, synced from ZIMRA.
+
+| Field | Type | Description |
+|---|---|---|
+| `code` | CharField | Short code (e.g. `A`, `B`, `C`) |
+| `name` | CharField | Full name (e.g. `Standard rated 15.5`) |
+| `tax_id` | IntegerField | ZIMRA internal tax ID |
+| `percent` | DecimalField | Tax percentage |
+
+---
+
+### Receipt
+
+A submitted fiscal receipt.
+
+| Field | Type | Description |
+|---|---|---|
+| `device` | FK → Device | Device that issued this receipt |
+| `receipt_number` | CharField (unique) | Auto-generated, format `R-{global_number:08d}` |
+| `receipt_type` | CharField | `fiscalinvoice`, `creditnote`, or `debitnote` |
+| `total_amount` | DecimalField | Receipt total (negative for credit notes) |
+| `qr_code` | ImageField | Path to stored QR code image |
+| `currency` | CharField | `USD` or `ZWG` |
+| `global_number` | IntegerField | FDMS global receipt sequence number |
+| `hash_value` | CharField | SHA-256 hash of the receipt string |
+| `signature` | TextField | RSA signature |
+| `zimra_inv_id` | CharField | ZIMRA invoice ID from FDMS response |
+| `buyer` | FK → Buyer (nullable) | Linked buyer, or null for anonymous sales |
+| `payment_terms` | CharField | Payment method |
+| `submitted` | BooleanField | Whether successfully submitted to FDMS |
+| `is_credit_note` | BooleanField | Auto-set for credit note receipt types |
+| `credit_note_reason` | CharField | Reason for credit note |
+| `credit_note_reference` | CharField | `receipt_number` of the original receipt |
+
+---
+
+### ReceiptLine
+
+A single line item on a receipt.
+
+| Field | Type | Description |
+|---|---|---|
+| `receipt` | FK → Receipt | Parent receipt |
+| `product` | CharField | Product or service name |
+| `quantity` | DecimalField | Quantity |
+| `unit_price` | DecimalField | Price per unit |
+| `line_total` | DecimalField | `quantity × unit_price` |
+| `tax_amount` | DecimalField | Tax amount for this line |
+| `tax_type` | FK → Taxes (nullable) | Linked tax record |
+
+---
+
+### Buyer
+
+A register rated 15.5ed buyer. Keyed by `tin_number` — reused across receipts when the TIN matches.
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | CharField | Registered business name |
+| `address` | CharField | Physical address |
+| `phonenumber` | CharField | Contact phone |
+| `trade_name` | CharField | Trading / branch name |
+| `tin_number` | CharField | 10-digit ZIMRA TIN |
+| `email` | EmailField | Contact email |
+
+---
+
+## Error Handling
+
+FiscGuy uses a structured exception hierarchy. All exceptions inherit from `FiscalisationError`.
+
+| Exception | When raised |
+|---|---|
+| `FiscalisationError` | Base class for all fiscalisation errors |
+| `CertNotFoundError` | No certificate found in the database |
+| `CryptoError` | Cryptographic operation failed |
+| `PersistenceError` | Database write failed |
+| `RegistrationError` | General device registration failure |
+| `DeviceNotFoundError` | No device registered |
+| `ZIMRAAPIError` | ZIMRA API returned an error |
+| `ValidationError` | Input data failed validation |
+| `AuthenticationError` | Authentication failed |
+| `ConfigurationError` | Configuration missing or invalid |
+| `TaxError` | Tax-related operation failed |
+| `FiscalDayError` | Opening a fiscal day failed |
+| `ReceiptSubmissionError` | Receipt processing or submission failed |
+| `DeviceRegistrationError` | Device registration failed |
+| `CertificateError` | Certificate issue or renewal failed |
+| `StatusError` | FDMS status check failed |
+| `DevicePingError` | Device ping failed |
+| `CloseDayError` | Closing a fiscal day failed |
+
+### HTTP Status Codes
+
+| Status | Meaning |
+|---|---|
+| `200 OK` | Request succeeded |
+| `201 Created` | Receipt created and submitted |
+| `400 Bad Request` | Invalid input (fiscal day already open, etc.) |
+| `404 Not Found` | No device registered |
+| `422 Unprocessable Entity` | ZIMRA rejected the receipt / certificate / close day |
+| `500 Internal Server Error` | Unexpected server error |
+
+---
+
+## Development
+
+### Install Development Dependencies
 
 ```bash
-# Set up dev environment
-git clone https://github.com/digitaltouchcode/fisc.git
-cd fisc
 pip install -e ".[dev]"
-pre-commit install
+```
 
-# Before submitting a PR
-black fiscguy
-isort fiscguy
-flake8 fiscguy
+Includes: `pytest`, `pytest-django`, `pytest-cov`, `black`, `isort`, `flake8`, `pylint`, `mypy`, `django-stubs`.
+
+### Run Tests
+
+```bash
 pytest
 ```
+
+With coverage:
+
+```bash
+pytest --cov=fiscguy --cov-report=term-missing
+```
+
+### Code Style
+
+```bash
+# Format
+black fiscguy/
+
+# Sort imports
+isort fiscguy/
+
+# Lint
+flake8 fiscguy/
+```
+
+### Pre-commit Hooks
+
+```bash
+pre-commit install
+```
+
+Runs `black`, `isort`, and `flake8` on every commit.
+
+---
+
+## Troubleshooting
+
+### `RuntimeError: No Device found`
+
+No device has been registered yet. Run:
+
+```bash
+python manage.py init_device
+```
+
+---
+
+### `RuntimeError: ZIMRA configuration missing`
+
+The `Configuration` record is missing. Either `init_device` didn't complete successfully. Sync manually via the REST API:
+
+```
+POST /fiscguy/sync-config/
+```
+
+---
+
+### `MalformedFraming: Unable to load PEM file`
+
+The certificate stored in `Certs` is corrupted or empty. Re-run device registration:
+
+```bash
+python manage.py init_device
+```
+
+---
+
+### `No open fiscal day`
+
+You must open a fiscal day before submitting receipts:
+
+```
+POST /fiscguy/open-day/
+```
+
+---
+
+### Certificate Expired
+
+Renew the certificate without re-registering the device:
+
+```
+POST /fiscguy/issue-certificate/
+```
+
+---
+
+### Receipt Submission Fails (`422`)
+
+- Verify a fiscal day is open (`GET /fiscguy/get-status/`)
+- Verify `total_amount` is negative for credit notes
+- Verify `credit_note_reference` matches an existing `receipt_number` for credit notes
+- Verify `tin_number` is exactly 10 digits
+- Check ZIMRA FDMS connectivity via `POST /fiscguy/get-ping/`
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE) for details.
 
----
-
-<div align="center">
-Built for Zimbabwe 🇿🇼 by <a href="https://github.com/digitaltouchcode">Digital Touch Code</a>
-</div>
+Developed by [Casper Moyo](mailto:cassymyo@gmail.com).
