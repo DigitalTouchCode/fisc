@@ -122,8 +122,8 @@ receipt = submit_receipt({
 })
 
 close_day()
-```s
----
+```
+--
 
 ## REST Endpoints
 
@@ -258,13 +258,13 @@ All tests mock ZIMRA API calls and crypto operations — no network access requi
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-**[📖 View Full Documentation](https://digitaltouchcode.github.io/fisc/)**
+**[View Full Documentation](https://digitaltouchcode.github.io/fisc/)**
 
 Our comprehensive documentation covers everything you need to know:
 
-### 🚀 Quick Links
+### Quick Links
 - **[Installation Guide](https://digitaltouchcode.github.io/fisc/installation/)** - Detailed setup instructions
 - **[Receipt Types](https://digitaltouchcode.github.io/fisc/receipt-types/)** - Fiscal Invoice, Credit Note, Debit Note rules
 - **[Fiscal Counters](https://digitaltouchcode.github.io/fisc/fiscal-counters/)** - Counter tracking and calculations
@@ -272,13 +272,13 @@ Our comprehensive documentation covers everything you need to know:
 - **[Certificate Management](https://digitaltouchcode.github.io/fisc/certificate-management/)** - Certificate lifecycle and renewal
 - **[Error Reference](https://digitaltouchcode.github.io/fisc/error-reference/)** - All exceptions and troubleshooting
 
-### 🌐 GitHub Pages Setup
+### GitHub Pages Setup
 
 This documentation is automatically deployed to GitHub Pages when you push to the `main` branch.
 
 **No local scripts needed** - GitHub Actions handles everything automatically!
 
-### 📋 Documentation Contents
+### Documentation Contents
 
 | Document | Description |
 |----------|-------------|
