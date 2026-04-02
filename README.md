@@ -358,6 +358,7 @@ The command will:
 ---
 
 ## Testing
+## Testing
 
 ```bash
 # Run all tests

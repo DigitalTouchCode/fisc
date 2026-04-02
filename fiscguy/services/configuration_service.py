@@ -91,7 +91,7 @@ class ConfigurationService:
             for tax in raw_taxes
         ]
 
-        Taxes.objects.first().delete()
+        Taxes.objects.all().delete()
 
         try:
             Taxes.objects.bulk_create(tax_objects)
