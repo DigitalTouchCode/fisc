@@ -32,6 +32,9 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 - Cursor-based pagination for receipt listing endpoint (`GET /api/receipts/`). Supports
   configurable page sizes via `?page_size=N` parameter (max 100 items).
 - Receipt lines are now included in paginated receipt list responses via `prefetch_related()`.
+- Certificate renewal endpoint (`IssueCertificateView`) - POST endpoint to issue/renew
+  device certificates using the `CertificateService.issue_certificate()` flow. Returns
+  success or detailed error responses when certificate issuance fails.
 
 ### Changed
 - Monetary fields in models now use `DecimalField` instead of `FloatField` for precise financial
