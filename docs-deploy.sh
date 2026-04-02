@@ -9,9 +9,9 @@ echo ""
 
 # Check if we're on the right branch
 CURRENT_BRANCH=$(git branch --show-current)
-if [ "$CURRENT_BRANCH" != "release" ]; then
-    echo "   Warning: You're on branch '$CURRENT_BRANCH', not 'release'"
-    echo "   Consider switching to release branch first"
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo "   Warning: You're on branch '$CURRENT_BRANCH', not 'main'"
+    echo "   Consider switching to main branch first"
     echo ""
 fi
 
