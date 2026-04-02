@@ -116,4 +116,8 @@ coverage_html_report/
 *.bak
 *.tmp
 
-test_m.py
+# docs
+ARCHITECTURE.md
+
+# MkDocs build output
+site/

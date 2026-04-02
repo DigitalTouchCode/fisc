@@ -13,7 +13,7 @@
 
 FiscGuy gives Django applications a simple, Pythonic interface for every fiscal operation required by the Zimbabwe Revenue Authority — receipt submission, fiscal day management, certificate handling, and more. Built on Django REST Framework, it drops into any Django project in minutes.
 
-[Installation](#installation) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [REST Endpoints](#rest-endpoints) • [📚 Full Documentation](https://digitaltouchcode.github.io/fisc/) • [Contributing](#contributing)
+[Installation](#installation) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [REST Endpoints](#rest-endpoints) • [Docs](#documentation) • [Contributing](#contributing)
 
 ---
 
@@ -21,7 +21,7 @@ FiscGuy gives Django applications a simple, Pythonic interface for every fiscal 
 
 ## Features
 
-- **Seven core API functions** — `open_day`, `close_day`, `submit_receipt`, `get_status`, `get_configuration`, `get_taxes`, `get_buyer`
+- **Six core API functions** — `open_day`, `close_day`, `submit_receipt`, `get_status`, `get_configuration`, `get_taxes`
 - **Full fiscal day lifecycle** — open, manage counters, close with ZIMRA-compliant hash and signature
 - **Receipt types** — Fiscal Invoice, Credit Note, Debit Note with correct counter tracking
 - **Offline resilience** — receipts queued locally when FDMS is unreachable, synced automatically on reconnect
@@ -258,50 +258,20 @@ All tests mock ZIMRA API calls and crypto operations — no network access requi
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-**[📖 View Full Documentation](https://digitaltouchcode.github.io/fisc/)**
-
-Our comprehensive documentation covers everything you need to know:
-
-### 🚀 Quick Links
-- **[Installation Guide](https://digitaltouchcode.github.io/fisc/installation/)** - Detailed setup instructions
-- **[Receipt Types](https://digitaltouchcode.github.io/fisc/receipt-types/)** - Fiscal Invoice, Credit Note, Debit Note rules
-- **[Fiscal Counters](https://digitaltouchcode.github.io/fisc/fiscal-counters/)** - Counter tracking and calculations
-- **[Closing Day](https://digitaltouchcode.github.io/fisc/closing-day/)** - Hash string and signature specifications
-- **[Certificate Management](https://digitaltouchcode.github.io/fisc/certificate-management/)** - Certificate lifecycle and renewal
-- **[Error Reference](https://digitaltouchcode.github.io/fisc/error-reference/)** - All exceptions and troubleshooting
-
-### 🌐 GitHub Pages Setup
-
-This documentation is automatically deployed to GitHub Pages when you push to the `release` branch.
-
-**To enable GitHub Pages:**
-1. Go to your repository Settings → Pages
-2. Source: Select "GitHub Actions" 
-3. The documentation will be available at: `https://digitaltouchcode.github.io/fisc/`
-
-**Manual deployment commands:**
-```bash
-# Build and deploy locally
-./docs-deploy.sh
-
-# Or build only
-./docs-build.sh
-```
-
-### 📋 Documentation Contents
+Full documentation lives in the `docs/` folder:
 
 | Document | Description |
 |----------|-------------|
-| [Installation](https://digitaltouchcode.github.io/fisc/installation/) | Detailed installation and setup guide |
-| [Receipt Types](https://digitaltouchcode.github.io/fisc/receipt-types/) | Fiscal Invoice, Credit Note, Debit Note rules |
-| [Fiscal Counters](https://digitaltouchcode.github.io/fisc/fiscal-counters/) | How counters work and how they are calculated |
-| [Closing Day](https://digitaltouchcode.github.io/fisc/closing-day/) | Closing day hash string and signature spec |
-| [Certificate Management](https://digitaltouchcode.github.io/fisc/certificate-management/) | Certificate lifecycle and renewal |
-| [Error Reference](https://digitaltouchcode.github.io/fisc/error-reference/) | All exceptions and what causes them |
-| [Changelog](https://digitaltouchcode.github.io/fisc/changelog/) | Version history |
-| [Contributing](https://digitaltouchcode.github.io/fisc/contributing/) | Contributing guidelines |
+| [`docs/installation.md`](docs/installation.md) | Detailed installation and setup guide |
+| [`docs/receipt-types.md`](docs/receipt-types.md) | Fiscal Invoice, Credit Note, Debit Note rules |
+| [`docs/fiscal-counters.md`](docs/fiscal-counters.md) | How counters work and how they are calculated |
+| [`docs/closing-day.md`](docs/closing-day.md) | Closing day hash string and signature spec |
+| [`docs/certificate-management.md`](docs/certificate-management.md) | Certificate lifecycle and renewal |
+| [`docs/error-reference.md`](docs/error-reference.md) | All exceptions and what causes them |
+| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributing guidelines |
 
 ---
 
@@ -332,5 +302,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <div align="center">
-Built for Zimbabwe 🇿🇼 by <a href="mailto:cassymyo@gmail.com">Casper Moyo</a>
+Built for Zimbabwe 🇿🇼 by <a href="mailto:cassymyo@gmail.com">Casper Moyoß</a>
 </div>
