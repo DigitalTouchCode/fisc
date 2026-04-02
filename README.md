@@ -13,7 +13,7 @@
 
 **The Modern Python Library for ZIMRA Fiscal Device Integration**
 
-Production-ready library for integrating with ZIMRA (Zimbabwe Revenue Authority) fiscal devices. Built with Django and Django REST Framework, FiscGuy provides a simple, Pythonic API for managing fiscal operations with enterprise-grade security and reliability.
+Library for integrating with ZIMRA (Zimbabwe Revenue Authority) fiscal devices. Built with Django and Django REST Framework, FiscGuy provides a simple, Pythonic API for managing fiscal operations with enterprise-grade security and reliability.
 
 [Documentation](https://github.com/digitaltouchcode/fisc#documentation) • [API Reference](#api-endpoints) • [Contributing](#contributing)
 
