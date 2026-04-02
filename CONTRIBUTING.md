@@ -18,7 +18,7 @@ Be respectful, inclusive, and professional in all interactions.
 
 ```bash
 # Clone the repository
-git clone https://github.com/cassymyo-spec/zimra.git
+git clone https://github.com/digtaltouchcode/fisc.git
 cd zimra /. to change to fiscguy
 
 # Create virtual environment
