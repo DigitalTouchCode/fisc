@@ -171,7 +171,14 @@ receipt = submit_receipt({
         }
     ],
     # Optional
-    "buyer": 1,                        # Buyer model ID
+    "buyer": {
+      "name": "Tendai Nyathi",
+      "trade_name": "Nyathi Hardware",
+      "address": "45 Samora Machel Avenue, Harare",
+      "phonenumber": "0773124567",
+      "tin_number": "2045678912",
+      "email": "tendai.nyathi@example.com"
+    },                        # Buyer model ID
     "credit_note_reason": "...",       # Required for creditnote
     "credit_note_reference": "R-...", # Required for creditnote — original receipt number
 })
