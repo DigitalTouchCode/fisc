@@ -13,7 +13,7 @@
 
 FiscGuy gives Django applications a simple, Pythonic interface for every fiscal operation required by the Zimbabwe Revenue Authority — receipt submission, fiscal day management, certificate handling, and more. Built on Django REST Framework, it drops into any Django project in minutes.
 
-[Installation](#installation) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [REST Endpoints](#rest-endpoints) • [📚 Full Documentation](https://digitaltouchcode.github.io/fisc/) • [Contributing](#contributing)
+[Installation](#installation) · [Quick Start](#quick-start) · [API Reference](#api-reference) · [REST Endpoints](#rest-endpoints) · [Full Documentation](https://digitaltouchcode.github.io/fisc/) · [Contributing](#contributing)
 
 ---
 
