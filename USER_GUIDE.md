@@ -1,6 +1,6 @@
 # FiscGuy User & Integration Guide
 
-**FiscGuy** is a production-ready Python library for integrating with ZIMRA (Zimbabwe Revenue Authority) fiscal devices. It simplifies fiscal operations through a clean REST API and robust business logic.
+**FiscGuy** Python library for integrating with ZIMRA (Zimbabwe Revenue Authority) fiscal devices. It simplifies fiscal operations through a clean REST API and robust business logic.
 
 **Table of Contents:**
 - [Features](#features)
