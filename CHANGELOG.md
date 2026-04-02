@@ -6,6 +6,24 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 ## [Unreleased 0.1.6]
 
 ### Added
+- **ARCHITECTURE.md** - Comprehensive internal engineering documentation covering:
+  - Layered architecture and component responsibilities
+  - Complete data model documentation with relationships and constraints
+  - Service layer details (ReceiptService, OpenDayService, ClosingDayService, etc.)
+  - Cryptography & security implementation (RSA signing, SHA-256 hashing)
+  - ZIMRA integration details and API payload specifications
+  - Receipt processing pipeline with flow diagrams
+  - Fiscal day management and counter tracking
+  - Database design with indexes and relationships
+  - Development guidelines for contributors
+- **USER_GUIDE.md** - General user and integration documentation including:
+  - Feature overview and installation instructions
+  - Quick start guide with 5-step setup
+  - Complete API endpoint reference with examples
+  - 4 practical usage examples (cash receipt, buyer, credit note, Django integration)
+  - Conceptual explanations (fiscal devices, fiscal days, receipt types, counters)
+  - Comprehensive troubleshooting guide for common issues
+  - FAQ covering 15+ frequently asked questions
 - Receipt global numbers are now sourced from FDMS (`lastReceiptGlobalNo + 1`) and persisted
   locally. If the local value differs from FDMS, a warning is logged and FDMS is used as the
   source of truth.

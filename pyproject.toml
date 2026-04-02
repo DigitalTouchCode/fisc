@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fiscguy"
 version = "0.1.5"
-description = "ZIMRA Fiscal Device Integration Library - Simple and Pythonic API for ZIMRA fiscal device operations"
+description = "Fiscalisation Device Integration Library - Simple and Pythonic API for ZIMRA fiscal device operations"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

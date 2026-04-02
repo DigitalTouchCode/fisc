@@ -16,7 +16,7 @@ class ConfigurationService:
     def config(self) -> Configuration:
         config_data = self.get_configuration()
         config = self.create_or_update_config(config_data)
-        return config
+        return config_data
 
     def get_configuration(self) -> Dict[str, any]:
         try:

@@ -263,7 +263,7 @@ class TestConfigurationService:
         service = ConfigurationService(device)
         config = service.config()
 
-        assert config.tax_payer_name == "Updated Taxpayer"
+        assert config["taxPayerName"] == "Updated Taxpayer"
         assert Taxes.objects.count() >= 1
 
     @patch("fiscguy.zimra_base.requests.Session.request")
@@ -291,8 +291,8 @@ class TestConfigurationService:
         service = ConfigurationService(device)
         config = service.config()
 
-        assert config.tax_payer_name == "New Taxpayer"
-        assert config.tin_number == "111111111"
+        assert config["taxPayerName"] == "New Taxpayer"
+        assert config["taxPayerTIN"] == "111111111"
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_persist_configuration_updates_existing(
@@ -320,8 +320,8 @@ class TestConfigurationService:
         service = ConfigurationService(device)
         config = service.config()
 
-        assert config.tax_payer_name == "Updated Name"
-        assert config.tin_number == "222222222"
+        assert config["taxPayerName"] == "Updated Name"
+        assert config["taxPayerTIN"] == "222222222"
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_persist_taxes_multiple(self, mock_request, device, configuration, certs):
@@ -368,7 +368,7 @@ class TestConfigurationService:
         config = service.config()
 
         # Should handle missing fields gracefully
-        assert config.tax_payer_name == "Minimal"
+        assert config["taxPayerName"] == "Minimal"
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_config_request_error(self, mock_request, device, configuration, certs):
@@ -410,7 +410,10 @@ class TestConfigurationService:
         config = service.config()
 
         # Address should be formatted
-        assert "123 Main St" in config.address or config.address
+        assert (
+            "123 Main St" in config["deviceBranchAddress"]["streetAddress"]
+            or config["deviceBranchAddress"]["streetAddress"]
+        )
 
 
 @pytest.mark.django_db
