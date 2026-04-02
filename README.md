@@ -276,19 +276,7 @@ Our comprehensive documentation covers everything you need to know:
 
 This documentation is automatically deployed to GitHub Pages when you push to the `main` branch.
 
-**To enable GitHub Pages:**
-1. Go to your repository Settings → Pages
-2. Source: Select "GitHub Actions" 
-3. The documentation will be available at: `https://digitaltouchcode.github.io/fisc/`
-
-**Manual deployment commands:**
-```bash
-# Build and deploy locally
-./docs-deploy.sh
-
-# Or build only
-./docs-build.sh
-```
+**No local scripts needed** - GitHub Actions handles everything automatically!
 
 ### 📋 Documentation Contents
 
