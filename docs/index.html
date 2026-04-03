@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FiscGuy Docs</title>
+<style>
+/* ── Apple SF Pro font stack ── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Fira Code", monospace;
+
+  --bg: #ffffff;
+  --bg-secondary: #f5f5f7;
+  --bg-tertiary: #fbfbfd;
+  --border: #d2d2d7;
+  --border-light: #e8e8ed;
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #86868b;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-light: #e8f0fe;
+  --green: #34c759;
+  --green-bg: #f0fdf4;
+  --orange: #ff9500;
+  --orange-bg: #fff7ed;
+  --red: #ff3b30;
+  --red-bg: #fff1f0;
+  --blue: #007aff;
+  --purple: #af52de;
+
+  --sidebar-w: 260px;
+  --content-max: 760px;
+  --toc-w: 220px;
+}
+
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-light);
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+}
+
+.sidebar-logo {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 30px; height: 30px;
+  background: linear-gradient(145deg, #1d1d1f 0%, #424245 100%);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+
+.logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+.logo-ver  { font-size: 11px; color: var(--text-tertiary); margin-left: auto; font-family: var(--font-mono); }
+
+.nav-group { padding: 4px 0; }
+
+.nav-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 14px 20px 6px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 20px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  line-height: 1.4;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.nav-link:hover { background: rgba(0,0,0,.04); color: var(--text); }
+.nav-link.active {
+  background: rgba(0,113,227,.08);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ── MAIN ── */
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── TOP BAR ── */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-light);
+  height: 52px;
+  display: flex; align-items: center;
+  padding: 0 40px;
+  gap: 16px;
+}
+
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-secondary);
+}
+.breadcrumb span { color: var(--text-tertiary); }
+.breadcrumb strong { color: var(--text); font-weight: 500; }
+
+.search-box {
+  margin-left: auto;
+  display: flex; align-items: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 12px;
+  gap: 8px;
+  cursor: text;
+}
+
+.search-box input {
+  border: none; background: none;
+  font-family: var(--font-sans);
+  font-size: 13px; color: var(--text);
+  outline: none; width: 180px;
+}
+
+.search-box input::placeholder { color: var(--text-tertiary); }
+
+/* ── CONTENT + TOC LAYOUT ── */
+.page-body {
+  display: flex;
+  max-width: calc(var(--content-max) + var(--toc-w) + 80px);
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 48px 48px 80px 0;
+}
+
+.toc {
+  width: var(--toc-w);
+  flex-shrink: 0;
+  padding-top: 52px;
+}
+
+.toc-inner {
+  position: sticky; top: 68px;
+  font-size: 12.5px;
+}
+
+.toc-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 10px;
+}
+
+.toc-link {
+  display: block;
+  padding: 4px 0 4px 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-left: 2px solid var(--border-light);
+  transition: color 0.1s, border-color 0.1s;
+  line-height: 1.4;
+}
+
+.toc-link:hover { color: var(--text); border-left-color: var(--border); }
+.toc-link.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+
+.toc-link.h3 { padding-left: 24px; font-size: 12px; }
+
+/* ── TYPOGRAPHY ── */
+.content h1 {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  color: var(--text);
+  margin-bottom: 12px;
+  line-height: 1.15;
+}
+
+.content .page-intro {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-bottom: 36px;
+  line-height: 1.6;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 32px;
+}
+
+.content h2 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--text);
+  margin-top: 48px;
+  margin-bottom: 14px;
+  line-height: 1.25;
+  padding-top: 12px;
+}
+
+.content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 28px;
+  margin-bottom: 10px;
+}
+
+.content h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+.content p {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.content p strong { color: var(--text); font-weight: 600; }
+
+.content code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: var(--text);
+}
+
+.content pre {
+  background: #1c1c1e;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin: 20px 0;
+  overflow-x: auto;
+  position: relative;
+}
+
+.content pre code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #e5e5ea;
+  line-height: 1.65;
+}
+
+.copy-btn {
+  position: absolute; top: 12px; right: 12px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.15);
+  color: rgba(255,255,255,.6);
+  font-size: 11px; font-family: var(--font-mono);
+  padding: 3px 10px; border-radius: 5px;
+  cursor: pointer;
+  transition: all .15s;
+  opacity: 0;
+}
+
+.content pre:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { background: rgba(255,255,255,.2); color: #fff; }
+
+/* syntax */
+.kw  { color: #ff7b72; }
+.st  { color: #a5d6ff; }
+.cm  { color: #8b949e; font-style: italic; }
+.fn  { color: #d2a8ff; }
+.nb  { color: #ffa657; }
+.nu  { color: #79c0ff; }
+.py-key { color: #ff7b72; }
+.json-key { color: #79c0ff; }
+.json-str { color: #a5d6ff; }
+.json-num { color: #79c0ff; }
+.json-bool { color: #ff7b72; }
+.json-null { color: #8b949e; }
+
+/* ── TABLES ── */
+.content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin: 20px 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+
+.content thead tr { background: var(--bg-secondary); }
+
+.content thead th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.content tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: top;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.content tbody tr:last-child td { border-bottom: none; }
+.content tbody tr:hover td { background: var(--bg-secondary); }
+
+td code { font-size: 12px; }
+
+/* ── CALLOUTS ── */
+.callout {
+  display: flex;
+  gap: 12px;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 20px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+.callout.info   { background: var(--accent-light); border: 1px solid rgba(0,113,227,.2); }
+.callout.warn   { background: var(--orange-bg);    border: 1px solid rgba(255,149,0,.25); }
+.callout.danger { background: var(--red-bg);       border: 1px solid rgba(255,59,48,.2); }
+.callout.success { background: var(--green-bg);    border: 1px solid rgba(52,199,89,.25); }
+
+.callout.info   .callout-body { color: #003c8f; }
+.callout.warn   .callout-body { color: #7a3e00; }
+.callout.danger .callout-body { color: #8b0000; }
+.callout.success .callout-body { color: #1a5c2a; }
+
+.callout-body strong { display: block; margin-bottom: 2px; }
+.callout-body code { background: rgba(0,0,0,.07); border-color: rgba(0,0,0,.1); color: inherit; }
+
+/* ── STEP BADGES ── */
+.step {
+  display: flex; gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.step-num {
+  width: 26px; height: 26px;
+  background: var(--accent);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.step-body { flex: 1; }
+.step-body h4 { margin-top: 0; margin-bottom: 6px; }
+
+/* ── METHOD BADGES ── */
+.method {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 5px;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.GET    { background: rgba(0,122,255,.12); color: #0055cc; }
+.POST   { background: rgba(52,199,89,.15); color: #1a7a35; }
+.PUT    { background: rgba(255,149,0,.15); color: #7a4700; }
+.DELETE { background: rgba(255,59,48,.12); color: #99000d; }
+.PATCH  { background: rgba(175,82,222,.12); color: #6a00a8; }
+
+/* ── ENDPOINT BLOCK ── */
+.endpoint {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  margin: 24px 0;
+  overflow: hidden;
+}
+
+.endpoint-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.endpoint-bar:hover { background: #ebebf0; }
+
+.endpoint-path {
+  font-family: var(--font-mono);
+  font-size: 13px; color: var(--text);
+}
+
+.endpoint-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.endpoint-chevron {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  transition: transform .2s;
+  flex-shrink: 0;
+}
+
+.endpoint.open .endpoint-chevron { transform: rotate(180deg); }
+
+.endpoint-content {
+  display: none;
+  padding: 20px 20px;
+  border-top: 1px solid var(--border-light);
+}
+
+.endpoint.open .endpoint-content { display: block; }
+
+/* ── STATUS CHIPS ── */
+.status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 5px;
+}
+
+.s200, .s201 { background: rgba(52,199,89,.12); color: #1a7a35; }
+.s400, .s404 { background: rgba(255,149,0,.15); color: #7a4700; }
+.s422, .s500 { background: rgba(255,59,48,.12); color: #99000d; }
+
+/* ── FIELD TAG ── */
+.req { color: var(--red); font-size: 11px; font-weight: 600; margin-left: 2px; }
+.type-tag { font-family: var(--font-mono); font-size: 11.5px; color: var(--blue); }
+.field-col { font-family: var(--font-mono); font-size: 12.5px; color: var(--text); }
+
+/* ── TOC ── */
+.toc-nav-list { list-style: none; }
+
+/* ── PILLS ── */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 3px 2px;
+  font-family: var(--font-mono);
+}
+
+.pill-green { background: var(--green-bg); border-color: rgba(52,199,89,.25); color: #1a7a35; }
+.pill-blue  { background: var(--accent-light); border-color: rgba(0,113,227,.2); color: #003c8f; }
+.pill-dot { width: 6px; height: 6px; border-radius: 50%; }
+.green-dot { background: var(--green); }
+.blue-dot  { background: var(--blue); }
+.orange-dot { background: var(--orange); }
+
+/* ── PAGES ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── CODE LABEL ── */
+.code-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-top: 20px;
+  margin-bottom: 6px;
+}
+
+/* ── HERO BADGES ── */
+.hero-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 32px; }
+
+/* ── DIVIDER ── */
+hr { border: none; border-top: 1px solid var(--border-light); margin: 40px 0; }
+
+/* ── UL / OL ── */
+.content ul, .content ol {
+  padding-left: 24px;
+  margin: 12px 0;
+}
+
+.content li {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 4px;
+}
+
+.content li strong { color: var(--text); }
+
+/* ── ARCH DIAGRAM ── */
+.arch-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 20px 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--text);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ERR table */
+.err-name { font-family: var(--font-mono); font-size: 12.5px; color: var(--red); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .toc { display: none; }
+}
+
+@media (max-width: 700px) {
+  :root { --sidebar-w: 0px; }
+  .sidebar { display: none; }
+  .main { margin-left: 0; }
+  .topbar { padding: 0 16px; }
+  .page-body { padding: 0 16px; }
+  .content { padding: 32px 0 60px; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">F</div>
+    <span class="logo-name">FiscGuy</span>
+    <span class="logo-ver">0.1.6</span>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Getting Started</div>
+    <a class="nav-link active" onclick="goTo('home',this)">Overview</a>
+    <a class="nav-link" onclick="goTo('install',this)">Installation & Setup</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Guides</div>
+    <a class="nav-link" onclick="goTo('receipts',this)">Receipt Types</a>
+    <a class="nav-link" onclick="goTo('closing',this)">Closing a Fiscal Day</a>
+    <a class="nav-link" onclick="goTo('counters',this)">Fiscal Counters</a>
+    <a class="nav-link" onclick="goTo('certs',this)">Certificate Management</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Reference</div>
+    <a class="nav-link" onclick="goTo('api',this)">API Reference</a>
+    <a class="nav-link" onclick="goTo('errors',this)">Error Reference</a>
+    <a class="nav-link" onclick="goTo('arch',this)">Architecture</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="breadcrumb" id="breadcrumb">
+      <span>Docs</span> <span>›</span> <strong>Overview</strong>
+    </div>
+    <div class="search-box">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#86868b" stroke-width="1.5"/><path d="m10.5 10.5 3 3" stroke="#86868b" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input type="text" placeholder="Search docs…" />
+    </div>
+  </div>
+
+  <div class="page-body">
+    <div class="content">
+
+      <!-- ── PAGE: HOME ── -->
+      <div class="page active" id="page-home">
+        <h1>FiscGuy</h1>
+        <p class="page-intro">A Django library that handles the full fiscal device lifecycle — device registration, certificate management, fiscal day operations, and receipt submission to the ZIMRA Fiscal Device Management System (FDMS).</p>
+
+        <div class="hero-pills">
+          <span class="pill"><span class="pill-dot blue-dot"></span>Python 3.11 · 3.12 · 3.13</span>
+          <span class="pill"><span class="pill-dot green-dot"></span>Django 4.2+</span>
+          <span class="pill"><span class="pill-dot green-dot"></span>DRF 3.14+</span>
+          <span class="pill"><span class="pill-dot orange-dot"></span>MIT License</span>
+        </div>
+
+        <h2 id="what-it-does">What it does</h2>
+        <p>FiscGuy plugs into your existing Django project and exposes a REST API that bridges your application to ZIMRA FDMS. It handles:</p>
+        <ul>
+          <li><strong>Device registration</strong> — RSA key generation, CSR creation, and ZIMRA certificate issuance</li>
+          <li><strong>Fiscal day management</strong> — open and close fiscal days, tracking counters per day</li>
+          <li><strong>Receipt submission</strong> — create fiscal invoices, credit notes, and debit notes; hash, sign, and submit to FDMS</li>
+          <li><strong>QR code generation</strong> — auto-generated and stored on every submitted receipt</li>
+          <li><strong>Certificate renewal</strong> — re-issue expired certificates without re-registering the device</li>
+          <li><strong>Tax & configuration sync</strong> — pull the latest taxpayer config and applicable taxes from FDMS</li>
+        </ul>
+
+        <h2 id="requirements">Requirements</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Version</th></tr></thead>
+          <tbody>
+            <tr><td>Python</td><td>3.11, 3.12, or 3.13</td></tr>
+            <tr><td>Django</td><td>4.2+</td></tr>
+            <tr><td>Django REST Framework</td><td>3.14+</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="quick-start">Quick start</h2>
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Install</h4>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>pip install fiscguy</code></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Add to INSTALLED_APPS and run migrations</h4>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code><span class="cm"># settings.py</span>
+INSTALLED_APPS = [<span class="st">"rest_framework"</span>, <span class="st">"fiscguy"</span>, ...]</code></pre>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>python manage.py migrate</code></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Register your device</h4>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>python manage.py init_device</code></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Open a fiscal day and submit a receipt</h4>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>POST /fiscguy/open-day/
+POST /fiscguy/receipts/</code></pre>
+          </div>
+        </div>
+
+        <h2 id="server-environments">FDMS environments</h2>
+        <table>
+          <thead><tr><th>Environment</th><th>URL</th></tr></thead>
+          <tbody>
+            <tr><td>Testing</td><td><code>https://fdmsapitest.zimra.co.zw</code></td></tr>
+            <tr><td>Production</td><td><code>https://fdmsapi.zimra.co.zw</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── PAGE: INSTALL ── -->
+      <div class="page" id="page-install">
+        <h1>Installation &amp; Setup</h1>
+        <p class="page-intro">Get FiscGuy running in an existing Django project in four steps.</p>
+
+        <h2 id="install">Install</h2>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>pip install fiscguy</code></pre>
+        <p>Or install from source:</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>git clone https://github.com/digitaltouchcode/fisc.git
+cd fisc
+pip install -e ".[dev]"</code></pre>
+
+        <h2 id="django-setup">Django setup</h2>
+
+        <h3 id="installed-apps">1 · INSTALLED_APPS</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code><span class="cm"># settings.py</span>
+INSTALLED_APPS = [
+    <span class="st">"django.contrib.contenttypes"</span>,
+    <span class="st">"django.contrib.auth"</span>,
+    <span class="st">"rest_framework"</span>,
+    <span class="st">"fiscguy"</span>,
+    <span class="cm"># ... your other apps</span>
+]</code></pre>
+
+        <h3 id="migrations">2 · Migrations</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>python manage.py migrate</code></pre>
+
+        <h3 id="urls">3 · URL routing</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code><span class="cm"># your_project/urls.py</span>
+from django.urls import path, include
+
+urlpatterns = [
+    path(<span class="st">"fiscguy/"</span>, include(<span class="st">"fiscguy.urls"</span>)),
+]</code></pre>
+        <p>All FiscGuy endpoints will be available under <code>/fiscguy/</code>.</p>
+
+        <h3 id="media">4 · Media files (QR codes)</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code><span class="cm"># settings.py</span>
+MEDIA_URL  = <span class="st">"/media/"</span>
+MEDIA_ROOT = BASE_DIR / <span class="st">"media"</span></code></pre>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code><span class="cm"># urls.py (development only)</span>
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)</code></pre>
+
+        <h2 id="device-init">Device initialisation</h2>
+        <p>Run this <strong>once per device</strong> before using any other feature. This registers the device with ZIMRA, generates an RSA key pair, and issues a certificate.</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>python manage.py init_device</code></pre>
+
+        <h3>Prompts</h3>
+        <table>
+          <thead><tr><th>Prompt</th><th>Example</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="field-col">Environment</td><td><code>yes / no</code></td><td>yes = production, no = test</td></tr>
+            <tr><td class="field-col">Organisation name</td><td><code>Acme Ltd</code></td><td>Registered company name</td></tr>
+            <tr><td class="field-col">Device ID</td><td><code>78412</code></td><td>Provided by ZIMRA</td></tr>
+            <tr><td class="field-col">Activation key</td><td><code>ABC-123-XYZ</code></td><td>Provided by ZIMRA</td></tr>
+            <tr><td class="field-col">Device model name</td><td><code>Server</code></td><td>Provided by ZIMRA</td></tr>
+            <tr><td class="field-col">Device model version</td><td><code>1.0</code></td><td>Provided by ZIMRA</td></tr>
+            <tr><td class="field-col">Device serial number</td><td><code>SN0001</code></td><td>Provided by ZIMRA</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout warn">
+          <span class="callout-icon">⚠️</span>
+          <div class="callout-body"><strong>Switching environments</strong>Re-running <code>init_device</code> with a different environment will delete all existing data (receipts, fiscal days, counters, configuration, certificates, taxes). Type <code>YES</code> to confirm.</div>
+        </div>
+
+        <h2 id="verify">Verify setup</h2>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>from fiscguy.models import Device, Configuration, Taxes
+
+device = Device.objects.first()
+print(device)                    <span class="cm"># "Acme Ltd - 78412"</span>
+
+config = Configuration.objects.first()
+print(config.tax_payer_name)
+
+print(Taxes.objects.all())</code></pre>
+
+        <h2 id="dev-deps">Development dependencies</h2>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>pip install -e ".[dev]"</code></pre>
+        <p>Includes: <code>pytest</code>, <code>pytest-django</code>, <code>pytest-cov</code>, <code>black</code>, <code>isort</code>, <code>flake8</code>, <code>pylint</code>, <code>mypy</code>, <code>django-stubs</code>.</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>pre-commit install    <span class="cm"># runs black, isort, flake8 on every commit</span></code></pre>
+      </div>
+
+      <!-- ── PAGE: RECEIPTS ── -->
+      <div class="page" id="page-receipts">
+        <h1>Receipt Types</h1>
+        <p class="page-intro">FiscGuy supports three receipt types as defined by the ZIMRA Fiscal Device Gateway API: fiscal invoices, credit notes, and debit notes.</p>
+
+        <h2 id="fiscal-invoice">Fiscal Invoice</h2>
+        <p>A standard sale receipt. The most common receipt type.</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>POST /fiscguy/receipts/
+
+{
+  <span class="json-key">"receipt_type"</span>: <span class="json-str">"fiscalinvoice"</span>,
+  <span class="json-key">"currency"</span>: <span class="json-str">"USD"</span>,
+  <span class="json-key">"total_amount"</span>: <span class="json-str">"115.00"</span>,
+  <span class="json-key">"payment_terms"</span>: <span class="json-str">"Cash"</span>,
+  <span class="json-key">"lines"</span>: [
+    {
+      <span class="json-key">"product"</span>: <span class="json-str">"Product Name"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-str">"1"</span>,
+      <span class="json-key">"unit_price"</span>: <span class="json-str">"115.00"</span>,
+      <span class="json-key">"line_total"</span>: <span class="json-str">"115.00"</span>,
+      <span class="json-key">"tax_amount"</span>: <span class="json-str">"15.00"</span>,
+      <span class="json-key">"tax_name"</span>: <span class="json-str">"Standard rated 15.5"</span>
+    }
+  ]
+}</code></pre>
+
+        <h3>Counter impact</h3>
+        <table>
+          <thead><tr><th>Counter</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><code>SaleByTax</code></td><td>+ salesAmountWithTax per tax group</td></tr>
+            <tr><td><code>SaleTaxByTax</code></td><td>+ taxAmount per tax group (non-exempt, non-zero)</td></tr>
+            <tr><td><code>BalanceByMoneyType</code></td><td>+ paymentAmount</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="credit-note">Credit Note</h2>
+        <p>A return or reversal against a previously issued fiscal invoice. All amounts must be negative.</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>POST /fiscguy/receipts/
+
+{
+  <span class="json-key">"receipt_type"</span>: <span class="json-str">"creditnote"</span>,
+  <span class="json-key">"currency"</span>: <span class="json-str">"USD"</span>,
+  <span class="json-key">"total_amount"</span>: <span class="json-str">"-115.00"</span>,
+  <span class="json-key">"payment_terms"</span>: <span class="json-str">"Cash"</span>,
+  <span class="json-key">"credit_note_reason"</span>: <span class="json-str">"Customer returned goods — defective"</span>,
+  <span class="json-key">"credit_note_reference"</span>: <span class="json-str">"R-00000142"</span>,
+  <span class="json-key">"lines"</span>: [
+    {
+      <span class="json-key">"product"</span>: <span class="json-str">"Product Name"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-str">"1"</span>,
+      <span class="json-key">"unit_price"</span>: <span class="json-str">"-115.00"</span>,
+      <span class="json-key">"line_total"</span>: <span class="json-str">"-115.00"</span>,
+      <span class="json-key">"tax_amount"</span>: <span class="json-str">"-15.00"</span>,
+      <span class="json-key">"tax_name"</span>: <span class="json-str">"Standard rated 15.5"</span>
+    }
+  ]
+}</code></pre>
+
+        <div class="callout warn">
+          <span class="callout-icon">⚠️</span>
+          <div class="callout-body"><strong>ZIMRA rules for credit notes</strong>
+            <code>credit_note_reason</code> and <code>credit_note_reference</code> are mandatory. Original receipt must exist in FDMS, have been issued within the last 12 months (RCPT033), and the credit amount must not exceed the original amount net of prior credits (RCPT035).
+          </div>
+        </div>
+
+        <h2 id="debit-note">Debit Note</h2>
+        <p>An upward adjustment against a previously issued fiscal invoice — e.g. additional delivery charges.</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>POST /fiscguy/receipts/
+
+{
+  <span class="json-key">"receipt_type"</span>: <span class="json-str">"debitnote"</span>,
+  <span class="json-key">"currency"</span>: <span class="json-str">"USD"</span>,
+  <span class="json-key">"total_amount"</span>: <span class="json-str">"23.00"</span>,
+  <span class="json-key">"payment_terms"</span>: <span class="json-str">"Card"</span>,
+  <span class="json-key">"credit_note_reason"</span>: <span class="json-str">"Additional delivery charge"</span>,
+  <span class="json-key">"credit_note_reference"</span>: <span class="json-str">"R-00000142"</span>,
+  <span class="json-key">"lines"</span>: [...]
+}</code></pre>
+
+        <h2 id="payment-methods">Payment methods</h2>
+        <table>
+          <thead><tr><th>Value</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>Cash</code></td><td>Physical cash</td></tr>
+            <tr><td><code>Card</code></td><td>Credit or debit card</td></tr>
+            <tr><td><code>MobileWallet</code></td><td>Mobile money (EcoCash, etc.)</td></tr>
+            <tr><td><code>BankTransfer</code></td><td>Direct bank transfer</td></tr>
+            <tr><td><code>Coupon</code></td><td>Voucher or coupon</td></tr>
+            <tr><td><code>Credit</code></td><td>Credit account</td></tr>
+            <tr><td><code>Other</code></td><td>Any other method</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="taxes">Tax types</h2>
+        <p>Taxes are synced from FDMS on every <code>open_day()</code> and stored in the <code>Taxes</code> model. Pass <code>tax_name</code> exactly as it appears there.</p>
+        <table>
+          <thead><tr><th>Tax ID</th><th>Name</th><th>Percent</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Exempt</td><td>0%</td></tr>
+            <tr><td>2</td><td>Zero Rated</td><td>0%</td></tr>
+            <tr><td>3+</td><td>Standard Rated</td><td>15.5%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── PAGE: CLOSING DAY ── -->
+      <div class="page" id="page-closing">
+        <h1>Closing a Fiscal Day</h1>
+        <p class="page-intro">At the end of each trading day the fiscal day must be closed by submitting a signed summary of all fiscal counters to ZIMRA FDMS.</p>
+
+        <h2 id="quick-close">Quick close</h2>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>POST /fiscguy/close-day/</code></pre>
+
+        <h2 id="what-happens">What happens during close</h2>
+        <p><code>ClosingDayService.close_day()</code> performs these steps in order:</p>
+        <ol>
+          <li>Build counter strings — each counter is serialised into the ZIMRA closing string format</li>
+          <li>Assemble the closing string — <code>deviceID + fiscalDayNo + fiscalDayDate + counters</code></li>
+          <li>Hash and sign — SHA-256 hash of the string, signed with the device RSA private key</li>
+          <li>Build payload — closing string, signature, fiscal day counters, receipt counter</li>
+          <li>Submit to FDMS — <code>POST /CloseDay</code></li>
+          <li>Poll for status — waits 10 seconds then calls <code>GET /getStatus</code></li>
+          <li>Update database — marks <code>FiscalDay.is_open = False</code> on success</li>
+        </ol>
+
+        <h2 id="closing-string">Closing string spec</h2>
+        <p>Fields concatenated in this exact order, all text uppercase, no separators:</p>
+        <table>
+          <thead><tr><th>Order</th><th>Field</th><th>Format</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td><code>deviceID</code></td><td>Integer as-is</td></tr>
+            <tr><td>2</td><td><code>fiscalDayNo</code></td><td>Integer as-is</td></tr>
+            <tr><td>3</td><td><code>fiscalDayDate</code></td><td><code>YYYY-MM-DD</code> — <strong>date the fiscal day was opened</strong>, not today</td></tr>
+            <tr><td>4</td><td><code>fiscalDayCounters</code></td><td>Concatenated counter string (see below)</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout danger">
+          <span class="callout-icon">🔴</span>
+          <div class="callout-body"><strong>Critical</strong><code>fiscalDayDate</code> must be the date the day was <em>opened</em>, not today's date. Using today's date causes <code>CountersMismatch</code> if the day spans midnight.</div>
+        </div>
+
+        <h3>Counter string rules</h3>
+        <table>
+          <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Uppercase</td><td><code>.upper()</code> applied to the entire string</td></tr>
+            <tr><td>Amounts in cents</td><td><code>int(round(value × 100))</code> — preserves sign</td></tr>
+            <tr><td>Tax percent format</td><td>Always two decimal places: <code>15</code> → <code>15.00</code>, <code>14.5</code> → <code>14.50</code></td></tr>
+            <tr><td>Exempt tax</td><td>Empty string — nothing between currency and value</td></tr>
+            <tr><td>BalanceByMoneyType</td><td>Literal <code>L</code> between currency and money type, e.g. <code>USDLCASH</code></td></tr>
+            <tr><td>Zero-value counters</td><td>Excluded entirely (spec section 4.11)</td></tr>
+            <tr><td>Sort order</td><td>Type enum ASC → currency ASC → taxID / moneyType ASC</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Example counter string</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>23265842026-03-30SALEBYTAXZWG0.005000SALEBYTAXZWG15.50134950SALETAXBYTAXZWG15.5018110BALANCEBYMONEYTYPEZWGLCARD69975BALANCEBYMONEYTYPEZWGLCASH69975</code></pre>
+
+        <h2 id="close-errors">Common close day errors</h2>
+        <table>
+          <thead><tr><th>Error</th><th>Root cause</th></tr></thead>
+          <tbody>
+            <tr><td><code>CountersMismatch</code></td><td>Wrong date, missing <code>L</code>, wrong tax percent format, unsorted counters, or zero counters included</td></tr>
+            <tr><td><code>BadCertificateSignature</code></td><td>Certificate expired or wrong private key used</td></tr>
+            <tr><td><code>FiscalDayCloseFailed</code></td><td>FDMS validation failed — check <code>fiscalDayClosingErrorCode</code></td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="status-values">Fiscal day status values</h2>
+        <table>
+          <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>FiscalDayOpened</code></td><td>Day is open, receipts can be submitted</td></tr>
+            <tr><td><code>FiscalDayCloseInitiated</code></td><td>Close request submitted, processing</td></tr>
+            <tr><td><code>FiscalDayClosed</code></td><td>Day closed successfully</td></tr>
+            <tr><td><code>FiscalDayCloseFailed</code></td><td>Close attempt failed — day remains open, retry allowed</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="retry">Retrying a failed close</h2>
+        <p>FDMS allows close retries when the fiscal day status is <code>FiscalDayOpened</code> or <code>FiscalDayCloseFailed</code>.</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>from fiscguy.exceptions import CloseDayError
+
+try:
+    <span class="cm"># POST /fiscguy/close-day/</span>
+    close_day()
+except CloseDayError as e:
+    print(f<span class="st">"Close failed: {e}"</span>)
+    <span class="cm"># investigate, fix, then retry</span>
+    close_day()</code></pre>
+      </div>
+
+      <!-- ── PAGE: COUNTERS ── -->
+      <div class="page" id="page-counters">
+        <h1>Fiscal Counters</h1>
+        <p class="page-intro">Fiscal counters are running totals that accumulate throughout a fiscal day. At close of day they are submitted to ZIMRA as part of the closing payload and used to verify the hash signature.</p>
+
+        <h2 id="counter-types">Counter types</h2>
+        <table>
+          <thead><tr><th>Counter</th><th>Tracks</th><th>By Tax</th><th>By Currency</th><th>By Payment</th></tr></thead>
+          <tbody>
+            <tr><td><code>SaleByTax</code></td><td>Sales amount including tax</td><td>✓</td><td>✓</td><td></td></tr>
+            <tr><td><code>SaleTaxByTax</code></td><td>Tax portion of sales</td><td>✓</td><td>✓</td><td></td></tr>
+            <tr><td><code>CreditNoteByTax</code></td><td>Total credit note amounts</td><td>✓</td><td>✓</td><td></td></tr>
+            <tr><td><code>CreditNoteTaxByTax</code></td><td>Tax portion of credit notes</td><td>✓</td><td>✓</td><td></td></tr>
+            <tr><td><code>DebitNoteByTax</code></td><td>Total debit note amounts</td><td>✓</td><td>✓</td><td></td></tr>
+            <tr><td><code>DebitNoteTaxByTax</code></td><td>Tax portion of debit notes</td><td>✓</td><td>✓</td><td></td></tr>
+            <tr><td><code>BalanceByMoneyType</code></td><td>Total collected by payment method</td><td></td><td>✓</td><td>✓</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="update-flow">How counters are updated</h2>
+        <p>Every time a receipt is submitted, counters update automatically. You never need to update them manually.</p>
+
+        <h3>Fiscal invoice</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>SaleByTax         += salesAmountWithTax   <span class="cm">(per tax group)</span>
+SaleTaxByTax      += taxAmount            <span class="cm">(per tax group, non-exempt/non-zero)</span>
+BalanceByMoneyType += paymentAmount</code></pre>
+
+        <h3>Credit note (values are negative)</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>CreditNoteByTax    += salesAmountWithTax  <span class="cm">(negative, per tax group)</span>
+CreditNoteTaxByTax += taxAmount           <span class="cm">(negative, non-exempt/non-zero)</span>
+BalanceByMoneyType += paymentAmount       <span class="cm">(negative)</span></code></pre>
+
+        <h2 id="race-condition">Race condition prevention</h2>
+        <p>Counter updates use Django <code>F()</code> expressions for atomic DB-level increments, preventing lost updates under concurrent receipt submission.</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code><span class="cm"># FiscGuy uses atomic F() expressions — not in-memory increment</span>
+FiscalCounter.objects.filter(...).update(
+    fiscal_counter_value=F(<span class="st">"fiscal_counter_value"</span>) + amount
+)</code></pre>
+
+        <h2 id="inspect-counters">Inspecting counters</h2>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>from fiscguy.models import FiscalDay
+
+fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+print(fiscal_day.counters.all().values(
+    <span class="st">"fiscal_counter_type"</span>,
+    <span class="st">"fiscal_counter_currency"</span>,
+    <span class="st">"fiscal_counter_value"</span>,
+))</code></pre>
+
+        <div class="callout info">
+          <span class="callout-icon">ℹ️</span>
+          <div class="callout-body">Counters reset automatically when a fiscal day is closed. The next <code>open_day()</code> starts fresh from zero.</div>
+        </div>
+      </div>
+
+      <!-- ── PAGE: CERTS ── -->
+      <div class="page" id="page-certs">
+        <h1>Certificate Management</h1>
+        <p class="page-intro">FiscGuy uses mutual TLS authentication with ZIMRA FDMS. The device must hold a valid certificate issued by ZIMRA to submit any signed request.</p>
+
+        <h2 id="how-certs-work">How certificates work</h2>
+        <ol>
+          <li><code>init_device</code> generates an RSA key pair and a Certificate Signing Request (CSR)</li>
+          <li>The CSR is sent to ZIMRA FDMS <code>RegisterDevice</code> endpoint</li>
+          <li>ZIMRA returns a signed certificate</li>
+          <li>The certificate and private key are stored in the <code>Certs</code> model</li>
+          <li>Every request to FDMS uses the certificate for mutual TLS authentication</li>
+        </ol>
+
+        <h2 id="cert-storage">Certificate storage</h2>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>from fiscguy.models import Certs
+
+cert = Certs.objects.first()
+print(cert.certificate)      <span class="cm"># PEM-encoded certificate</span>
+print(cert.certificate_key)  <span class="cm"># PEM-encoded private key</span>
+print(cert.csr)              <span class="cm"># Original CSR</span>
+print(cert.production)       <span class="cm"># True = production, False = testing</span></code></pre>
+
+        <h2 id="renewal">Certificate renewal</h2>
+        <p>When a certificate expires, all signed requests will fail with <code>BadCertificateSignature</code>.</p>
+
+        <h3>Via REST endpoint</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>POST /fiscguy/issue-certificate/</code></pre>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"message"</span>: <span class="json-str">"Certificate issued successfully"</span> }</code></pre>
+
+        <h3>Via Python</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>from fiscguy.services.certs_service import CertificateService
+from fiscguy.models import Device
+
+device = Device.objects.first()
+CertificateService(device).issue_certificate()</code></pre>
+
+        <h2 id="key-generation">Key generation</h2>
+        <table>
+          <thead><tr><th>Algorithm</th><th>Spec reference</th></tr></thead>
+          <tbody>
+            <tr><td>RSA 2048</td><td>Section 12.1.2</td></tr>
+            <tr><td>ECC ECDSA secp256r1 (P-256)</td><td>Section 12.1.1</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="security">Security notes</h2>
+        <div class="callout danger">
+          <span class="callout-icon">🔒</span>
+          <div class="callout-body"><strong>Private key storage</strong>The private key is stored plaintext in <code>Certs.certificate_key</code>. Encryption at rest is planned for v0.1.7. Never expose this field via API or logs. The key never leaves the device — only the CSR is sent to ZIMRA.</div>
+        </div>
+        <p>At runtime, <code>ZIMRAClient</code> writes the certificate and key to a temporary PEM file. The temp file is cleaned up when the client is closed (<code>ZIMRAClient.close()</code>).</p>
+      </div>
+
+      <!-- ── PAGE: API ── -->
+      <div class="page" id="page-api">
+        <h1>API Reference</h1>
+        <p class="page-intro">All endpoints are prefixed with <code>/fiscguy/</code> based on your URL configuration. Base URL: <code>https://your-host/fiscguy/</code></p>
+
+        <h2 id="fiscal-day">Fiscal Day</h2>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method POST">POST</span>
+            <span class="endpoint-path">open-day/</span>
+            <span class="endpoint-desc">Open Fiscal Day</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <p>Opens a new fiscal day for the registered device. If a fiscal day is already open, returns it immediately. On open, taxpayer configuration is also synced from FDMS. No request body required.</p>
+            <div class="code-label"><span class="status s200">200 OK</span> Success</div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"success"</span>: <span class="json-bool">true</span>, <span class="json-key">"fiscal_day_no"</span>: <span class="json-num">42</span>, <span class="json-key">"fdms_response"</span>: { ... } }</code></pre>
+            <div class="code-label"><span class="status s200">200 OK</span> Already open</div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"success"</span>: <span class="json-bool">true</span>, <span class="json-key">"fiscal_day_no"</span>: <span class="json-num">42</span>, <span class="json-key">"message"</span>: <span class="json-str">"Fiscal day 42 already open"</span> }</code></pre>
+          </div>
+        </div>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method POST">POST</span>
+            <span class="endpoint-path">close-day/</span>
+            <span class="endpoint-desc">Close Fiscal Day</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <p>Closes the currently open fiscal day. Builds fiscal counters, signs the closing payload, and submits to FDMS.</p>
+            <div class="code-label"><span class="status s200">200 OK</span></div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"success"</span>: <span class="json-bool">true</span>, <span class="json-key">"fiscal_day_no"</span>: <span class="json-num">42</span>, <span class="json-key">"fdms_response"</span>: { ... } }</code></pre>
+            <div class="code-label"><span class="status s422">422</span> ZIMRA rejected</div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"error"</span>: <span class="json-str">"FDMS returned an error: ..."</span> }</code></pre>
+          </div>
+        </div>
+
+        <h2 id="receipts-api">Receipts</h2>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method GET">GET</span>
+            <span class="endpoint-path">receipts/</span>
+            <span class="endpoint-desc">List Receipts</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <p>Returns all receipts in reverse chronological order with cursor-based pagination.</p>
+            <h4>Query parameters</h4>
+            <table>
+              <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-col">cursor</td><td class="type-tag">string</td><td>—</td><td>Pagination cursor from a previous response</td></tr>
+                <tr><td class="field-col">page_size</td><td class="type-tag">integer</td><td>10</td><td>Results per page (max 100)</td></tr>
+              </tbody>
+            </table>
+            <div class="code-label"><span class="status s200">200 OK</span></div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{
+  <span class="json-key">"next"</span>: <span class="json-str">"http://example.com/fiscguy/receipts/?cursor=cD0..."</span>,
+  <span class="json-key">"previous"</span>: <span class="json-null">null</span>,
+  <span class="json-key">"results"</span>: [{ <span class="cm">...receipt object...</span> }]
+}</code></pre>
+          </div>
+        </div>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method POST">POST</span>
+            <span class="endpoint-path">receipts/</span>
+            <span class="endpoint-desc">Create & Submit Receipt</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <p>Creates a receipt, signs it cryptographically, generates a QR code, updates fiscal counters, and submits to ZIMRA FDMS — all in one atomic operation. If submission fails the receipt is <strong>not saved</strong>.</p>
+            <h4>Request body</h4>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-col">receipt_type<span class="req">*</span></td><td class="type-tag">string</td><td><code>fiscalinvoice</code>, <code>creditnote</code>, or <code>debitnote</code></td></tr>
+                <tr><td class="field-col">total_amount<span class="req">*</span></td><td class="type-tag">decimal</td><td>Negative for credit notes</td></tr>
+                <tr><td class="field-col">currency<span class="req">*</span></td><td class="type-tag">string</td><td><code>USD</code> or <code>ZWG</code></td></tr>
+                <tr><td class="field-col">payment_terms<span class="req">*</span></td><td class="type-tag">string</td><td><code>Cash</code>, <code>Card</code>, <code>MobileWallet</code>, <code>BankTransfer</code>, <code>Coupon</code>, <code>Credit</code>, <code>Other</code></td></tr>
+                <tr><td class="field-col">lines<span class="req">*</span></td><td class="type-tag">array</td><td>One or more line items</td></tr>
+                <tr><td class="field-col">buyer</td><td class="type-tag">object</td><td>Full buyer object. Omit for anonymous sales.</td></tr>
+                <tr><td class="field-col">credit_note_reference</td><td class="type-tag">string</td><td>Required for <code>creditnote</code></td></tr>
+                <tr><td class="field-col">credit_note_reason</td><td class="type-tag">string</td><td>Human-readable reason</td></tr>
+              </tbody>
+            </table>
+            <div class="code-label"><span class="status s201">201 Created</span></div>
+            <p style="font-size:14px;color:var(--text-secondary)">Returns the full receipt object including <code>receipt_number</code>, <code>hash_value</code>, <code>signature</code>, <code>zimra_inv_id</code>, and <code>qr_code</code>.</p>
+            <div class="code-label"><span class="status s422">422</span> ZIMRA rejected</div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"error"</span>: <span class="json-str">"FDMS returned an error: ..."</span> }</code></pre>
+          </div>
+        </div>
+
+        <h2 id="buyers-api">Buyers</h2>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method GET">GET</span>
+            <span class="endpoint-path">buyer/</span>
+            <span class="endpoint-desc">List Buyers</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <div class="code-label"><span class="status s200">200 OK</span></div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>[{
+  <span class="json-key">"id"</span>: <span class="json-num">1</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"Casy Holdings"</span>,
+  <span class="json-key">"tin_number"</span>: <span class="json-str">"2000123456"</span>,
+  <span class="json-key">"address"</span>: <span class="json-str">"123 Main St, Harare"</span>,
+  <span class="json-key">"trade_name"</span>: <span class="json-str">"Casy Retail"</span>,
+  <span class="json-key">"email"</span>: <span class="json-str">"accounts@casy.co.zw"</span>,
+  <span class="json-key">"phonenumber"</span>: <span class="json-str">"+263771234567"</span>
+}]</code></pre>
+          </div>
+        </div>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method POST">POST</span>
+            <span class="endpoint-path">buyer/</span>
+            <span class="endpoint-desc">Create Buyer</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-col">name<span class="req">*</span></td><td class="type-tag">string</td><td>Registered business name</td></tr>
+                <tr><td class="field-col">tin_number<span class="req">*</span></td><td class="type-tag">string</td><td>10-digit ZIMRA TIN number</td></tr>
+                <tr><td class="field-col">address</td><td class="type-tag">string</td><td>Physical address</td></tr>
+                <tr><td class="field-col">trade_name</td><td class="type-tag">string</td><td>Trading name / branch name</td></tr>
+                <tr><td class="field-col">email</td><td class="type-tag">string</td><td>Contact email</td></tr>
+                <tr><td class="field-col">phonenumber</td><td class="type-tag">string</td><td>Contact phone number</td></tr>
+              </tbody>
+            </table>
+            <div class="code-label"><span class="status s201">201 Created</span></div>
+          </div>
+        </div>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method GET">GET</span>
+            <span class="endpoint-path">buyer/{id}/</span>
+            <span class="endpoint-desc">Retrieve / Update / Delete Buyer</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <p>Also supports <span class="method PUT">PUT</span> for full update, <span class="method PATCH">PATCH</span> for partial update, and <span class="method DELETE">DELETE</span> to remove a buyer.</p>
+          </div>
+        </div>
+
+        <h2 id="config-api">Configuration &amp; Taxes</h2>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method GET">GET</span>
+            <span class="endpoint-path">configuration/</span>
+            <span class="endpoint-desc">Get Configuration</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{
+  <span class="json-key">"tax_payer_name"</span>: <span class="json-str">"ACME Ltd"</span>,
+  <span class="json-key">"tin_number"</span>: <span class="json-str">"1234567890"</span>,
+  <span class="json-key">"vat_number"</span>: <span class="json-str">"V123456789"</span>,
+  <span class="json-key">"address"</span>: <span class="json-str">"10 Commerce Drive, Harare"</span>
+}</code></pre>
+          </div>
+        </div>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method POST">POST</span>
+            <span class="endpoint-path">sync-config/</span>
+            <span class="endpoint-desc">Sync Configuration</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <p>Pulls the latest configuration from ZIMRA FDMS and updates the local database. Also called automatically when opening a fiscal day.</p>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"message"</span>: <span class="json-str">"Configuration Synced"</span> }</code></pre>
+          </div>
+        </div>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method GET">GET</span>
+            <span class="endpoint-path">taxes/</span>
+            <span class="endpoint-desc">List Taxes</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>[
+  { <span class="json-key">"code"</span>: <span class="json-str">"A"</span>, <span class="json-key">"name"</span>: <span class="json-str">"Standard rated 15.5"</span>, <span class="json-key">"tax_id"</span>: <span class="json-num">1</span>, <span class="json-key">"percent"</span>: <span class="json-str">"15.00"</span> },
+  { <span class="json-key">"code"</span>: <span class="json-str">"B"</span>, <span class="json-key">"name"</span>: <span class="json-str">"Zero Rated"</span>,          <span class="json-key">"tax_id"</span>: <span class="json-num">2</span>, <span class="json-key">"percent"</span>: <span class="json-str">"0.00"</span>  },
+  { <span class="json-key">"code"</span>: <span class="json-str">"C"</span>, <span class="json-key">"name"</span>: <span class="json-str">"Exempt"</span>,               <span class="json-key">"tax_id"</span>: <span class="json-num">3</span>, <span class="json-key">"percent"</span>: <span class="json-str">"0.00"</span>  }
+]</code></pre>
+          </div>
+        </div>
+
+        <h2 id="device-api">Device Management</h2>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method GET">GET</span>
+            <span class="endpoint-path">get-status/</span>
+            <span class="endpoint-desc">Device Status</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"lastFiscalDayNo"</span>: <span class="json-num">41</span>, <span class="json-key">"lastReceiptGlobalNo"</span>: <span class="json-num">150</span>, <span class="json-key">"fiscalDayStatus"</span>: <span class="json-str">"Closed"</span> }</code></pre>
+          </div>
+        </div>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method POST">POST</span>
+            <span class="endpoint-path">get-ping/</span>
+            <span class="endpoint-desc">Ping Device</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <p>Confirms the device is online and communicating with FDMS correctly.</p>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"success"</span>: <span class="json-bool">true</span> }</code></pre>
+          </div>
+        </div>
+
+        <div class="endpoint" onclick="toggleEndpoint(this)">
+          <div class="endpoint-bar">
+            <span class="method POST">POST</span>
+            <span class="endpoint-path">issue-certificate/</span>
+            <span class="endpoint-desc">Issue / Renew Certificate</span>
+            <span class="endpoint-chevron">▼</span>
+          </div>
+          <div class="endpoint-content">
+            <p>Renews the device certificate with ZIMRA FDMS. Use when the current certificate has expired.</p>
+            <div class="code-label"><span class="status s200">200 OK</span></div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"message"</span>: <span class="json-str">"Certificate issued successfully"</span> }</code></pre>
+            <div class="code-label"><span class="status s422">422</span></div>
+            <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>{ <span class="json-key">"error"</span>: <span class="json-str">"Certificate renewal issuance failed."</span> }</code></pre>
+          </div>
+        </div>
+
+        <h2 id="http-codes">HTTP status codes</h2>
+        <table>
+          <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><span class="status s200">200 OK</span></td><td>Request succeeded</td></tr>
+            <tr><td><span class="status s201">201 Created</span></td><td>Receipt created and submitted</td></tr>
+            <tr><td><span class="status s400">400 Bad Request</span></td><td>Invalid input — fiscal day already open, etc.</td></tr>
+            <tr><td><span class="status s404">404 Not Found</span></td><td>No device registered</td></tr>
+            <tr><td><span class="status s422">422 Unprocessable Entity</span></td><td>ZIMRA rejected the request</td></tr>
+            <tr><td><span class="status s500">500 Internal Server Error</span></td><td>Unexpected server error</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── PAGE: ERRORS ── -->
+      <div class="page" id="page-errors">
+        <h1>Error Reference</h1>
+        <p class="page-intro">All FiscGuy exceptions inherit from <code>FiscalisationError</code>. Import them from <code>fiscguy.exceptions</code>.</p>
+
+        <h2 id="exception-hierarchy">Exception hierarchy</h2>
+        <div class="arch-box">FiscalisationError
+├── ReceiptSubmissionError
+├── CloseDayError
+├── FiscalDayError
+├── ConfigurationError
+├── CertificateError
+├── DevicePingError
+├── StatusError
+├── DeviceRegistrationError
+├── CryptoError
+├── CertNotFoundError
+├── PersistenceError
+├── ZIMRAAPIError
+├── ValidationError
+├── AuthenticationError
+├── TaxError
+├── DeviceNotFoundError
+└── ZIMRAClientError</div>
+
+        <h2 id="common-exceptions">Common exceptions</h2>
+
+        <h3>ReceiptSubmissionError</h3>
+        <p>Raised when a receipt cannot be processed or submitted.</p>
+        <ul>
+          <li>No open fiscal day — call <code>open_day()</code> first</li>
+          <li>Invalid receipt data (missing required fields, wrong types)</li>
+          <li>FDMS rejected the receipt (validation errors)</li>
+          <li>Credit note references a non-existent original receipt</li>
+        </ul>
+
+        <h3>CloseDayError</h3>
+        <table>
+          <thead><tr><th>Error code</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><code>CountersMismatch</code></td><td>Closing string counters don't match FDMS</td><td>Check date, tax percent format, and sort order</td></tr>
+            <tr><td><code>BadCertificateSignature</code></td><td>Certificate expired or wrong key</td><td>Renew certificate via <code>POST /fiscguy/issue-certificate/</code></td></tr>
+            <tr><td><code>FiscalDayCloseFailed</code></td><td>FDMS validation failed</td><td>Check <code>fiscalDayClosingErrorCode</code> in logs</td></tr>
+          </tbody>
+        </table>
+
+        <h3>FiscalDayError</h3>
+        <p>A fiscal day is already open, FDMS rejected the open request, or the previous fiscal day was not closed.</p>
+
+        <h3>ConfigurationError</h3>
+        <p><code>init_device</code> was not run, or FDMS was unreachable during configuration sync.</p>
+
+        <h2 id="logging">Logging</h2>
+        <p>FiscGuy uses <code>loguru</code> for structured logging.</p>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>from loguru import logger
+logger.add(<span class="st">"fiscguy.log"</span>, level=<span class="st">"INFO"</span>, rotation=<span class="st">"1 day"</span>)</code></pre>
+        <table>
+          <thead><tr><th>Level</th><th>Event</th></tr></thead>
+          <tbody>
+            <tr><td><code>INFO</code></td><td>Receipt submitted, day opened/closed, client initialised</td></tr>
+            <tr><td><code>WARNING</code></td><td>FDMS offline (receipt queued), global number mismatch</td></tr>
+            <tr><td><code>ERROR</code></td><td>Receipt submission failed, close day failed</td></tr>
+            <tr><td><code>EXCEPTION</code></td><td>Unexpected errors with full traceback</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="troubleshooting">Troubleshooting</h2>
+        <table>
+          <thead><tr><th>Error</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><code>RuntimeError: No Device found</code></td><td>Run <code>python manage.py init_device</code></td></tr>
+            <tr><td><code>RuntimeError: ZIMRA configuration missing</code></td><td><code>POST /fiscguy/sync-config/</code></td></tr>
+            <tr><td><code>MalformedFraming: Unable to load PEM file</code></td><td>Re-run <code>init_device</code> — certificate corrupted</td></tr>
+            <tr><td><code>No open fiscal day</code></td><td><code>POST /fiscguy/open-day/</code></td></tr>
+            <tr><td>Certificate expired</td><td><code>POST /fiscguy/issue-certificate/</code></td></tr>
+            <tr><td>Receipt submission fails (422)</td><td>Check day is open, amounts sign, credit note reference, TIN is 10 digits</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── PAGE: ARCH ── -->
+      <div class="page" id="page-arch">
+        <h1>Architecture</h1>
+        <p class="page-intro">Internal engineering reference for contributors and maintainers. Version 0.1.6 · April 2026 · Maintainer: Casper Moyo</p>
+
+        <h2 id="system-overview">System overview</h2>
+        <div class="arch-box">┌─────────────────────────────────────────────┐
+│         Host Django Application              │
+│                                             │
+│  urlpatterns += [path("fiscguy/", ...)]     │
+└───────────────────┬─────────────────────────┘
+                    │
+        ┌───────────▼──────────┐
+        │    FiscGuy Library   │
+        │  REST API → Services │
+        │  Services → ZIMRA    │
+        │  Services → DB       │
+        └───────────┬──────────┘
+                    │  HTTPS + mTLS
+        ┌───────────▼──────────┐
+        │      ZIMRA FDMS      │
+        │  fdmsapitest / prod  │
+        └──────────────────────┘</div>
+
+        <h2 id="layer-architecture">Layer architecture</h2>
+        <p>FiscGuy follows a strict four-layer architecture. Each layer has a single responsibility and communicates only with the layer directly below it.</p>
+        <div class="arch-box">┌──────────────────────────────────────────────┐
+│  REST API LAYER · views.py                  │
+│  HTTP in → validate → delegate to service   │
+│  Handle typed exceptions → DRF Response     │
+│  Never contains business logic              │
+├──────────────────────────────────────────────┤
+│  SERVICE LAYER · services/                  │
+│  ReceiptService     OpenDayService          │
+│  ClosingDayService  ConfigurationService    │
+│  All business logic, atomic transactions.   │
+│  Raises typed FiscalisationError subclasses │
+├──────────────────────────────────────────────┤
+│  ZIMRA INTEGRATION LAYER · zimra_*.py       │
+│  ZIMRAClient        HTTP to FDMS, mTLS      │
+│  ZIMRAReceiptHandler Full receipt pipeline  │
+│  ZIMRACrypto        RSA, SHA-256, MD5, QR   │
+├──────────────────────────────────────────────┤
+│  DATA LAYER · models.py                     │
+│  Device  Configuration  Certs  FiscalDay    │
+│  FiscalCounter  Receipt  ReceiptLine  Taxes │
+└──────────────────────────────────────────────┘
+                    │
+          SQLite / PostgreSQL / MySQL</div>
+
+        <h2 id="receipt-pipeline">Receipt processing pipeline</h2>
+        <p>A <code>POST /fiscguy/receipts/</code> call flows through these steps:</p>
+        <ol>
+          <li><strong>Validation</strong> — <code>ReceiptCreateSerializer.is_valid()</code> checks types, amounts, TIN format, credit note references</li>
+          <li><strong>Persist</strong> — <code>serializer.save()</code> creates <code>Receipt</code> + <code>ReceiptLine</code> rows inside <code>@transaction.atomic</code></li>
+          <li><strong>Ensure fiscal day open</strong> — auto-opens if none found</li>
+          <li><strong>Get next global number</strong> — queries <code>GET /getStatus</code> from FDMS</li>
+          <li><strong>Build receipt data</strong> — lines, tax groups, previous hash (chain), signature string</li>
+          <li><strong>Hash & sign</strong> — <code>SHA256</code> + <code>RSA PKCS1v15</code> via <code>ZIMRACrypto</code></li>
+          <li><strong>QR code</strong> — MD5 of signature bytes → verification code → PNG saved</li>
+          <li><strong>Update fiscal counters</strong> — atomic <code>F()</code> increments per tax group</li>
+          <li><strong>Submit to FDMS</strong> — <code>POST /SubmitReceipt</code>; if rejected, the <code>@transaction.atomic</code> rolls back everything</li>
+        </ol>
+
+        <h2 id="cryptography">Cryptography</h2>
+        <p>Library: <code>cryptography</code> (replaces deprecated <code>pyOpenSSL</code>).</p>
+
+        <h3>Receipt signature string (spec §13.2.1)</h3>
+        <div class="arch-box">{deviceID}
+{receiptType}         ← UPPERCASE e.g. FISCALINVOICE
+{receiptCurrency}     ← UPPERCASE e.g. USD
+{receiptGlobalNo}
+{receiptDate}         ← YYYY-MM-DDTHH:mm:ss
+{receiptTotal_cents}  ← negative for credit notes
+{receiptTaxes}        ← concatenated, ordered by taxID ASC
+{previousReceiptHash} ← omitted if first receipt of day</div>
+
+        <h3>QR code generation</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>verification_code = MD5(signature_bytes).hexdigest()[:16].upper()
+<span class="cm"># formatted as XXXX-XXXX-XXXX-XXXX</span>
+qr_url = f"{fdms_base}/{device_id}{date}{global_no}{code}"</code></pre>
+
+        <h2 id="development-guidelines">Development guidelines</h2>
+
+        <h3>Adding a new service</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>class MyService:
+    def __init__(self, device: Device):
+        self.device = device
+        self.client = ZIMRAClient(device)
+
+    @transaction.atomic
+    def do_thing(self) -> dict:
+        try:
+            result = self.client.some_endpoint()
+        except requests.RequestException as exc:
+            raise MyError(<span class="st">"FDMS call failed"</span>) from exc
+        MyModel.objects.create(device=self.device, ...)
+        return result</code></pre>
+
+        <h3>Testing</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>pytest                                    <span class="cm"># all tests</span>
+pytest --cov=fiscguy --cov-report=html   <span class="cm"># with coverage</span>
+pytest -k <span class="st">"test_build_sale_by_tax"</span>         <span class="cm"># single test</span></code></pre>
+        <div class="callout info">
+          <span class="callout-icon">ℹ️</span>
+          <div class="callout-body">Mock external calls at the boundary — patch <code>ZIMRAClient</code>, <code>ZIMRACrypto</code>, and <code>requests</code>. Never make real FDMS calls in tests.</div>
+        </div>
+
+        <h3>Code style</h3>
+        <pre><button class="copy-btn" onclick="copyPre(this)">Copy</button><code>black fiscguy && isort fiscguy && flake8 fiscguy && mypy fiscguy</code></pre>
+        <ul>
+          <li>Line length: 100 (Black)</li>
+          <li>Imports: isort with Black profile</li>
+          <li>Private methods: prefix <code>_</code></li>
+          <li>Type hints on all public method signatures</li>
+          <li>Docstrings on all public classes and methods</li>
+        </ul>
+
+        <div class="callout warn" style="margin-top:40px">
+          <span class="callout-icon">🔒</span>
+          <div class="callout-body"><strong>Internal use only</strong>Do not publish this document. Maintainer: Casper Moyo · cassymyo@gmail.com</div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+
+    <!-- TOC -->
+    <div class="toc" id="toc-panel">
+      <div class="toc-inner">
+        <div class="toc-label">On this page</div>
+        <div id="toc-links"></div>
+      </div>
+    </div>
+
+  </div><!-- /page-body -->
+</div><!-- /main -->
+
+<script>
+// Page navigation
+const pages = {
+  home:     { title: 'Overview',                  bc: 'Overview' },
+  install:  { title: 'Installation & Setup',      bc: 'Installation' },
+  receipts: { title: 'Receipt Types',             bc: 'Receipt Types' },
+  closing:  { title: 'Closing a Fiscal Day',      bc: 'Closing a Fiscal Day' },
+  counters: { title: 'Fiscal Counters',           bc: 'Fiscal Counters' },
+  certs:    { title: 'Certificate Management',    bc: 'Certificate Management' },
+  api:      { title: 'API Reference',             bc: 'API Reference' },
+  errors:   { title: 'Error Reference',           bc: 'Error Reference' },
+  arch:     { title: 'Architecture',              bc: 'Architecture' },
+};
+
+function goTo(id, link) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (link) link.classList.add('active');
+
+  const info = pages[id] || {};
+  document.getElementById('breadcrumb').innerHTML =
+    `<span>Docs</span> <span>›</span> <strong>${info.bc || id}</strong>`;
+  document.title = (info.title || id) + ' — FiscGuy Docs';
+
+  buildToc(id);
+  window.scrollTo(0, 0);
+}
+
+function buildToc(pageId) {
+  const page = document.getElementById('page-' + pageId);
+  const links = document.getElementById('toc-links');
+  links.innerHTML = '';
+
+  page.querySelectorAll('h2[id], h3[id]').forEach(el => {
+    const a = document.createElement('a');
+    a.className = 'toc-link' + (el.tagName === 'H3' ? ' h3' : '');
+    a.href = '#' + el.id;
+    a.textContent = el.textContent;
+    a.onclick = (e) => { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); };
+    links.appendChild(a);
+  });
+}
+
+// Endpoint expand/collapse
+function toggleEndpoint(el) {
+  el.classList.toggle('open');
+}
+
+// Copy code
+function copyPre(btn) {
+  const pre = btn.parentElement;
+  const text = pre.innerText.replace('Copy\n', '');
+  navigator.clipboard.writeText(text.trim()).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1600);
+  });
+}
+
+// Init
+buildToc('home');
+</script>
+</body>
+</html>
