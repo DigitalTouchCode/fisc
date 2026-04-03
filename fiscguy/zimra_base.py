@@ -127,16 +127,24 @@ class ZIMRAClient:
 
         return data
 
+    def issue_certificate(self, payload: dict) -> dict:
+        """Certificate renewal"""
+        return self._request("POST", "issueCertificate")
+
     def get_status(self) -> dict:
+        """Fiscal Day status"""
         return self._request("GET", "getStatus").json()
 
     def get_config(self) -> dict:
+        """Current tax payer configuraton, includes taxes"""
         return self._request("GET", "getConfig").json()
 
     def ping(self) -> dict:
+        """Report device is online to FDMS (checks connectivity)"""
         return self._request("POST", "ping", json={}).json()
 
     def open_day(self, payload: dict) -> dict:
+        """Open a fiscal day"""
         return self._request("POST", "openDay", json=payload).json()
 
     def close_day(self, payload: dict) -> requests.Response:
@@ -149,6 +157,7 @@ class ZIMRAClient:
         return self._request("POST", "CloseDay", data=json.dumps(payload))
 
     def submit_receipt(self, receipt_payload: dict, hash_value: str, signature: str) -> dict:
+        """Submits a receipt to fdms"""
         receipt_payload["receipt"]["receiptDeviceSignature"] = {
             "hash": hash_value,
             "signature": signature,

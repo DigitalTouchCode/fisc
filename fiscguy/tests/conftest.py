@@ -7,6 +7,8 @@ def pytest_configure():
         settings.configure(
             INSTALLED_APPS=[
                 "django.contrib.contenttypes",
+                "django.contrib.auth",
+                "rest_framework",
                 "fiscguy",
             ],
             DATABASES={
@@ -16,6 +18,12 @@ def pytest_configure():
                 }
             },
             SECRET_KEY="fake-key-for-tests",
+            ROOT_URLCONF="fiscguy.urls",
+            DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
+            REST_FRAMEWORK={
+                "DEFAULT_AUTHENTICATION_CLASSES": [],
+                "DEFAULT_PERMISSION_CLASSES": [],
+            },
         )
         django.setup()
 

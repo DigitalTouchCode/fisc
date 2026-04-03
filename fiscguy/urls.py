@@ -7,6 +7,7 @@ from .views import (
     ConfigurationView,
     DevicePing,
     GetStatusView,
+    IssueCertificateView,
     OpenDayView,
     ReceiptView,
     SyncConfigurationView,
@@ -27,4 +28,5 @@ urlpatterns = [
     path("receipts/", ReceiptView.as_view(), name="receipts"),
     path("configuration/", ConfigurationView.as_view(), name="configuration"),
     path("sync-config/", SyncConfigurationView.as_view(), name="sync-config"),
+    path("issue-certificate/", IssueCertificateView.as_view(), name="issue-certificate"),
 ] + router.urls

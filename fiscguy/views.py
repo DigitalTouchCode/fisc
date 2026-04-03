@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from fiscguy.exceptions import (
+    CertificateError,
     CloseDayError,
     ConfigurationError,
     DevicePingError,
@@ -20,6 +21,7 @@ from fiscguy.serializers import (
     ReceiptSerializer,
     TaxSerializer,
 )
+from fiscguy.services.certs_service import CertificateService
 from fiscguy.services.closing_day_service import ClosingDayService
 from fiscguy.services.configuration_service import ConfigurationService
 from fiscguy.services.open_day_service import OpenDayService
@@ -297,5 +299,35 @@ class SyncConfigurationView(APIView):
             logger.exception(f"Unexpected error syncing configuration {device}")
             return Response(
                 {"error": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class IssueCertificateView(APIView):
+    """
+    POST: Certificate Renewal if cert is expired
+    """
+
+    def post(self, request):
+        device = Device.objects.first()
+        if not device:
+            return Response({"error": "No device registered"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            CertificateService(device).issue_certificate()
+            return Response(
+                {"message": "Certificate issued successfully"}, status=status.HTTP_200_OK
+            )
+        except CertificateError as exc:
+            logger.exception(f"Certificate renewal issuance failed for device {device}: {exc}")
+            return Response(
+                {"error": "Certificate renewal issuance failed."},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+        except Exception as exc:
+            logger.exception(
+                f"Unexpected error during certificate renewal for device {device}: {exc}"
+            )
+            return Response(
+                {"error": "An unexpected error occurred during certificate renewal."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
