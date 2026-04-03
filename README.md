@@ -2,9 +2,8 @@
 
 # FiscGuy
 
-[![Tests](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml?query=branch%3Dmain)
+![Tests](https://img.shields.io/github/actions/workflow/status/DigitalTouchCode/fisc/tests.yml?label=tests)
 [![PyPI version](https://img.shields.io/pypi/v/fiscguy.svg?v=1)](https://pypi.org/project/fiscguy/)
-[![Downloads](https://static.pepy.tech/badge/fiscguy)](https://pepy.tech/project/fiscguy)
 ![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
