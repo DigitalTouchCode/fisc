@@ -121,3 +121,8 @@ ARCHITECTURE.md
 
 # MkDocs build output
 site/
+
+# Local development scripts (not needed for GitHub Pages deployment)
+docs-serve.sh
+docs-deploy.sh  
+docs-build.sh
