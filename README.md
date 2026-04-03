@@ -2,7 +2,7 @@
 
 # FiscGuy
 
-[![Tests](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml/badge.svg?branch=release)](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml?query=branch%3Drelease)
+[![Tests](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/digitaltouchcode/fisc/actions/workflows/tests.yml?query=branch%3Dmain)
 [![PyPI version](https://img.shields.io/pypi/v/fiscguy.svg?v=1)](https://pypi.org/project/fiscguy/)
 [![Downloads](https://static.pepy.tech/badge/fiscguy)](https://pepy.tech/project/fiscguy)
 ![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)
@@ -274,7 +274,7 @@ Our comprehensive documentation covers everything you need to know:
 
 ### 🌐 GitHub Pages Setup
 
-This documentation is automatically deployed to GitHub Pages when you push to the `release` branch.
+This documentation is automatically deployed to GitHub Pages when you push to the `main` branch.
 
 **To enable GitHub Pages:**
 1. Go to your repository Settings → Pages

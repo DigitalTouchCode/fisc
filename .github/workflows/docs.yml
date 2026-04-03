@@ -2,9 +2,9 @@ name: Deploy Documentation
 
 on:
   push:
-    branches: [ release ]
+    branches: [ main ]
   pull_request:
-    branches: [ release ]
+    branches: [ main ]
 
 permissions:
   contents: read
@@ -49,7 +49,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/release'
+    if: github.ref == 'refs/heads/main'
     steps:
     - name: Deploy to GitHub Pages
       id: deployment
