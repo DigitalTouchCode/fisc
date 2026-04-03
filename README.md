@@ -264,12 +264,12 @@ All tests mock ZIMRA API calls and crypto operations — no network access requi
 Our comprehensive documentation covers everything you need to know:
 
 ### Quick Links
-- **[Installation Guide](https://digitaltouchcode.github.io/fisc/installation/)** - Detailed setup instructions
-- **[Receipt Types](https://digitaltouchcode.github.io/fisc/receipt-types/)** - Fiscal Invoice, Credit Note, Debit Note rules
-- **[Fiscal Counters](https://digitaltouchcode.github.io/fisc/fiscal-counters/)** - Counter tracking and calculations
-- **[Closing Day](https://digitaltouchcode.github.io/fisc/closing-day/)** - Hash string and signature specifications
-- **[Certificate Management](https://digitaltouchcode.github.io/fisc/certificate-management/)** - Certificate lifecycle and renewal
-- **[Error Reference](https://digitaltouchcode.github.io/fisc/error-reference/)** - All exceptions and troubleshooting
+- **[Installation Guide](docs/installation/)** - Detailed setup instructions
+- **[Receipt Types](docs/receipt-types/)** - Fiscal Invoice, Credit Note, Debit Note rules
+- **[Fiscal Counters](docs/fiscal-counters/)** - Counter tracking and calculations
+- **[Closing Day](docs/closing-day/)** - Hash string and signature specifications
+- **[Certificate Management](docs/certificate-management/)** - Certificate lifecycle and renewal
+- **[Error Reference](docs/error-reference/)** - All exceptions and troubleshooting
 
 ### GitHub Pages Setup
 
