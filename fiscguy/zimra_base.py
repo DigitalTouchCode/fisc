@@ -37,10 +37,6 @@ class ZIMRAClient:
         return self._certs
 
     def _validate_config(self):
-        """Validate that configuration exists"""
-        if not self.config:
-            raise RuntimeError("ZIMRA configuration missing")
-
         if self.certs:
             if self.certs.production:
                 self.base_url = f"https://fdmsapi.zimra.co.zw/Device/v1/{self.device.device_id}"
