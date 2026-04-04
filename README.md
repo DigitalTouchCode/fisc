@@ -107,7 +107,7 @@ receipt = submit_receipt({
     "receipt_type": "fiscalinvoice",
     "currency": "USD",
     "total_amount": "115.00",
-    "payment_terms": "Cash",
+    "payment_terms": "Cash", # as is Cash, Card (smallcaps == validation error)
     "lines": [
         {
             "product": "Consulting Service",
