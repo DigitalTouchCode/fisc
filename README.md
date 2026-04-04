@@ -264,31 +264,12 @@ All tests mock ZIMRA API calls and crypto operations — no network access requi
 Our comprehensive documentation covers everything you need to know:
 
 ### Quick Links
-- **[Installation Guide](docs/installation/)** - Detailed setup instructions
-- **[Receipt Types](docs/receipt-types/)** - Fiscal Invoice, Credit Note, Debit Note rules
-- **[Fiscal Counters](docs/fiscal-counters/)** - Counter tracking and calculations
-- **[Closing Day](docs/closing-day/)** - Hash string and signature specifications
-- **[Certificate Management](docs/certificate-management/)** - Certificate lifecycle and renewal
-- **[Error Reference](docs/error-reference/)** - All exceptions and troubleshooting
-
-### GitHub Pages Setup
-
-This documentation is automatically deployed to GitHub Pages when you push to the `main` branch.
-
-**No local scripts needed** - GitHub Actions handles everything automatically!
-
-### Documentation Contents
-
-| Document | Description |
-|----------|-------------|
-| [Installation](https://digitaltouchcode.github.io/fisc/installation/) | Detailed installation and setup guide |
-| [Receipt Types](https://digitaltouchcode.github.io/fisc/receipt-types/) | Fiscal Invoice, Credit Note, Debit Note rules |
-| [Fiscal Counters](https://digitaltouchcode.github.io/fisc/fiscal-counters/) | How counters work and how they are calculated |
-| [Closing Day](https://digitaltouchcode.github.io/fisc/closing-day/) | Closing day hash string and signature spec |
-| [Certificate Management](https://digitaltouchcode.github.io/fisc/certificate-management/) | Certificate lifecycle and renewal |
-| [Error Reference](https://digitaltouchcode.github.io/fisc/error-reference/) | All exceptions and what causes them |
-| [Changelog](https://digitaltouchcode.github.io/fisc/changelog/) | Version history |
-| [Contributing](https://digitaltouchcode.github.io/fisc/contributing/) | Contributing guidelines |
+- **[Installation Guide](docs/installation)** - Detailed setup instructions
+- **[Receipt Types](docs/receipt-types)** - Fiscal Invoice, Credit Note, Debit Note rules
+- **[Fiscal Counters](docs/fiscal-counters)** - Counter tracking and calculations
+- **[Closing Day](docs/closing-day)** - Hash string and signature specifications
+- **[Certificate Management](docs/certificate-management)** - Certificate lifecycle and renewal
+- **[Error Reference](docs/error-reference)** - All exceptions and troubleshooting
 
 ---
 
