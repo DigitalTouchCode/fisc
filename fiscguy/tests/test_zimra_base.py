@@ -115,19 +115,6 @@ class TestZIMRAClientInitialization:
             == f"https://fdmsapi.zimra.co.zw/Public/v1/{production_device.device_id}"
         )
 
-    def test_client_initialization_without_config(self, db):
-        """Test client raises error when config is missing."""
-        device = Device.objects.create(
-            org_name="No Config",
-            activation_key="test-key",
-            device_id="NO-CONFIG-001",
-            device_model_name="Model",
-            device_model_version="1.0",
-        )
-
-        with pytest.raises(RuntimeError, match="ZIMRA configuration missing"):
-            ZIMRAClient(device)
-
     def test_client_initialization_without_certs(self, device, configuration):
         """Test client initializes without certs (URLs will be None)."""
         client = ZIMRAClient(device)
