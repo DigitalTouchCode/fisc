@@ -46,7 +46,7 @@ class ClosingDayService:
         """
         Format tax percent for the closing signature string per ZIMRA spec
         (section 13.3.1):
-          - Always two decimal places: 15 → "15.00", 0 → "0.00", 14.5 → "14.50"
+          - Always two decimal places: 15 → "15.00", 0 → "0.00", 15.5 → "15.50"
           - Exempt (None) → empty string ""
         """
         if tax_percent is None:
