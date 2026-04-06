@@ -93,10 +93,10 @@ You will be prompted for:
 
 | Prompt | Example | Description |
 |--------|---------|-------------|
-| Organisation name | `ACME Ltd` | Your company name |
+| Organisation name | `AC Ltd` | Your company name |
 | Activation key | `ABC-123-XYZ` | Provided by ZIMRA |
-| Device ID | `23265` | Provided by ZIMRA |
-| Device model name | `FiscGuy-v1` | Your device model |
+| Device ID | `43456` | Provided by ZIMRA |
+| Device model name | `Server` | Your device model |
 | Device model version | `1.0.0` | Your device version |
 | Device serial number | `SN0001` | Your device serial |
 | Production? | `y/n` | Use production or test FDMS |
@@ -117,7 +117,7 @@ from fiscguy.models import Device, Configuration, Taxes
 
 # Device should exist
 device = Device.objects.first()
-print(device)  # "ACME Ltd - 23265"
+print(device)  # "AC Ltd - 43456"
 
 # Config should be populated
 config = Configuration.objects.first()
