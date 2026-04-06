@@ -47,9 +47,6 @@ class ZIMRAReceiptHandler:
         """
         Full pipeline: generate → hash/sign → QR code → counters → submit.
 
-        If FDMS is offline the receipt is saved locally with a provisional
-        global number and returned with ``submitted=False, queued=True``.
-
         Args:
             receipt: a fully hydrated Receipt instance (select_related buyer,
                      prefetch_related lines already applied by the caller).
@@ -332,7 +329,6 @@ class ZIMRAReceiptHandler:
                 fiscal_day.receipt_counter += 1
                 fiscal_day.save()
         except DatabaseError:
-            # Counter mismatch is recoverable — log and continue
             logger.exception(f"Failed to increment receipt counter for device {self._device}")
 
         return response
