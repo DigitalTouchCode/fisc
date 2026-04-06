@@ -91,7 +91,7 @@ Rules:
 - Amounts in **cents** (multiply by 100, integer, negative for credit notes)
 - Tax percent always **two decimal places** (`15.00`, `0.00`, `14.50`)
 - Exempt entries use **empty string** for tax percent (nothing between currency and value)
-- `BalanceByMoneyType` has a literal **`L`** between currency and money type (e.g. `BALANCEBYMONEYTYPEUSDLCASH3700`)
+- `BalanceByMoneyType`BALANCEBYMONEYTYPEUSDCASH3700`)
 - Ordered by: counter type ascending → currency ascending → taxID/moneyType ascending
 
 Example:
@@ -101,8 +101,8 @@ Example:
 SALEBYTAXZWG0.005000
 SALEBYTAXZWG15.50134950
 SALETAXBYTAXZWG15.5018110
-BALANCEBYMONEYTYPEZWGLCARD69975
-BALANCEBYMONEYTYPEZWGLCASH69975
+BALANCEBYMONEYTYPEZWGCARD69975
+BALANCEBYMONEYTYPEZWGCASH69975
 ```
 
 (joined as one string, no newlines)
