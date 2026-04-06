@@ -157,7 +157,7 @@ Typical ZIMRA tax types:
 |--------|------|---------|
 | 1 | Exempt | 0% |
 | 2 | Zero Rated 0% | 0% |
-| 3+ | Standard Rated | 15% or 15.5% |
+| 3+ | Standard Rated | 15.5% |
 
 When building a receipt line, pass the `tax_name` exactly as it appears in `Taxes.name` so the correct `tax_id` and `tax_percent` are resolved.
 
@@ -171,7 +171,7 @@ Attach buyer registration data to any receipt type:
 # Create a buyer first
 from fiscguy.models import Buyer
 buyer = Buyer.objects.create(
-    name="ACME Corp",
+    name="AC",
     tin_number="1234567890",
     email="accounts@acme.co.zw",
 )
