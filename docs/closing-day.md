@@ -59,15 +59,15 @@ Each counter line: `TYPE || CURRENCY || [TAX_PERCENT or MONEY_TYPE] || VALUE_IN_
 
 **Tax percent formatting:**
 - Integer percent: always two decimals — `15` → `15.00`, `0` → `0.00`
-- Decimal percent: `14.5` → `14.50`
+- Decimal percent: `15.5` → `15.50`
 - Exempt (no percent): empty string — nothing between currency and value
 
-**BalanceByMoneyType:** has a literal `L` between currency and money type:
+**BalanceByMoneyType:** 
 
 ```
-BALANCEBYMONEYTYPEUSDLCASH3700
-BALANCEBYMONEYTYPEZWGLCARD1500000
-BALANCEBYMONEYTYPEZWGLCASH2000000
+BALANCEBYMONEYTYPEUSDCASH3700
+BALANCEBYMONEYTYPEZWGCARD1500000
+BALANCEBYMONEYTYPEZWGCASH2000000
 ```
 
 **Zero-value counters:** excluded entirely (per spec section 4.11).
@@ -86,9 +86,9 @@ SALEBYTAXUSD14.502500
 SALEBYTAXZWL15.001200
 SALETAXBYTAXUSD15.00250
 SALETAXBYTAXZWL15.00230000
-BALANCEBYMONEYTYPEUSDLCASH3700
-BALANCEBYMONEYTYPEZWLCASH2000000
-BALANCEBYMONEYTYPEZWLCARD1500000
+BALANCEBYMONEYTYPEUSDCASH3700
+BALANCEBYMONEYTYPEZWCASH2000000
+BALANCEBYMONEYTYPEZWCARD1500000
 ```
 
 Hash (SHA-256, base64): `OdT8lLI0JXhXl1XQgr64Zb1ltFDksFXThVxqM6O8xZE=`
@@ -104,10 +104,10 @@ FDMS computed different counter values from what was submitted.
 **Causes:**
 - `fiscalDayDate` in the closing string uses today's date instead of the fiscal day open date
 - Tax percent not formatted as two decimal places (`15` instead of `15.00`)
-- `BalanceByMoneyType` missing the `L` separator
 - Counters not sorted in the correct order
 - Credit note counter not negated, or using `receiptTotal` instead of per-tax `salesAmountWithTax`
 - Zero-value counters included in the payload
+- Missing counters
 
 ### `BadCertificateSignature`
 
@@ -117,6 +117,7 @@ FDMS cannot verify the device signature.
 - Wrong private key used for signing (key doesn't match the registered certificate)
 - Certificate has expired — run `POST /fiscguy/issue-certificate/`
 - Certificate has been revoked
+- Wrong counters / payload format
 
 ### `FiscalDayCloseFailed`
 
