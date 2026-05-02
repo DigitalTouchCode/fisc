@@ -116,7 +116,7 @@ receipt = submit_receipt({
             "unit_price": "115.00",
             "line_total": "115.00",
             "tax_amount": "15.00",
-            "tax_name": "standard rated 15%",
+            "tax_name": "standard rated 15.5%",
         }
     ],
 })
