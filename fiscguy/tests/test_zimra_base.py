@@ -116,7 +116,7 @@ class TestZIMRAClientInitialization:
         )
 
     def test_client_initialization_without_config(self, db):
-        """Test client raises error when config is missing."""
+        """Test client still initialises when config is missing."""
         device = Device.objects.create(
             org_name="No Config",
             activation_key="test-key",
@@ -125,24 +125,23 @@ class TestZIMRAClientInitialization:
             device_model_version="1.0",
         )
 
-        with pytest.raises(RuntimeError, match="ZIMRA configuration missing"):
-            ZIMRAClient(device)
+        client = ZIMRAClient(device)
+        assert client.base_url == f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
 
     def test_client_initialization_without_certs(self, device, configuration):
-        """Test client initializes without certs (URLs will be None)."""
+        """Test client initializes without certs."""
         client = ZIMRAClient(device)
 
-        # Without certs, base_url and public_url should be None
-        assert client.base_url is None
-        assert client.public_url is None
+        assert client.base_url == f"https://fdmsapitest.zimra.co.zw/Device/v1/{device.device_id}"
+        assert client.public_url == f"https://fdmsapitest.zimra.co.zw/Public/v1/{device.device_id}"
 
     def test_client_session_headers(self, device, configuration, certs):
         """Test session headers are set correctly."""
         client = ZIMRAClient(device)
 
         assert client.session.headers["Content-Type"] == "application/json"
-        assert client.session.headers["deviceModelName"] == device.device_model_name
-        assert client.session.headers["deviceModelVersion"] == device.device_model_version
+        assert client.session.headers["DeviceModelName"] == device.device_model_name
+        assert client.session.headers["DeviceModelVersion"] == device.device_model_version
 
 
 @pytest.mark.django_db
@@ -222,8 +221,6 @@ class TestZIMRAClientMethods:
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_close_day(self, mock_request, device, configuration, certs):
         """Test close_day method."""
-        import json
-
         payload = {
             "deviceID": device.device_id,
             "fiscalDayNo": 1,
@@ -237,9 +234,9 @@ class TestZIMRAClientMethods:
         result = client.close_day(payload)
 
         assert result == mock_response
-        # Verify it was called with json.dumps
         call_args = mock_request.call_args
         assert call_args[0][0] == "POST"
+        assert call_args[1]["json"] == payload
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_submit_receipt(self, mock_request, device, configuration, certs):
@@ -354,6 +351,25 @@ class TestZIMRAClientRegisterDevice:
         url = call_args[0][0] if call_args[0] else None
         assert url is not None
         assert "fdmsapitest.zimra.co.zw" in url
+        assert url.endswith(f"/Public/v1/{device.device_id}/registerDevice")
+
+    @patch("fiscguy.zimra_base.requests.Session.request")
+    def test_issue_certificate_posts_payload(self, mock_request, device, configuration, certs):
+        """Test certificate renewal sends the request payload."""
+        mock_response = Mock(spec=requests.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"certificate": "renewed-cert"}
+        mock_request.return_value = mock_response
+
+        client = ZIMRAClient(device)
+        payload = {"certificateRequest": "csr-data"}
+
+        result = client.issue_certificate(payload)
+
+        assert result == {"certificate": "renewed-cert"}
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "POST"
+        assert call_args[1]["json"] == payload
 
 
 @pytest.mark.django_db

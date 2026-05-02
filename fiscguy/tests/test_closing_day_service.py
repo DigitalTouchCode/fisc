@@ -53,9 +53,10 @@ def certs(db, device):
 
 
 @pytest.fixture
-def fiscal_day(db):
+def fiscal_day(db, device):
     """Create a test fiscal day."""
     return FiscalDay.objects.create(
+        device=device,
         day_no=1,
         receipt_counter=100,
         is_open=True,
@@ -299,6 +300,13 @@ class TestClosingDayServiceCloseDay:
     ):
         """Test successful close day with real HTTP client."""
         # Mock the HTTP responses
+        pre_status_response = Mock(spec=requests.Response)
+        pre_status_response.status_code = 200
+        pre_status_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayOpen",
+            "fiscalDayNo": 1,
+        }
+
         close_day_response = Mock(spec=requests.Response)
         close_day_response.status_code = 200
         close_day_response.json.return_value = {}
@@ -308,15 +316,18 @@ class TestClosingDayServiceCloseDay:
         status_response.json.return_value = {
             "fiscalDayStatus": "FiscalDayClosed",
             "fiscalDayClosingErrorCode": None,
+            "fiscalDayNo": 1,
         }
 
-        mock_request.side_effect = [close_day_response, status_response]
+        mock_request.side_effect = [pre_status_response, close_day_response, status_response]
 
         service = ClosingDayService(device, fiscal_day, fiscal_counters, tax_map)
         result = service.close_day()
 
         assert result["fiscalDayStatus"] == "FiscalDayClosed"
+        fiscal_day.refresh_from_db()
         assert fiscal_day.is_open is False
+        assert fiscal_day.close_state == FiscalDay.CloseState.CLOSED
         mock_sleep.assert_called_once_with(10)
 
     @patch("fiscguy.zimra_base.requests.Session.request")
@@ -333,11 +344,18 @@ class TestClosingDayServiceCloseDay:
         certs,
     ):
         """Test close day with empty status response."""
+        pre_status_response = Mock(spec=requests.Response)
+        pre_status_response.status_code = 200
+        pre_status_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayOpen",
+            "fiscalDayNo": 1,
+        }
+
         close_day_response = Mock(spec=requests.Response)
         close_day_response.status_code = 200
         close_day_response.json.return_value = {}
 
-        mock_request.return_value = close_day_response
+        mock_request.side_effect = [pre_status_response, close_day_response, close_day_response]
 
         service = ClosingDayService(device, fiscal_day, fiscal_counters, tax_map)
 
@@ -358,6 +376,13 @@ class TestClosingDayServiceCloseDay:
         certs,
     ):
         """Test close day with FiscalDayCloseFailed status."""
+        pre_status_response = Mock(spec=requests.Response)
+        pre_status_response.status_code = 200
+        pre_status_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayOpen",
+            "fiscalDayNo": 1,
+        }
+
         close_day_response = Mock(spec=requests.Response)
         close_day_response.status_code = 200
         close_day_response.json.return_value = {}
@@ -367,14 +392,17 @@ class TestClosingDayServiceCloseDay:
         status_response.json.return_value = {
             "fiscalDayStatus": "FiscalDayCloseFailed",
             "fiscalDayClosingErrorCode": "INVALID_SIGNATURE",
+            "fiscalDayNo": 1,
         }
 
-        mock_request.side_effect = [close_day_response, status_response]
+        mock_request.side_effect = [pre_status_response, close_day_response, status_response]
 
         service = ClosingDayService(device, fiscal_day, fiscal_counters, tax_map)
 
         with pytest.raises(CloseDayError, match="FDMS rejected the close day request"):
             service.close_day()
+        fiscal_day.refresh_from_db()
+        assert fiscal_day.close_state == FiscalDay.CloseState.CLOSE_FAILED
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     @patch("fiscguy.services.closing_day_service.sleep")
@@ -390,6 +418,13 @@ class TestClosingDayServiceCloseDay:
         certs,
     ):
         """Test close day with unexpected status."""
+        pre_status_response = Mock(spec=requests.Response)
+        pre_status_response.status_code = 200
+        pre_status_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayOpen",
+            "fiscalDayNo": 1,
+        }
+
         close_day_response = Mock(spec=requests.Response)
         close_day_response.status_code = 200
         close_day_response.json.return_value = {}
@@ -400,7 +435,7 @@ class TestClosingDayServiceCloseDay:
             "fiscalDayStatus": "UnexpectedStatus",
         }
 
-        mock_request.side_effect = [close_day_response, status_response]
+        mock_request.side_effect = [pre_status_response, close_day_response, status_response]
 
         service = ClosingDayService(device, fiscal_day, fiscal_counters, tax_map)
 
@@ -421,6 +456,13 @@ class TestClosingDayServiceCloseDay:
         certs,
     ):
         """Test that close day constructs correct payload."""
+        pre_status_response = Mock(spec=requests.Response)
+        pre_status_response.status_code = 200
+        pre_status_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayOpen",
+            "fiscalDayNo": 1,
+        }
+
         close_day_response = Mock(spec=requests.Response)
         close_day_response.status_code = 200
         close_day_response.json.return_value = {}
@@ -429,9 +471,10 @@ class TestClosingDayServiceCloseDay:
         status_response.status_code = 200
         status_response.json.return_value = {
             "fiscalDayStatus": "FiscalDayClosed",
+            "fiscalDayNo": 1,
         }
 
-        mock_request.side_effect = [close_day_response, status_response]
+        mock_request.side_effect = [pre_status_response, close_day_response, status_response]
 
         service = ClosingDayService(device, fiscal_day, fiscal_counters, tax_map)
         result = service.close_day()
@@ -439,6 +482,67 @@ class TestClosingDayServiceCloseDay:
         # Verify payload structure
         assert "fiscalDayCounters" in service.client.session.headers or True
         assert result["fiscalDayStatus"] == "FiscalDayClosed"
+
+    @patch("fiscguy.zimra_base.requests.Session.request")
+    @patch("fiscguy.services.closing_day_service.sleep")
+    def test_close_day_pending_status_returns_pending(
+        self,
+        mock_sleep,
+        mock_request,
+        device,
+        fiscal_day,
+        fiscal_counters,
+        tax_map,
+        configuration,
+        certs,
+    ):
+        pre_status_response = Mock(spec=requests.Response)
+        pre_status_response.status_code = 200
+        pre_status_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayOpen",
+            "fiscalDayNo": 1,
+        }
+
+        close_day_response = Mock(spec=requests.Response)
+        close_day_response.status_code = 200
+        close_day_response.json.return_value = {}
+
+        status_response = Mock(spec=requests.Response)
+        status_response.status_code = 200
+        status_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayCloseInitiated",
+            "fiscalDayNo": 1,
+        }
+
+        mock_request.side_effect = [pre_status_response, close_day_response, status_response]
+
+        service = ClosingDayService(device, fiscal_day, fiscal_counters, tax_map)
+        result = service.close_day()
+
+        fiscal_day.refresh_from_db()
+        assert result["fiscalDayStatus"] == "FiscalDayCloseInitiated"
+        assert fiscal_day.close_state == FiscalDay.CloseState.CLOSE_PENDING
+        assert fiscal_day.is_open is True
+
+    @patch("fiscguy.zimra_base.requests.Session.request")
+    def test_close_day_returns_already_closed_after_reconciliation(
+        self, mock_request, device, fiscal_day, fiscal_counters, tax_map, configuration, certs
+    ):
+        status_response = Mock(spec=requests.Response)
+        status_response.status_code = 200
+        status_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayClosed",
+            "fiscalDayNo": 1,
+        }
+        mock_request.return_value = status_response
+
+        service = ClosingDayService(device, fiscal_day, fiscal_counters, tax_map)
+        result = service.close_day()
+
+        fiscal_day.refresh_from_db()
+        assert result["fiscalDayStatus"] == "FiscalDayClosed"
+        assert fiscal_day.close_state == FiscalDay.CloseState.CLOSED
+        assert fiscal_day.is_open is False
 
 
 @pytest.mark.django_db

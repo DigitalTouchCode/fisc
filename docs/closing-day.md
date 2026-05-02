@@ -29,7 +29,7 @@ POST /fiscguy/close-day/
 2. **Assemble the closing string** — `deviceID + fiscalDayNo + fiscalDayDate + counters`
 3. **Hash and sign** — SHA-256 hash of the string, signed with the device RSA private key
 4. **Build payload** — closing string, signature, fiscal day counters, receipt counter
-5. **Submit to FDMS** — `POST /CloseDay`
+5. **Submit to FDMS** — `POST /closeDay`
 6. **Poll for status** — waits 10 seconds then calls `GET /getStatus`
 7. **Update database** — marks `FiscalDay.is_open = False` on success
 

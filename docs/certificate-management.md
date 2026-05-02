@@ -7,7 +7,7 @@ FiscGuy uses mutual TLS authentication with ZIMRA FDMS. The device must hold a v
 ## How Certificates Work
 
 1. `init_device` generates an RSA key pair and a Certificate Signing Request (CSR)
-2. The CSR is sent to ZIMRA FDMS `RegisterDevice` endpoint
+2. For initial onboarding, the CSR is sent to ZIMRA FDMS `registerDevice`
 3. ZIMRA returns a signed certificate
 4. The certificate and private key are stored in the `Certs` model
 5. Every request to FDMS uses the certificate for mutual TLS authentication

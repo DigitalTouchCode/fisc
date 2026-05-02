@@ -7,7 +7,7 @@ from fiscguy.exceptions import (
     DevicePingError,
     StatusError,
 )
-from fiscguy.models import Certs, Configuration, Device, Taxes
+from fiscguy.models import Certs, Configuration, Device, FiscalDay, Taxes
 from fiscguy.services.configuration_service import ConfigurationService
 from fiscguy.services.ping_service import PingService
 from fiscguy.services.status_service import StatusService
@@ -130,6 +130,49 @@ class TestStatusService:
 
             result = service.get_status()
             assert result["fiscalDayStatus"] in [s["fiscalDayStatus"] for s in states]
+
+    @patch("fiscguy.zimra_base.requests.Session.request")
+    def test_get_status_reconciles_manual_closed_day(
+        self, mock_request, device, configuration, certs
+    ):
+        fiscal_day = FiscalDay.objects.create(
+            device=device, day_no=1, is_open=True, receipt_counter=10
+        )
+
+        mock_response = Mock(spec=requests.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayClosed",
+            "fiscalDayNo": 1,
+        }
+        mock_request.return_value = mock_response
+
+        service = StatusService(device)
+        result = service.get_status()
+
+        fiscal_day.refresh_from_db()
+        assert result["fiscalDayStatus"] == "FiscalDayClosed"
+        assert fiscal_day.is_open is False
+        assert fiscal_day.close_state == FiscalDay.CloseState.CLOSED
+
+    @patch("fiscguy.zimra_base.requests.Session.request")
+    def test_get_status_creates_missing_local_day_from_fdms(
+        self, mock_request, device, configuration, certs
+    ):
+        mock_response = Mock(spec=requests.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "fiscalDayStatus": "FiscalDayOpen",
+            "fiscalDayNo": 7,
+        }
+        mock_request.return_value = mock_response
+
+        service = StatusService(device)
+        service.get_status()
+
+        fiscal_day = FiscalDay.objects.get(device=device, day_no=7)
+        assert fiscal_day.is_open is True
+        assert fiscal_day.close_state == FiscalDay.CloseState.OPEN
 
 
 @pytest.mark.django_db
@@ -322,6 +365,36 @@ class TestConfigurationService:
 
         assert config["taxPayerName"] == "Updated Name"
         assert config["taxPayerTIN"] == "222222222"
+
+    @patch("fiscguy.zimra_base.requests.Session.request")
+    def test_persist_configuration_accepts_datetime_certificate_valid_till(
+        self, mock_request, device, configuration, certs
+    ):
+        """Test certificateValidTill when FDMS returns a datetime string."""
+        config_response = {
+            "taxPayerName": "Updated Name",
+            "taxInclusive": False,
+            "taxPayerTIN": "222222222",
+            "vatNumber": "222222",
+            "deviceBranchAddress": {"street": "Updated Street"},
+            "deviceBranchContacts": {
+                "phoneNo": "+263222222",
+                "email": "updated@example.com",
+            },
+            "certificateValidTill": "2027-05-02T19:59:04",
+            "applicableTaxes": [],
+        }
+
+        mock_response = Mock(spec=requests.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = config_response
+        mock_request.return_value = mock_response
+
+        service = ConfigurationService(device)
+        service.config()
+
+        configuration.refresh_from_db()
+        assert str(configuration.certificate_valid_till) == "2027-05-02"
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_persist_taxes_multiple(self, mock_request, device, configuration, certs):

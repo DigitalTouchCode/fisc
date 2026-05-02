@@ -1,12 +1,14 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from io import BytesIO
+from zoneinfo import ZoneInfo
 
 import qrcode
 from django.core.files.base import ContentFile
 from django.db import DatabaseError
 from django.db.models import F
+from django.utils import timezone
 from loguru import logger
 
 from fiscguy.exceptions import ReceiptSubmissionError
@@ -32,8 +34,7 @@ class ZIMRAReceiptHandler:
     @property
     def client(self) -> ZIMRAClient | None:
         """
-        Return a cached ZIMRA client, or None if FDMS is unreachable.
-        Callers must check for None when offline tolerance is required.
+        Return a cached ZIMRA client for the device.
         """
         if self._client is None:
             self._client = ZIMRAClient(self._device)
@@ -47,8 +48,7 @@ class ZIMRAReceiptHandler:
         """
         Full pipeline: generate → hash/sign → QR code → counters → submit.
 
-        If FDMS is offline the receipt is saved locally with a provisional
-        global number and returned with ``submitted=False, queued=True``.
+        This implementation targets the online FDMS `submitReceipt` flow.
 
         Args:
             receipt: a fully hydrated Receipt instance (select_related buyer,
@@ -197,9 +197,12 @@ class ZIMRAReceiptHandler:
         self, receipt: Receipt, receipt_items, fiscal_day: FiscalDay
     ) -> dict:
         is_credit_note = receipt.receipt_type.lower() == "creditnote"
+        is_debit_note = receipt.receipt_type.lower() == "debitnote"
+        fdms_receipt_type = self._fdms_receipt_type(receipt.receipt_type)
 
         last_receipt = (
-            Receipt.objects.exclude(id=receipt.id)
+            Receipt.objects.filter(device=self._device)
+            .exclude(id=receipt.id)
             .exclude(hash_value__isnull=True)
             .order_by("-created_at")
             .first()
@@ -258,15 +261,17 @@ class ZIMRAReceiptHandler:
         global_no = self._get_next_global_number(receipt)
 
         receipt_data = {
-            "receiptType": receipt.receipt_type,
+            "receiptType": fdms_receipt_type,
             "receiptCurrency": receipt.currency.upper(),
             "receiptCounter": fiscal_day.receipt_counter + 1,
             "receiptGlobalNo": global_no,
             "invoiceNo": f"R-{global_no:08d}",
             "receiptNotes": (
-                receipt.credit_note_reason if is_credit_note else "Thank you for shopping with us!"
+                receipt.credit_note_reason
+                if (is_credit_note or is_debit_note)
+                else "Thank you for shopping with us!"
             ),
-            "receiptDate": timestamp(),
+            "receiptDate": self._build_receipt_timestamp(fiscal_day, last_receipt),
             "receiptLinesTaxInclusive": True,
             "receiptLines": receipt_lines,
             "receiptTaxes": receipt_taxes,
@@ -279,16 +284,19 @@ class ZIMRAReceiptHandler:
             "receiptTotal": float(receipt.total_amount),
             "receiptPrintForm": "Receipt48",
             "previousReceiptHash": (
-                "" if fiscal_day.receipt_counter == 0 else last_receipt.hash_value
+                ""
+                if fiscal_day.receipt_counter == 0 or not last_receipt
+                else last_receipt.hash_value
             ),
         }
 
-        if is_credit_note:
+        if is_credit_note or is_debit_note:
             try:
                 original = Receipt.objects.get(receipt_number=receipt.credit_note_reference)
             except Receipt.DoesNotExist as exc:
+                note_kind = "Credit" if is_credit_note else "Debit"
                 raise ReceiptSubmissionError(
-                    f"Credit note references unknown receipt: {receipt.credit_note_reference}"
+                    f"{note_kind} note references unknown receipt: {receipt.credit_note_reference}"
                 ) from exc
             receipt_data["creditDebitNote"] = {"receiptID": original.zimra_inv_id}
 
@@ -337,6 +345,27 @@ class ZIMRAReceiptHandler:
 
         return response
 
+    def _build_receipt_timestamp(self, fiscal_day: FiscalDay, last_receipt: Receipt | None) -> str:
+        """
+        Build a receipt timestamp that is strictly later than:
+        - the fiscal day open time for the first receipt
+        - the previous receipt timestamp for subsequent receipts
+        """
+        receipt_dt = self._current_harare_datetime()
+
+        fiscal_day_dt = self._to_harare_datetime(fiscal_day.created_at) + timedelta(seconds=1)
+        if receipt_dt < fiscal_day_dt:
+            receipt_dt = fiscal_day_dt
+
+        if last_receipt:
+            previous_receipt_dt = self._to_harare_datetime(last_receipt.created_at) + timedelta(
+                seconds=1
+            )
+            if receipt_dt < previous_receipt_dt:
+                receipt_dt = previous_receipt_dt
+
+        return receipt_dt.strftime("%Y-%m-%dT%H:%M:%S")
+
     def _generate_qr_code(self, receipt: Receipt, receipt_data: dict, signature: str) -> None:
         """
         Generate and save the QR code and verification code to the receipt.
@@ -345,11 +374,14 @@ class ZIMRAReceiptHandler:
             ReceiptSubmissionError: if QR generation fails.
         """
         try:
-            base = (
-                f"https://fdmsapi.zimra.co.zw/Device/v1/{self._device.device_id}"
-                if self._device.production
-                else f"https://fdmsapitest.zimra.co.zw/Device/v1/{self._device.device_id}"
-            )
+            config = self.client.config
+            base = (config.url or "").rstrip("/") if config and config.url else ""
+            if not base:
+                base = (
+                    f"https://fdmsapi.zimra.co.zw/Device/v1/{self._device.device_id}"
+                    if self._device.production
+                    else f"https://fdmsapitest.zimra.co.zw/Device/v1/{self._device.device_id}"
+                )
 
             device_id = f"00000{self._device.device_id}"
             receipt_date = datetime.strptime(
@@ -399,7 +431,7 @@ class ZIMRAReceiptHandler:
             raise ReceiptSubmissionError("Failed to update fiscal counters") from exc
 
     def _update_fiscal_counters_inner(self, receipt: Receipt, receipt_data: dict) -> None:
-        fiscal_day = FiscalDay.objects.filter(is_open=True).first()
+        fiscal_day = FiscalDay.objects.filter(device=self._device, is_open=True).first()
 
         receipt_type = receipt_data["receiptType"].lower()
         receipt_taxes = receipt_data.get("receiptTaxes", [])
@@ -416,7 +448,7 @@ class ZIMRAReceiptHandler:
             if receipt_type == "fiscalinvoice":
                 self._upsert_counter(
                     counter_type="SaleByTax",
-                    currency=receipt.currency.lower(),
+                    currency=receipt.currency.upper(),
                     tax_id=tax_id,
                     tax_percent=tax_percent,
                     fiscal_day=fiscal_day,
@@ -426,7 +458,7 @@ class ZIMRAReceiptHandler:
                 if tax_percent and tax_name not in ("exempt", "zero rated 0%"):
                     self._upsert_counter(
                         counter_type="SaleTaxByTax",
-                        currency=receipt.currency.lower(),
+                        currency=receipt.currency.upper(),
                         tax_id=tax_id,
                         tax_percent=tax_percent,
                         fiscal_day=fiscal_day,
@@ -436,7 +468,7 @@ class ZIMRAReceiptHandler:
             elif receipt_type == "creditnote":
                 self._upsert_counter(
                     counter_type="CreditNoteByTax",
-                    currency=receipt.currency.lower(),
+                    currency=receipt.currency.upper(),
                     tax_id=tax_id,
                     tax_percent=tax_percent,
                     fiscal_day=fiscal_day,
@@ -446,7 +478,27 @@ class ZIMRAReceiptHandler:
                 if tax_percent and tax_name not in ("exempt", "zero rated 0%"):
                     self._upsert_counter(
                         counter_type="CreditNoteTaxByTax",
-                        currency=receipt.currency.lower(),
+                        currency=receipt.currency.upper(),
+                        tax_id=tax_id,
+                        tax_percent=tax_percent,
+                        fiscal_day=fiscal_day,
+                        amount=tax_amount,
+                    )
+
+            elif receipt_type == "debitnote":
+                self._upsert_counter(
+                    counter_type="DebitNoteByTax",
+                    currency=receipt.currency.upper(),
+                    tax_id=tax_id,
+                    tax_percent=tax_percent,
+                    fiscal_day=fiscal_day,
+                    amount=sales_amount_with_tax,
+                )
+
+                if tax_percent and tax_name not in ("exempt", "zero rated 0%"):
+                    self._upsert_counter(
+                        counter_type="DebitNoteTaxByTax",
+                        currency=receipt.currency.upper(),
                         tax_id=tax_id,
                         tax_percent=tax_percent,
                         fiscal_day=fiscal_day,
@@ -460,8 +512,8 @@ class ZIMRAReceiptHandler:
             else Decimal(str(receipt.total_amount))
         )
         self._upsert_counter(
-            counter_type="Balancebymoneytype",
-            currency=receipt.currency.lower(),
+            counter_type="BalanceByMoneyType",
+            currency=receipt.currency.upper(),
             tax_id=None,
             tax_percent=None,
             fiscal_day=fiscal_day,
@@ -487,6 +539,7 @@ class ZIMRAReceiptHandler:
         """
         try:
             counter, created = FiscalCounter.objects.get_or_create(
+                device=self._device,
                 fiscal_counter_type=counter_type,
                 fiscal_counter_currency=currency,
                 fiscal_counter_tax_id=tax_id,
@@ -502,3 +555,22 @@ class ZIMRAReceiptHandler:
         except DatabaseError as exc:
             logger.exception(f"Failed to upsert {counter_type} counter for device {self._device}")
             raise ReceiptSubmissionError(f"Failed to update {counter_type} fiscal counter") from exc
+
+    @staticmethod
+    def _fdms_receipt_type(receipt_type: str) -> str:
+        mapping = {
+            "fiscalinvoice": "FiscalInvoice",
+            "creditnote": "CreditNote",
+            "debitnote": "DebitNote",
+        }
+        return mapping.get(receipt_type.lower(), receipt_type)
+
+    @staticmethod
+    def _current_harare_datetime() -> datetime:
+        return datetime.now(ZoneInfo("Africa/Harare")).replace(microsecond=0)
+
+    @staticmethod
+    def _to_harare_datetime(value: datetime) -> datetime:
+        if timezone.is_aware(value):
+            return timezone.localtime(value, ZoneInfo("Africa/Harare")).replace(microsecond=0)
+        return value.replace(microsecond=0)

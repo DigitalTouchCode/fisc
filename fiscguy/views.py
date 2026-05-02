@@ -250,10 +250,18 @@ class CloseDayView(APIView):
 
             fiscal_day = FiscalDay.objects.filter(device=device, is_open=True).first()
             if not fiscal_day:
-                return Response(
-                    {"error": "No open fiscal day to close"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                try:
+                    StatusService(device).get_status()
+                except StatusError:
+                    logger.warning(
+                        f"Could not reconcile fiscal day status with FDMS for device {device}"
+                    )
+                fiscal_day = FiscalDay.objects.filter(device=device, is_open=True).first()
+                if not fiscal_day:
+                    return Response(
+                        {"error": "No open fiscal day to close"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
             fiscal_counters = fiscal_day.counters.all()
             tax_map = {t.tax_id: t.name for t in Taxes.objects.all()}

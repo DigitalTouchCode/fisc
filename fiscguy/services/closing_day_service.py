@@ -2,10 +2,12 @@ from collections import defaultdict
 from time import sleep
 from typing import Any, Dict, Iterable, List, Tuple
 
+from django.utils import timezone
 from loguru import logger
 
 from fiscguy.exceptions import CloseDayError
 from fiscguy.models import Device, FiscalCounter, FiscalDay
+from fiscguy.services.status_service import StatusService
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_receipt_handler import ZIMRAReceiptHandler
 
@@ -13,6 +15,8 @@ SALE_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 SALE_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
 CREDIT_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 CREDIT_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
+DEBIT_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
+DEBIT_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
 
 
 class ClosingDayService:
@@ -36,6 +40,8 @@ class ClosingDayService:
         self.sale_tax_by_tax_payload: List[Dict[str, Any]] = []
         self.credit_by_tax_payload: List[Dict[str, Any]] = []
         self.credit_tax_by_tax_payload: List[Dict[str, Any]] = []
+        self.debit_by_tax_payload: List[Dict[str, Any]] = []
+        self.debit_tax_by_tax_payload: List[Dict[str, Any]] = []
         self.balance_by_money_payload: List[Dict[str, Any]] = []
 
     def _money_value(self, value: float) -> int:
@@ -263,11 +269,103 @@ class ClosingDayService:
 
         return "".join(strings)
 
+    def build_debit_note_by_tax(self) -> str:
+        buckets: Dict[str, List[str]] = defaultdict(list)
+
+        relevant = self._sort_by_tax_id(
+            [
+                c
+                for c in self.counters
+                if c.fiscal_counter_type.lower() == "debitnotebytax" and c.fiscal_counter_value != 0
+            ]
+        )
+
+        for c in relevant:
+            tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
+
+            if "standard" in tax_name:
+                key = "standard"
+            elif "zero" in tax_name:
+                key = "zero"
+            else:
+                key = "exempt"
+
+            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
+            tax_part: str = self._fmt_tax_percent(c.fiscal_counter_tax_percent)
+
+            buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
+
+            self.debit_by_tax_payload.append(
+                {
+                    "fiscalCounterType": c.fiscal_counter_type,
+                    "fiscalCounterCurrency": c.fiscal_counter_currency,
+                    "fiscalCounterTaxPercent": (
+                        float(c.fiscal_counter_tax_percent)
+                        if c.fiscal_counter_tax_percent is not None
+                        else None
+                    ),
+                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
+                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+                }
+            )
+
+        return "".join("".join(buckets[k]) for k in DEBIT_BY_TAX_ORDER)
+
+    def build_debit_note_tax_by_tax(self) -> str:
+        buckets: Dict[str, List[str]] = defaultdict(list)
+
+        relevant = self._sort_by_tax_id(
+            [
+                c
+                for c in self.counters
+                if c.fiscal_counter_type.lower() == "debitnotetaxbytax"
+                and c.fiscal_counter_value != 0
+            ]
+        )
+
+        for c in relevant:
+            tax_name: str = self.tax_map.get(c.fiscal_counter_tax_id, "").lower()
+            key: str = "zero" if "zero" in tax_name else "standard"
+
+            base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
+            tax_part: str = self._fmt_tax_percent(c.fiscal_counter_tax_percent)
+
+            buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
+
+            self.debit_tax_by_tax_payload.append(
+                {
+                    "fiscalCounterType": c.fiscal_counter_type,
+                    "fiscalCounterCurrency": c.fiscal_counter_currency,
+                    "fiscalCounterTaxPercent": (
+                        float(c.fiscal_counter_tax_percent)
+                        if c.fiscal_counter_tax_percent is not None
+                        else None
+                    ),
+                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
+                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+                }
+            )
+
+        return "".join("".join(buckets[k]) for k in DEBIT_TAX_BY_TAX_ORDER)
+
     def close_day(self) -> Dict[str, Any]:
+        self._reconcile_with_fdms()
+
+        if (
+            not self.fiscal_day.is_open
+            and self.fiscal_day.close_state == FiscalDay.CloseState.CLOSED
+        ):
+            return {
+                "fiscalDayStatus": self.fiscal_day.fdms_status or "FiscalDayClosed",
+                "message": "Fiscal day already closed in FDMS",
+            }
+
         sale_by_tax: str = self.build_sale_by_tax()
         sale_tax_by_tax: str = self.build_sale_tax_by_tax()
         credit_by_tax: str = self.build_credit_note_by_tax()
         credit_tax_by_tax: str = self.build_credit_note_tax_by_tax()
+        debit_by_tax: str = self.build_debit_note_by_tax()
+        debit_tax_by_tax: str = self.build_debit_note_tax_by_tax()
         balance_by_money: str = self.build_balance_by_money_type()
 
         closing_string: str = (
@@ -278,6 +376,8 @@ class ClosingDayService:
             f"{sale_tax_by_tax}"
             f"{credit_by_tax}"
             f"{credit_tax_by_tax}"
+            f"{debit_by_tax}"
+            f"{debit_tax_by_tax}"
             f"{balance_by_money}"
         ).upper()
 
@@ -290,6 +390,8 @@ class ClosingDayService:
             + self.sale_tax_by_tax_payload
             + self.credit_by_tax_payload
             + self.credit_tax_by_tax_payload
+            + self.debit_by_tax_payload
+            + self.debit_tax_by_tax_payload
             + self.balance_by_money_payload
         )
 
@@ -304,24 +406,49 @@ class ClosingDayService:
 
         logger.info(payload)
         self.client.close_day(payload)
+        self._mark_close_requested()
 
         sleep(10)
 
         status = self.client.get_status()
+        StatusService.reconcile_fiscal_day(self.device, status)
+        self.fiscal_day.refresh_from_db()
 
         if not status:
             raise CloseDayError("FDMS returned an empty response")
 
         fiscal_day_status = status.get("fiscalDayStatus", "")
 
-        if fiscal_day_status == "FiscalDayClosed":
-            self.fiscal_day.is_open = False
-            self.fiscal_day.save()
+        if fiscal_day_status in {"FiscalDayClosed", "FiscalDayCloseExecuted"}:
             return status
 
         if fiscal_day_status == "FiscalDayCloseFailed":
             error_code = status.get("fiscalDayClosingErrorCode", "unknown")
             raise CloseDayError(f"FDMS rejected the close day request (errorCode={error_code})")
 
+        if fiscal_day_status == "FiscalDayCloseInitiated":
+            return {
+                **status,
+                "message": "Close request accepted by FDMS and is still processing",
+            }
+
         logger.warning(f"Unexpected fiscalDayStatus from FDMS: {status}")
         raise CloseDayError(f"Unexpected FDMS status: {fiscal_day_status!r}")
+
+    def _mark_close_requested(self) -> None:
+        self.fiscal_day.close_state = FiscalDay.CloseState.CLOSE_PENDING
+        self.fiscal_day.close_requested_at = timezone.now()
+        self.fiscal_day.last_close_error_code = None
+        self.fiscal_day.save(
+            update_fields=[
+                "close_state",
+                "close_requested_at",
+                "last_close_error_code",
+                "updated_at",
+            ]
+        )
+
+    def _reconcile_with_fdms(self) -> None:
+        status = self.client.get_status()
+        StatusService.reconcile_fiscal_day(self.device, status)
+        self.fiscal_day.refresh_from_db()

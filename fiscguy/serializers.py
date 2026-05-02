@@ -37,6 +37,10 @@ class ConfigurationSerializer(serializers.ModelSerializer):
             "address",
             "phone_number",
             "email",
+            "device_operating_mode",
+            "tax_payer_day_max_hrs",
+            "tax_payer_day_end_notification_hrs",
+            "certificate_valid_till",
             "created_at",
             "updated_at",
         ]
@@ -151,6 +155,8 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
 
     credit_note_reference = serializers.CharField(required=False, allow_blank=True)
     credit_note_reason = serializers.CharField(required=False, allow_blank=True)
+    debit_note_reference = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    debit_note_reason = serializers.CharField(required=False, allow_blank=True, write_only=True)
     payment_terms = serializers.ChoiceField(choices=Receipt.PaymentMethod.choices)
 
     class Meta:
@@ -165,29 +171,43 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
             "payment_terms",
             "credit_note_reference",
             "credit_note_reason",
+            "debit_note_reference",
+            "debit_note_reason",
         ]
 
     def validate(self, attrs):
         receipt_type = attrs.get("receipt_type", "").lower()
         total_amount = attrs.get("total_amount", 0)
+        reference, reason = self._resolve_note_fields(attrs)
 
-        if receipt_type == "creditnote":
-
-            if not attrs.get("credit_note_reference"):
+        if receipt_type in {"creditnote", "debitnote"}:
+            if not reference:
                 raise serializers.ValidationError(
-                    {"credit_note_reference": "This field is required for credit notes"}
+                    {"credit_note_reference": "This field is required for credit and debit notes"}
                 )
 
-            if not Receipt.objects.filter(receipt_number=attrs["credit_note_reference"]).exists():
+            if not reason:
+                raise serializers.ValidationError(
+                    {"credit_note_reason": "This field is required for credit and debit notes"}
+                )
+
+            if not Receipt.objects.filter(receipt_number=reference).exists():
                 raise serializers.ValidationError(
                     {"credit_note_reference": "Referenced receipt does not exist"}
                 )
 
-            # Amount must be negative
-            if total_amount > 0:
-                raise serializers.ValidationError(
-                    {"total_amount": "Credit note total must be negative"}
-                )
+        if receipt_type == "creditnote" and total_amount > 0:
+            raise serializers.ValidationError(
+                {"total_amount": "Credit note total must be negative"}
+            )
+
+        if receipt_type == "debitnote" and total_amount < 0:
+            raise serializers.ValidationError({"total_amount": "Debit note total must be positive"})
+
+        attrs["credit_note_reference"] = reference
+        attrs["credit_note_reason"] = reason
+        attrs.pop("debit_note_reference", None)
+        attrs.pop("debit_note_reason", None)
 
         return attrs
 
@@ -257,3 +277,11 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
                 ReceiptLine.objects.create(receipt=receipt, **line_data)
 
             return receipt
+
+    @staticmethod
+    def _resolve_note_fields(attrs):
+        reference = (
+            attrs.get("credit_note_reference") or attrs.get("debit_note_reference") or ""
+        ).strip()
+        reason = (attrs.get("credit_note_reason") or attrs.get("debit_note_reason") or "").strip()
+        return reference, reason

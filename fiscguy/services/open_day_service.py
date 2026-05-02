@@ -3,6 +3,7 @@ from loguru import logger
 
 from fiscguy.exceptions import FiscalDayError
 from fiscguy.models import Device, FiscalDay
+from fiscguy.services.status_service import StatusService
 from fiscguy.utils.datetime_now import datetime_now as timestamp
 from fiscguy.zimra_base import ZIMRAClient
 
@@ -33,6 +34,7 @@ class OpenDayService:
             raise FiscalDayError("Failed to open fiscal day unexpectedly") from exc
 
     def _open_day_atomic(self) -> dict:
+        self._reconcile_with_fdms()
         active_day = (
             FiscalDay.objects.select_for_update().filter(device=self.device, is_open=True).first()
         )
@@ -53,6 +55,17 @@ class OpenDayService:
             "fiscal_day_no": next_day_no,
             "fdms_response": response,
         }
+
+    def _reconcile_with_fdms(self) -> None:
+        try:
+            status = self.client.get_status()
+        except Exception as exc:
+            logger.exception(
+                f"Failed to fetch FDMS status for reconciliation for device {self.device}"
+            )
+            raise FiscalDayError("Could not reconcile local fiscal day with FDMS") from exc
+
+        StatusService.reconcile_fiscal_day(self.device, status)
 
     def _resolve_next_day_no(self) -> int:
         fdms_last_day_no = self._fetch_fdms_last_day_no()

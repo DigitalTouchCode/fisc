@@ -36,6 +36,10 @@ class Configuration(models.Model):
     address = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=20)
     email = models.EmailField()
+    device_operating_mode = models.CharField(max_length=20, blank=True)
+    tax_payer_day_max_hrs = models.IntegerField(null=True, blank=True)
+    tax_payer_day_end_notification_hrs = models.IntegerField(null=True, blank=True)
+    certificate_valid_till = models.DateField(null=True, blank=True)
     url = models.URLField(
         null=True, blank=True
     )  # for zimra either testing or production (the url in config its old)
@@ -100,12 +104,26 @@ class FiscalDay(models.Model):
     Fiscal day model (increment with +1 every opening, keeps the receipt counter of the day)
     """
 
+    class CloseState(models.TextChoices):
+        OPEN = "open", "Open"
+        CLOSE_PENDING = "close_pending", "Close Pending"
+        CLOSE_FAILED = "close_failed", "Close Failed"
+        CLOSED = "closed", "Closed"
+
     device = models.ForeignKey(
         Device, on_delete=models.CASCADE, related_name="fiscal_days", null=True, blank=True
     )
     day_no = models.IntegerField()
     receipt_counter = models.IntegerField(default=0)
     is_open = models.BooleanField(default=False)
+    close_state = models.CharField(
+        max_length=20, choices=CloseState.choices, default=CloseState.OPEN
+    )
+    fdms_status = models.CharField(max_length=64, null=True, blank=True)
+    close_requested_at = models.DateTimeField(null=True, blank=True)
+    close_confirmed_at = models.DateTimeField(null=True, blank=True)
+    last_status_sync_at = models.DateTimeField(null=True, blank=True)
+    last_close_error_code = models.CharField(max_length=128, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -152,12 +170,18 @@ class FiscalCounter(models.Model):
     CARD = "Card"
     BANK_TRANSFER = "BankTransfer"
     MOBILE_MONEY = "MobileMoney"
+    COUPON = "Coupon"
+    CREDIT = "Credit"
+    OTHER_PAYMENT = "Other"
 
     MONEY_TYPE_CHOICES = [
         (CASH, "Cash"),
         (CARD, "Card"),
         (BANK_TRANSFER, "Bank Transfer"),
         (MOBILE_MONEY, "Mobile Money"),
+        (COUPON, "Coupon"),
+        (CREDIT, "Credit"),
+        (OTHER_PAYMENT, "Other"),
     ]
 
     device = models.ForeignKey(

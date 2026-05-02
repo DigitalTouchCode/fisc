@@ -1,4 +1,3 @@
-import json
 import shutil
 import tempfile
 import threading
@@ -22,7 +21,7 @@ class ZIMRAClient:
         self.device = device
         self._config = None
         self._certs = None
-        self._validate_config()
+        self._initialize()
 
     @property
     def config(self):
@@ -36,23 +35,11 @@ class ZIMRAClient:
             self._certs = Certs.objects.filter(device=self.device).first()
         return self._certs
 
-    def _validate_config(self):
-        """Validate that configuration exists"""
-        if not self.config:
-            raise RuntimeError("ZIMRA configuration missing")
-
-        if self.certs:
-            if self.certs.production:
-                self.base_url = f"https://fdmsapi.zimra.co.zw/Device/v1/{self.device.device_id}"
-                self.public_url = f"https://fdmsapi.zimra.co.zw/Public/v1/{self.device.device_id}"
-            else:
-                self.base_url = f"https://fdmsapitest.zimra.co.zw/Device/v1/{self.device.device_id}"
-                self.public_url = (
-                    f"https://fdmsapitest.zimra.co.zw/Public/v1/{self.device.device_id}"
-                )
-        else:
-            self.base_url = None
-            self.public_url = None
+    def _initialize(self):
+        """Initialise endpoint URLs and the HTTP session."""
+        domain = "fdmsapi.zimra.co.zw" if self.device.production else "fdmsapitest.zimra.co.zw"
+        self.base_url = f"https://{domain}/Device/v1/{self.device.device_id}"
+        self.public_url = f"https://{domain}/Public/v1/{self.device.device_id}"
 
         self._lock = threading.Lock()
         self._temp_dir = Path(tempfile.mkdtemp(prefix="zimra_fdms_"))
@@ -73,8 +60,8 @@ class ZIMRAClient:
         self.session.headers.update(
             {
                 "Content-Type": "application/json",
-                "deviceModelName": self.device.device_model_name,
-                "deviceModelVersion": self.device.device_model_version,
+                "DeviceModelName": self.device.device_model_name,
+                "DeviceModelVersion": self.device.device_model_version,
             }
         )
 
@@ -99,7 +86,7 @@ class ZIMRAClient:
             DeviceRegistrationError: on request failure or empty response.
         """
         domain = "fdmsapi.zimra.co.zw" if self.device.production else "fdmsapitest.zimra.co.zw"
-        url = f"https://{domain}/Public/v1/{self.device.device_id}/RegisterDevice"
+        url = f"https://{domain}/Public/v1/{self.device.device_id}/registerDevice"
 
         logger.info(
             f"Registering device {self.device.device_id}, " f"production={self.device.production}"
@@ -112,8 +99,8 @@ class ZIMRAClient:
                 json=payload,
                 headers={
                     "Content-Type": "application/json",
-                    "deviceModelName": self.device.device_model_name,
-                    "deviceModelVersion": self.device.device_model_version,
+                    "DeviceModelName": self.device.device_model_name,
+                    "DeviceModelVersion": self.device.device_model_version,
                 },
             )
             response.raise_for_status()
@@ -129,7 +116,7 @@ class ZIMRAClient:
 
     def issue_certificate(self, payload: dict) -> dict:
         """Certificate renewal"""
-        return self._request("POST", "issueCertificate")
+        return self._request("POST", "issueCertificate", json=payload).json()
 
     def get_status(self) -> dict:
         """Fiscal Day status"""
@@ -154,7 +141,7 @@ class ZIMRAClient:
         Returns the raw Response so callers can inspect status/headers.
         DB updates and post-close logic belong in ClosingDayService.
         """
-        return self._request("POST", "CloseDay", data=json.dumps(payload))
+        return self._request("POST", "closeDay", json=payload)
 
     def submit_receipt(self, receipt_payload: dict, hash_value: str, signature: str) -> dict:
         """Submits a receipt to fdms"""
@@ -163,7 +150,7 @@ class ZIMRAClient:
             "signature": signature,
         }
         logger.info(f"Submitting receipt for device {self.device.device_id}")
-        return self._request("POST", "SubmitReceipt", json=receipt_payload).json()
+        return self._request("POST", "submitReceipt", json=receipt_payload).json()
 
     # Lifecycle
     def close(self):

@@ -24,7 +24,7 @@ FiscGuy gives Django applications a simple, Pythonic interface for every fiscal 
 - **Six core API functions** — `open_day`, `close_day`, `submit_receipt`, `get_status`, `get_configuration`, `get_taxes`
 - **Full fiscal day lifecycle** — open, manage counters, close with ZIMRA-compliant hash and signature
 - **Receipt types** — Fiscal Invoice, Credit Note, Debit Note with correct counter tracking
-- **Offline resilience** — receipts queued locally when FDMS is unreachable, synced automatically on reconnect
+- **Online FDMS submission** — receipts are validated, signed, and submitted directly to FDMS
 - **Certificate management** — CSR generation, device registration, certificate renewal via `init_device`
 - **Multi-currency** — USD and ZWG support with per-currency counter tracking
 - **Multiple payment methods** — Cash, Card, Mobile Wallet, Bank Transfer, Coupon, Credit, Other
@@ -264,20 +264,20 @@ Full documentation lives in the `docs/` folder:
 
 | Document | Description |
 |----------|-------------|
-| [`docs/installation.md`](docs/installation.md) | Detailed installation and setup guide |
-| [`docs/receipt-types.md`](docs/receipt-types.md) | Fiscal Invoice, Credit Note, Debit Note rules |
-| [`docs/fiscal-counters.md`](docs/fiscal-counters.md) | How counters work and how they are calculated |
-| [`docs/closing-day.md`](docs/closing-day.md) | Closing day hash string and signature spec |
-| [`docs/certificate-management.md`](docs/certificate-management.md) | Certificate lifecycle and renewal |
-| [`docs/error-reference.md`](docs/error-reference.md) | All exceptions and what causes them |
-| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributing guidelines |
+| [`installation.md`](installation.md) | Detailed installation and setup guide |
+| [`receipt-types.md`](receipt-types.md) | Fiscal Invoice, Credit Note, Debit Note rules |
+| [`fiscal-counters.md`](fiscal-counters.md) | How counters work and how they are calculated |
+| [`closing-day.md`](closing-day.md) | Closing day hash string and signature spec |
+| [`certificate-management.md`](certificate-management.md) | Certificate lifecycle and renewal |
+| [`error-reference.md`](error-reference.md) | All exceptions and what causes them |
+| [`changelog.md`](changelog.md) | Version history |
+| [`contributing.md`](contributing.md) | Contributing guidelines |
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first.
+Contributions are welcome. Please read [`contributing.md`](contributing.md) first.
 
 ```bash
 # Set up dev environment
@@ -302,5 +302,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <div align="center">
-Built for Zimbabwe 🇿🇼 by <a href="mailto:cassymyo@gmail.com">Casper Moyoß</a>
+Built for Zimbabwe 🇿🇼 by <a href="mailto:cassymyo@gmail.com">Casper Moyo</a>
 </div>

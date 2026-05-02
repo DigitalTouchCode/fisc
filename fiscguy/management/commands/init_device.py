@@ -98,6 +98,7 @@ class Command(BaseCommand):
             model_version=inputs["model_version"],
             env=inputs["env"],
             csr=csr,
+            certificate_key=cert_key,
             device_sn=inputs["device_sn"],
         )
         if not signed_cert:
@@ -280,6 +281,7 @@ class Command(BaseCommand):
         model_version: str,
         env: bool,
         csr: str,
+        certificate_key: str,
         device_sn: str,
     ) -> str | None:
         """
@@ -298,20 +300,16 @@ class Command(BaseCommand):
             The signed certificate string on success, or None on failure.
         """
         base_url = _FDMS_URLS[env]
-        url = f"{base_url}/Public/v1/{device_id}/RegisterDevice"
-
-        # ZIMRA requires the CSR without line breaks
-        clean_csr = csr.replace("\n", "")
+        url = f"{base_url}/Public/v1/{device_id}/registerDevice"
 
         payload = {
             "activationKey": activation_key,
-            "deviceSerial": device_sn,
-            "certificateRequest": clean_csr,
+            "certificateRequest": csr,
         }
         headers = {
             "Content-Type": "application/json",
-            "deviceModelName": model_name,
-            "deviceModelVersion": model_version,
+            "DeviceModelName": model_name,
+            "DeviceModelVersion": model_version,
         }
 
         logger.info("Registering device {} at {}", device_id, url)
@@ -328,7 +326,15 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR("ZIMRA returned no certificate."))
                 return None
 
-            Certs.objects.filter().update(certificate=signed_cert)
+            Certs.objects.update_or_create(
+                device=Device.objects.get(device_id=device_id),
+                defaults={
+                    "csr": csr,
+                    "certificate": signed_cert,
+                    "certificate_key": certificate_key,
+                    "production": env,
+                },
+            )
             logger.info("Device {} registered successfully.", device_id)
             self.stdout.write(self.style.SUCCESS(f"Device {device_id} registered."))
             return signed_cert
@@ -382,8 +388,8 @@ class Command(BaseCommand):
         url = f"{base_url}/Device/v1/{device_id}/getConfig"
         headers = {
             "Content-Type": "application/json",
-            "deviceModelName": model_name,
-            "deviceModelVersion": model_version,
+            "DeviceModelName": model_name,
+            "DeviceModelVersion": model_version,
         }
 
         logger.info("Fetching config for device {} from {}", device_id, url)

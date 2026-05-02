@@ -101,8 +101,8 @@ receipt = submit_receipt({
     "currency": "USD",
     "total_amount": "23.00",
     "payment_terms": "Card",
-    "credit_note_reason": "Additional delivery charge",
-    "credit_note_reference": "R-00000142",
+    "debit_note_reason": "Additional delivery charge",
+    "debit_note_reference": "R-00000142",
     "lines": [
         {
             "product": "Delivery fee",
@@ -123,6 +123,12 @@ receipt = submit_receipt({
 | `DebitNoteByTax` | `+salesAmountWithTax` per tax group |
 | `DebitNoteTaxByTax` | `+taxAmount` per tax group |
 | `BalanceByMoneyType` | `+paymentAmount` |
+
+**Rules (ZIMRA spec):**
+- `receiptTotal` must be `>= 0`
+- `receiptNotes` (reason) is mandatory
+- `creditDebitNote` reference to original invoice is mandatory
+- `paymentAmount` must be `>= 0`
 
 ---
 
@@ -171,9 +177,9 @@ Attach buyer registration data to any receipt type:
 # Create a buyer first
 from fiscguy.models import Buyer
 buyer = Buyer.objects.create(
-    name="ACME Corp",
+    name="Cas Bz",
     tin_number="1234567890",
-    email="accounts@acme.co.zw",
+    email="accounts@casbz.co.zw",
 )
 
 # Pass buyer ID in receipt payload

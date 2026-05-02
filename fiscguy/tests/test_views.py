@@ -17,7 +17,15 @@ from fiscguy.models import Buyer, Configuration, Device, FiscalCounter, FiscalDa
 
 
 def make_device(**kwargs) -> Device:
-    defaults = dict(device_id="23265", production=False)
+    defaults = dict(
+        org_name="Test Org",
+        activation_key="test-key",
+        device_id="41872",
+        device_model_name="Server",
+        device_model_version="1.0",
+        device_serial_number="SN-001",
+        production=False,
+    )
     defaults.update(kwargs)
     return Device.objects.create(**defaults)
 

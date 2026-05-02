@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from typing import Dict
 
 from django.db import DatabaseError, transaction
@@ -56,6 +57,10 @@ class ConfigurationService:
                 "address": address,
                 "phone_number": contacts.get("phoneNo", ""),
                 "email": contacts.get("email", ""),
+                "device_operating_mode": res.get("deviceOperatingMode", ""),
+                "tax_payer_day_max_hrs": res.get("taxPayerDayMaxHrs"),
+                "tax_payer_day_end_notification_hrs": res.get("taxpayerDayEndNotificationHrs"),
+                "certificate_valid_till": self._parse_date(res.get("certificateValidTill")),
                 "url": res.get("qrUrl"),
             },
         )
@@ -69,6 +74,18 @@ class ConfigurationService:
             config.address = address or config.address
             config.phone_number = contacts.get("phoneNo", config.phone_number)
             config.email = contacts.get("email", config.email)
+            config.device_operating_mode = res.get(
+                "deviceOperatingMode", config.device_operating_mode
+            )
+            config.tax_payer_day_max_hrs = res.get(
+                "taxPayerDayMaxHrs", config.tax_payer_day_max_hrs
+            )
+            config.tax_payer_day_end_notification_hrs = res.get(
+                "taxpayerDayEndNotificationHrs", config.tax_payer_day_end_notification_hrs
+            )
+            config.certificate_valid_till = (
+                self._parse_date(res.get("certificateValidTill")) or config.certificate_valid_till
+            )
             config.url = res.get("qrUrl", config.url)
 
             config.save()
@@ -110,3 +127,12 @@ class ConfigurationService:
             if (v := branch_addr.get(key))
         ]
         return ", ".join(parts)
+
+    @staticmethod
+    def _parse_date(value: str | None) -> date | None:
+        if not value:
+            return None
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return datetime.fromisoformat(value).date()

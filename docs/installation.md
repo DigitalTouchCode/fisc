@@ -93,9 +93,9 @@ You will be prompted for:
 
 | Prompt | Example | Description |
 |--------|---------|-------------|
-| Organisation name | `ACME Ltd` | Your company name |
+| Organisation name | `Cas Bz` | Your company name |
 | Activation key | `ABC-123-XYZ` | Provided by ZIMRA |
-| Device ID | `23265` | Provided by ZIMRA |
+| Device ID | `41872` | Provided by ZIMRA |
 | Device model name | `FiscGuy-v1` | Your device model |
 | Device model version | `1.0.0` | Your device version |
 | Device serial number | `SN0001` | Your device serial |
@@ -117,7 +117,7 @@ from fiscguy.models import Device, Configuration, Taxes
 
 # Device should exist
 device = Device.objects.first()
-print(device)  # "ACME Ltd - 23265"
+print(device)  # "Cas Bz - 41872"
 
 # Config should be populated
 config = Configuration.objects.first()
@@ -166,9 +166,10 @@ Runs `black`, `isort`, and `flake8` on every commit.
 
 Run `python manage.py init_device`.
 
-### `RuntimeError: ZIMRA configuration missing`
+### Configuration record is missing
 
-The `Configuration` record is missing. Either `init_device` didn't complete, or run:
+If the `Configuration` table is still empty after setup, the initial sync did not complete.
+Run `python manage.py init_device` again, or manually refresh configuration:
 
 ```python
 from fiscguy import get_configuration

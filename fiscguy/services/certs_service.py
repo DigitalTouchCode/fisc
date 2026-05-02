@@ -1,10 +1,9 @@
 from typing import Tuple
 
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from loguru import logger
 
-from fiscguy.exceptions import CertNotFoundError, CryptoError, PersistenceError, RegistrationError
+from fiscguy.exceptions import CryptoError, PersistenceError, RegistrationError
 from fiscguy.models import Certs, Device
 from fiscguy.zimra_base import ZIMRAClient
 from fiscguy.zimra_crypto import ZIMRACrypto
@@ -20,7 +19,7 @@ class CertificateService:
 
     def issue_certificate(self) -> Tuple[str, str]:
         """
-        Generate a key-pair + CSR, register the device with ZIMRA,
+        Generate a key-pair + CSR, renew the device certificate with ZIMRA,
         and persist the signed certificate.
 
         Returns:
@@ -32,8 +31,8 @@ class CertificateService:
             PersistenceError: The signed certificate could not be saved.
         """
         private_key, csr = self._generate_key_and_csr()
-        signed_cert = self._sign_certificate(csr)
-        self._persist_certificate(signed_cert)
+        signed_cert = self._issue_certificate(csr)
+        self._persist_certificate(private_key, csr, signed_cert)
         return private_key, signed_cert
 
     def _generate_key_and_csr(self) -> Tuple[str, str]:
@@ -48,37 +47,38 @@ class CertificateService:
             logger.exception("Key/CSR generation failed for device {}", self.device.device_id)
             raise CryptoError("Failed to generate key and CSR.") from exc
 
-    def _sign_certificate(self, csr: str) -> str:
-        """Submit the CSR to ZIMRA and return the signed certificate PEM."""
-        payload = {
-            "activationKey": self.device.activation_key,
-            "deviceSerial": self.device.device_serial_number,
-            "certificateRequest": csr.replace("\n", ""),  # remove escape character,
-        }
+    def _issue_certificate(self, csr: str) -> str:
+        """Submit the CSR to ZIMRA's issueCertificate endpoint and return the certificate PEM."""
+        payload = {"certificateRequest": csr}
         try:
-            return self.client.register_device(payload)
+            response = self.client.issue_certificate(payload)
         except Exception as exc:
             logger.error(
-                "Device registration failed for serial={} — {}",
+                "Certificate renewal failed for serial={} — {}",
                 self.device.device_serial_number,
                 exc,
             )
-            raise RegistrationError("ZIMRA device registration failed.") from exc
+            raise RegistrationError("ZIMRA certificate renewal failed.") from exc
 
-    def _persist_certificate(self, signed_cert: str) -> None:
+        certificate = response.get("certificate")
+        if not certificate:
+            raise RegistrationError("ZIMRA did not return a renewed certificate.")
+
+        return certificate
+
+    def _persist_certificate(self, private_key: str, csr: str, signed_cert: str) -> None:
         """Write the signed certificate to the database inside a transaction."""
         try:
-            tenant_cert = Certs.objects.filter(device=self.device).first()
-        except ObjectDoesNotExist as exc:
-            logger.error("No certificate record found for device={}", self.device)
-            raise CertNotFoundError(
-                f"Certificate record not found for device {self.device!r}."
-            ) from exc
-
-        try:
             with transaction.atomic():
-                tenant_cert.certificate = signed_cert
-                tenant_cert.save(update_fields=["certificate"])
+                tenant_cert, _ = Certs.objects.update_or_create(
+                    device=self.device,
+                    defaults={
+                        "csr": csr,
+                        "certificate": signed_cert,
+                        "certificate_key": private_key,
+                        "production": self.device.production,
+                    },
+                )
         except Exception as exc:
             logger.error(f"Failed to persist certificate for device={self.device} — {exc}")
             raise PersistenceError("Could not save the signed certificate.") from exc
