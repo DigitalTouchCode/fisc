@@ -45,7 +45,7 @@ BANNER = """
 *                                                                         *
 ***************************************************************************
 
-Developed by Casper Moyo — Version 0.1.6
+Developed by Casper Moyo — Version 0.1.8
 """
 
 _FDMS_URLS = {

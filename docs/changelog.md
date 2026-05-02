@@ -3,8 +3,12 @@
 All notable changes to Fiscguy are documented in this file.  
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased 0.1.7]
+## 0.1.8
+### Added
+- close day life cycle
+- get_update taxes and config no deletes
 
+## 0.1.6 / 0.1.7
 ### Added
 - **ARCHITECTURE.md** - Comprehensive internal engineering documentation covering:
   - Layered architecture and component responsibilities
@@ -64,6 +68,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   the initial registration flow.
 - Documentation examples and links were aligned with the current repo layout and
   naming, including `Cas Bz` sample data and direct links to local markdown docs.
+- Installation, receipt-type, and fiscal-counter examples were refreshed to use
+  the current sample organisation (`Cas Bz`) and a 5-digit sample device ID (`41872`).
 
 ### Fixed
 - `ReceiptCreateSerializer`: added `device` field to serializer's `fields` list so that the device
@@ -95,6 +101,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   close-day payload entries.
 - `init_device`: certificate persistence now stores the actual CSR, private key, certificate,
   and environment on the device certificate record instead of updating certificate text only.
+- Documentation coherence issues were cleaned up in `README.md` and `docs/index.md`,
+  including stale local links, outdated troubleshooting text, and example inconsistencies.
 
 ### Removed
 - Removed deprecated `pyOpenSSL` (`OpenSSL.crypto`) usage from `ZIMRACrypto.generate_key_and_csr`
