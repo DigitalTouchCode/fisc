@@ -1,4 +1,5 @@
 import shutil
+import stat
 import tempfile
 import threading
 from pathlib import Path
@@ -16,23 +17,25 @@ class CertTempManager:
         self._pem_path = self._temp_dir / "client.pem"
         self._key_path = self._temp_dir / "key.pem"
 
-        self._pem_path.write_text(rf"{cert_pem}\{key_pem}")
-        self._key_path.write_text(f"{key_pem}")
+        self._pem_path.write_text(f"{cert_pem}\n{key_pem}")
+        self._key_path.write_text(key_pem)
+        self._pem_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        self._key_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
         self._closed = False
 
-        @property
-        def cert_path(self) -> str:
-            return str(self._pem_path)
+    @property
+    def cert_path(self) -> str:
+        return str(self._pem_path)
 
-        @property
-        def key_path(self) -> str:
-            return str(self._key_path)
+    @property
+    def key_path(self) -> str:
+        return str(self._key_path)
 
-        def close(self):
-            with self._lock:
-                if not self._closed:
-                    shutil.rmtree(self._temp_dir, ignore_errors=True)
-                    self._closed = True
+    def close(self):
+        with self._lock:
+            if not self._closed:
+                shutil.rmtree(self._temp_dir, ignore_errors=True)
+                self._closed = True
 
-        def __del__(self):
-            self.close()
+    def __del__(self):
+        self.close()

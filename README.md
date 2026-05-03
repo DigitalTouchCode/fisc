@@ -30,6 +30,8 @@ FiscGuy gives Django applications a simple, Pythonic interface for every fiscal 
 - **Multiple payment methods** — Cash, Card, Mobile Wallet, Bank Transfer, Coupon, Credit, Other
 - **Buyer management** — optional buyer TIN and registration data on receipts
 - **Cursor pagination** — efficient receipt listing for large datasets
+- **Protected key storage** — device private keys are encrypted at rest
+- **Operational hardening** — certificate material is redacted in Django admin and temporary PEM files are cleaned up after use
 - **Typed exceptions** — every error condition has its own exception class
 - **90%+ test coverage** — mocked ZIMRA and crypto, fast CI
 
@@ -123,6 +125,7 @@ receipt = submit_receipt({
 
 close_day()
 ```
+
 ---
 
 ## REST Endpoints
@@ -166,6 +169,19 @@ Typical user-facing messages are:
 For frontend integrations, call `POST /fiscguy/close-day/` once, then poll
 `GET /fiscguy/get-status/` until the fiscal day moves from `close_pending` to `closed` or
 `close_failed`.
+
+### Security
+
+FiscGuy includes baseline protections for certificate and signing material:
+
+- Device private keys are encrypted at rest in the `Certs` table
+- Raw certificate and private-key fields are not exposed through the default Django admin registration
+- Temporary PEM files used for mutual TLS are written with restricted permissions and cleaned up after use
+- Dependency versions are maintained against known vulnerability advisories
+
+For production deployments, you should still review application-level authentication,
+admin access, database encryption policy, backup handling, and key-management requirements
+for your environment.
 
 ### Pagination
 
@@ -246,7 +262,7 @@ receipts = Receipt.objects.select_related("buyer").prefetch_related("lines")
 
 ### `init_device`
 
-Interactive device setup — run once per device:
+Interactive device setup for first-time provisioning:
 
 ```bash
 python manage.py init_device
@@ -278,6 +294,12 @@ pytest fiscguy/tests/test_closing_day_service.py::TestBuildSaleByTax
 ```
 
 All tests mock ZIMRA API calls and crypto operations — no network access required.
+
+Dependency audit:
+
+```bash
+pip-audit -r requirements.txt
+```
 
 ---
 

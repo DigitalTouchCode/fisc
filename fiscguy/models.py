@@ -1,5 +1,7 @@
 from django.db import models
 
+from fiscguy.fields import EncryptedTextField
+
 
 class Device(models.Model):
     org_name = models.CharField(max_length=255)
@@ -64,7 +66,7 @@ class Certs(models.Model):
     )
     csr = models.TextField()
     certificate = models.TextField()
-    certificate_key = models.TextField()
+    certificate_key = EncryptedTextField()
     production = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
