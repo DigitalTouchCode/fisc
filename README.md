@@ -144,6 +144,29 @@ When URLs are included, FiscGuy exposes the following endpoints:
 | `POST` | `/fiscguy/issue-certificate/` | Renew device certificate |
 | `*` | `/fiscguy/buyer/` | Buyer CRUD (ModelViewSet) |
 
+### Close-Day Status Flow
+
+Closing a fiscal day has two states to track:
+
+- **Local database state** - `open`, `close_pending`, `close_failed`, `closed`
+- **FDMS state** - values such as `FiscalDayOpen`, `FiscalDayCloseInitiated`, `FiscalDayClosed`
+
+FiscGuy does **not** mark the fiscal day closed locally on the first close request. When FDMS
+accepts the request with `FiscalDayCloseInitiated`, the library keeps the local day in
+`close_pending`, starts background status polling, and only marks the day `closed` after FDMS
+confirms the close.
+
+Typical user-facing messages are:
+
+- `Close request submitted. FDMS is processing the fiscal day close.`
+- `Closing fiscal day... waiting for FDMS confirmation.`
+- `Fiscal day closed successfully.`
+- `Fiscal day close failed in FDMS.`
+
+For frontend integrations, call `POST /fiscguy/close-day/` once, then poll
+`GET /fiscguy/get-status/` until the fiscal day moves from `close_pending` to `closed` or
+`close_failed`.
+
 ### Pagination
 
 Receipt listing supports cursor-based pagination:

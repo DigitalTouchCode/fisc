@@ -1,7 +1,8 @@
+import threading
 from collections import defaultdict
-from time import sleep
 from typing import Any, Dict, Iterable, List, Tuple
 
+from django.db import close_old_connections
 from django.utils import timezone
 from loguru import logger
 
@@ -21,6 +22,9 @@ DEBIT_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
 
 class ClosingDayService:
     """Closing day service"""
+
+    CLOSE_STATUS_POLL_INTERVAL_SECONDS = 10
+    CLOSE_STATUS_POLL_ATTEMPTS = 6
 
     def __init__(
         self,
@@ -50,10 +54,7 @@ class ClosingDayService:
 
     def _fmt_tax_percent(self, tax_percent) -> str:
         """
-        Format tax percent for the closing signature string per ZIMRA spec
-        (section 13.3.1):
-          - Always two decimal places: 15 → "15.00", 0 → "0.00", 14.5 → "14.50"
-          - Exempt (None) → empty string ""
+        Format tax percent for the closing signature string
         """
         if tax_percent is None:
             return ""
@@ -81,7 +82,7 @@ class ClosingDayService:
                 c
                 for c in self.counters
                 if c.fiscal_counter_type.lower() == "salebytax" and c.fiscal_counter_value != 0
-            ]  # spec: zero-value counters must not be submitted
+            ]
         )
 
         for c in relevant:
@@ -123,7 +124,7 @@ class ClosingDayService:
                 c
                 for c in self.counters
                 if c.fiscal_counter_type.lower() == "saletaxbytax" and c.fiscal_counter_value != 0
-            ]  # spec: zero-value counters must not be submitted
+            ]
         )
 
         for c in relevant:
@@ -154,7 +155,6 @@ class ClosingDayService:
     def build_credit_note_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
-        # spec: zero-value counters must not be submitted
         relevant = self._sort_by_tax_id(
             [
                 c
@@ -177,7 +177,6 @@ class ClosingDayService:
             base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
             tax_part: str = self._fmt_tax_percent(c.fiscal_counter_tax_percent)
 
-            # Value is already negative (set correctly by _update_fiscal_counters_inner)
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
             self.credit_by_tax_payload.append(
@@ -199,7 +198,6 @@ class ClosingDayService:
     def build_credit_note_tax_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
 
-        # spec: zero-value counters must not be submitted
         relevant = self._sort_by_tax_id(
             [
                 c
@@ -216,7 +214,6 @@ class ClosingDayService:
             base: str = c.fiscal_counter_type.lower() + c.fiscal_counter_currency.upper()
             tax_part: str = self._fmt_tax_percent(c.fiscal_counter_tax_percent)
 
-            # Value is already negative (set correctly by _update_fiscal_counters_inner)
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
             self.credit_tax_by_tax_payload.append(
@@ -407,12 +404,8 @@ class ClosingDayService:
         logger.info(payload)
         self.client.close_day(payload)
         self._mark_close_requested()
-
-        sleep(10)
-
         status = self.client.get_status()
-        StatusService.reconcile_fiscal_day(self.device, status)
-        self.fiscal_day.refresh_from_db()
+        self._reconcile_status(status)
 
         if not status:
             raise CloseDayError("FDMS returned an empty response")
@@ -427,9 +420,10 @@ class ClosingDayService:
             raise CloseDayError(f"FDMS rejected the close day request (errorCode={error_code})")
 
         if fiscal_day_status == "FiscalDayCloseInitiated":
+            self._schedule_close_status_poll()
             return {
                 **status,
-                "message": "Close request accepted by FDMS and is still processing",
+                "message": "Close request accepted by FDMS; background status polling started",
             }
 
         logger.warning(f"Unexpected fiscalDayStatus from FDMS: {status}")
@@ -450,5 +444,79 @@ class ClosingDayService:
 
     def _reconcile_with_fdms(self) -> None:
         status = self.client.get_status()
+        self._reconcile_status(status)
+
+    def _reconcile_status(self, status: Dict[str, Any]) -> None:
         StatusService.reconcile_fiscal_day(self.device, status)
         self.fiscal_day.refresh_from_db()
+
+    def _schedule_close_status_poll(self) -> None:
+        thread = threading.Thread(
+            target=self._poll_close_status_in_background,
+            name=f"fiscguy-close-day-{self.device.device_id}-{self.fiscal_day.day_no}",
+            daemon=True,
+        )
+        thread.start()
+
+    def _poll_close_status_in_background(self) -> None:
+        """
+        Poll FDMS after a close request has been accepted.
+        """
+        close_old_connections()
+        try:
+            for attempt in range(self.CLOSE_STATUS_POLL_ATTEMPTS):
+                if attempt > 0:
+                    threading.Event().wait(self.CLOSE_STATUS_POLL_INTERVAL_SECONDS)
+
+                status = self.client.get_status()
+                if not status:
+                    logger.warning(
+                        "FDMS returned an empty close-day polling response for device {} day {}",
+                        self.device.device_id,
+                        self.fiscal_day.day_no,
+                    )
+                    continue
+
+                self._reconcile_status(status)
+                fiscal_day_status = status.get("fiscalDayStatus", "")
+
+                if fiscal_day_status in {"FiscalDayClosed", "FiscalDayCloseExecuted"}:
+                    logger.info(
+                        "Background close-day polling completed for device {} day {}",
+                        self.device.device_id,
+                        self.fiscal_day.day_no,
+                    )
+                    return
+
+                if fiscal_day_status == "FiscalDayCloseFailed":
+                    logger.error(
+                        "Background close-day polling failed for device {} day {}: {}",
+                        self.device.device_id,
+                        self.fiscal_day.day_no,
+                        status.get("fiscalDayClosingErrorCode", "unknown"),
+                    )
+                    return
+
+                if fiscal_day_status != "FiscalDayCloseInitiated":
+                    logger.warning(
+                        "Background close-day polling received unexpected fiscalDayStatus "
+                        "for device {} day {}: {}",
+                        self.device.device_id,
+                        self.fiscal_day.day_no,
+                        fiscal_day_status,
+                    )
+                    return
+
+            logger.warning(
+                "Background close-day polling exhausted retries for device {} day {}",
+                self.device.device_id,
+                self.fiscal_day.day_no,
+            )
+        except Exception:
+            logger.exception(
+                "Background close-day polling crashed for device {} day {}",
+                self.device.device_id,
+                self.fiscal_day.day_no,
+            )
+        finally:
+            close_old_connections()

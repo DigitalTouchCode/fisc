@@ -286,10 +286,8 @@ class TestClosingDayServiceCloseDay:
     """Test close day functionality with real HTTP client mocking."""
 
     @patch("fiscguy.zimra_base.requests.Session.request")
-    @patch("fiscguy.services.closing_day_service.sleep")
     def test_close_day_success(
         self,
-        mock_sleep,
         mock_request,
         device,
         fiscal_day,
@@ -328,13 +326,10 @@ class TestClosingDayServiceCloseDay:
         fiscal_day.refresh_from_db()
         assert fiscal_day.is_open is False
         assert fiscal_day.close_state == FiscalDay.CloseState.CLOSED
-        mock_sleep.assert_called_once_with(10)
 
     @patch("fiscguy.zimra_base.requests.Session.request")
-    @patch("fiscguy.services.closing_day_service.sleep")
     def test_close_day_empty_response(
         self,
-        mock_sleep,
         mock_request,
         device,
         fiscal_day,
@@ -363,10 +358,8 @@ class TestClosingDayServiceCloseDay:
             service.close_day()
 
     @patch("fiscguy.zimra_base.requests.Session.request")
-    @patch("fiscguy.services.closing_day_service.sleep")
     def test_close_day_failed_status(
         self,
-        mock_sleep,
         mock_request,
         device,
         fiscal_day,
@@ -405,10 +398,8 @@ class TestClosingDayServiceCloseDay:
         assert fiscal_day.close_state == FiscalDay.CloseState.CLOSE_FAILED
 
     @patch("fiscguy.zimra_base.requests.Session.request")
-    @patch("fiscguy.services.closing_day_service.sleep")
     def test_close_day_unexpected_status(
         self,
-        mock_sleep,
         mock_request,
         device,
         fiscal_day,
@@ -443,10 +434,8 @@ class TestClosingDayServiceCloseDay:
             service.close_day()
 
     @patch("fiscguy.zimra_base.requests.Session.request")
-    @patch("fiscguy.services.closing_day_service.sleep")
     def test_close_day_constructs_correct_payload(
         self,
-        mock_sleep,
         mock_request,
         device,
         fiscal_day,
@@ -483,12 +472,12 @@ class TestClosingDayServiceCloseDay:
         assert "fiscalDayCounters" in service.client.session.headers or True
         assert result["fiscalDayStatus"] == "FiscalDayClosed"
 
+    @patch("fiscguy.services.closing_day_service.ClosingDayService._schedule_close_status_poll")
     @patch("fiscguy.zimra_base.requests.Session.request")
-    @patch("fiscguy.services.closing_day_service.sleep")
-    def test_close_day_pending_status_returns_pending(
+    def test_close_day_pending_status_returns_pending_without_blocking(
         self,
-        mock_sleep,
         mock_request,
+        mock_schedule_poll,
         device,
         fiscal_day,
         fiscal_counters,
@@ -521,8 +510,53 @@ class TestClosingDayServiceCloseDay:
 
         fiscal_day.refresh_from_db()
         assert result["fiscalDayStatus"] == "FiscalDayCloseInitiated"
+        assert "background status polling started" in result["message"]
         assert fiscal_day.close_state == FiscalDay.CloseState.CLOSE_PENDING
         assert fiscal_day.is_open is True
+        mock_schedule_poll.assert_called_once_with()
+
+    @patch("fiscguy.services.closing_day_service.threading.Event")
+    @patch("fiscguy.zimra_base.requests.Session.request")
+    def test_background_polling_closes_day_after_initiated_status(
+        self,
+        mock_request,
+        mock_event,
+        device,
+        fiscal_day,
+        fiscal_counters,
+        tax_map,
+        configuration,
+        certs,
+    ):
+        service = ClosingDayService(device, fiscal_day, fiscal_counters, tax_map)
+        mock_event.return_value.wait.return_value = None
+
+        initiated_status = {
+            "fiscalDayStatus": "FiscalDayCloseInitiated",
+            "fiscalDayNo": 1,
+        }
+        closed_status = {
+            "fiscalDayStatus": "FiscalDayClosed",
+            "fiscalDayNo": 1,
+        }
+
+        service._reconcile_status(initiated_status)
+
+        initiated_response = Mock(spec=requests.Response)
+        initiated_response.status_code = 200
+        initiated_response.json.return_value = initiated_status
+
+        closed_response = Mock(spec=requests.Response)
+        closed_response.status_code = 200
+        closed_response.json.return_value = closed_status
+
+        mock_request.side_effect = [initiated_response, closed_response]
+
+        service._poll_close_status_in_background()
+
+        fiscal_day.refresh_from_db()
+        assert fiscal_day.close_state == FiscalDay.CloseState.CLOSED
+        assert fiscal_day.is_open is False
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_close_day_returns_already_closed_after_reconciliation(
