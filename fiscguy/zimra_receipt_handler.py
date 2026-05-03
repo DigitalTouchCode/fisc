@@ -97,6 +97,10 @@ class ZIMRAReceiptHandler:
         fiscal_day = FiscalDay.objects.filter(device=self._device, is_open=True).first()
 
         if fiscal_day:
+            if fiscal_day.close_state == FiscalDay.CloseState.CLOSE_PENDING:
+                raise ReceiptSubmissionError(
+                    "Fiscal day close is pending FDMS confirmation; new receipts are blocked"
+                )
             return fiscal_day
 
         logger.info(f"No open fiscal day for device {self._device} — attempting auto-open")
@@ -199,6 +203,9 @@ class ZIMRAReceiptHandler:
         is_credit_note = receipt.receipt_type.lower() == "creditnote"
         is_debit_note = receipt.receipt_type.lower() == "debitnote"
         fdms_receipt_type = self._fdms_receipt_type(receipt.receipt_type)
+        original_receipt = (
+            self._get_original_receipt(receipt) if (is_credit_note or is_debit_note) else None
+        )
 
         last_receipt = (
             Receipt.objects.filter(device=self._device)
@@ -234,7 +241,13 @@ class ZIMRAReceiptHandler:
             line_data = {
                 "receiptLineType": "Sale",
                 "receiptLineNo": index,
-                "receiptLineHSCode": "01010101",
+                "receiptLineHSCode": self._resolve_receipt_line_hs_code(
+                    item=item,
+                    tax_name=tax_name,
+                    is_credit_note=is_credit_note,
+                    is_debit_note=is_debit_note,
+                    original_receipt=original_receipt,
+                ),
                 "receiptLineName": item.product,
                 "receiptLinePrice": float(unit_price),
                 "receiptLineQuantity": float(quantity),
@@ -247,15 +260,25 @@ class ZIMRAReceiptHandler:
             receipt_lines.append(line_data)
 
         receipt_taxes = []
+        signature_taxes = []
         for (tax_id, tax_percent, tax_name), totals in tax_group_totals.items():
+            rounded_tax_amount = round(totals["taxAmount"], 2)
+            rounded_sales_amount = round(totals["salesAmountWithTax"], 2)
             tax_obj = {
                 "taxID": tax_id,
-                "taxAmount": float(round(totals["taxAmount"], 2)),
-                "salesAmountWithTax": float(round(totals["salesAmountWithTax"], 2)),
+                "taxAmount": float(rounded_tax_amount),
+                "salesAmountWithTax": float(rounded_sales_amount),
+            }
+            signature_tax_obj = {
+                "taxID": tax_id,
+                "taxAmount": rounded_tax_amount,
+                "salesAmountWithTax": rounded_sales_amount,
             }
             if tax_name != "exempt":
                 tax_obj["taxPercent"] = float(tax_percent)
+                signature_tax_obj["taxPercent"] = tax_percent
             receipt_taxes.append(tax_obj)
+            signature_taxes.append(signature_tax_obj)
 
         # Resolve global number once and reuse
         global_no = self._get_next_global_number(receipt)
@@ -290,15 +313,8 @@ class ZIMRAReceiptHandler:
             ),
         }
 
-        if is_credit_note or is_debit_note:
-            try:
-                original = Receipt.objects.get(receipt_number=receipt.credit_note_reference)
-            except Receipt.DoesNotExist as exc:
-                note_kind = "Credit" if is_credit_note else "Debit"
-                raise ReceiptSubmissionError(
-                    f"{note_kind} note references unknown receipt: {receipt.credit_note_reference}"
-                ) from exc
-            receipt_data["creditDebitNote"] = {"receiptID": original.zimra_inv_id}
+        if original_receipt:
+            receipt_data["creditDebitNote"] = {"receiptID": original_receipt.zimra_inv_id}
 
         if receipt.buyer:
             receipt_data["buyerData"] = {
@@ -312,12 +328,58 @@ class ZIMRAReceiptHandler:
             receipt_currency=receipt_data["receiptCurrency"],
             receipt_global_no=receipt_data["receiptGlobalNo"],
             receipt_date=receipt_data["receiptDate"],
-            receipt_total=receipt_data["receiptTotal"],
-            receipt_taxes=receipt_data["receiptTaxes"],
+            receipt_total=receipt.total_amount,
+            receipt_taxes=signature_taxes,
             previous_receipt_hash=receipt_data["previousReceiptHash"],
         )
 
         return {"receipt_string": signature_string, "receipt_data": receipt_data}
+
+    def _get_original_receipt(self, receipt: Receipt) -> Receipt:
+        try:
+            return Receipt.objects.get(receipt_number=receipt.credit_note_reference)
+        except Receipt.DoesNotExist as exc:
+            note_kind = "Credit" if receipt.receipt_type.lower() == "creditnote" else "Debit"
+            raise ReceiptSubmissionError(
+                f"{note_kind} note references unknown receipt: {receipt.credit_note_reference}"
+            ) from exc
+
+    def _resolve_receipt_line_hs_code(
+        self,
+        item,
+        tax_name: str,
+        is_credit_note: bool,
+        is_debit_note: bool,
+        original_receipt: Receipt | None,
+    ) -> str:
+        if item.hs_code:
+            return item.hs_code
+
+        if (is_credit_note or is_debit_note) and original_receipt:
+            inherited_hs_code = self._inherit_original_hs_code(original_receipt, item.product)
+            if inherited_hs_code:
+                return inherited_hs_code
+            if is_debit_note:
+                return self._service_hs_code_for_tax_name(tax_name)
+
+        return "01010101"
+
+    @staticmethod
+    def _inherit_original_hs_code(original_receipt: Receipt, product_name: str) -> str:
+        original_line = (
+            original_receipt.lines.filter(product__iexact=product_name.strip())
+            .exclude(hs_code="")
+            .first()
+        )
+        return original_line.hs_code if original_line else ""
+
+    @staticmethod
+    def _service_hs_code_for_tax_name(tax_name: str) -> str:
+        if "exempt" in tax_name:
+            return "99003000"
+        if "zero" in tax_name:
+            return "99002000"
+        return "99001000"
 
     def _submit_to_fdms(self, hash_value: str, signature: str, receipt_data: dict) -> dict:
         """

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -68,6 +70,7 @@ class ReceiptLineSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "product",
+            "hs_code",
             "quantity",
             "unit_price",
             "line_total",
@@ -82,18 +85,27 @@ class ReceiptLineCreateSerializer(serializers.ModelSerializer):
     Writable serializer for receipt lines used when creating receipts.
     """
 
-    tax_name = serializers.CharField(write_only=True, required=False)
+    tax_id = serializers.IntegerField(write_only=True)
+    hs_code = serializers.CharField(required=False, allow_blank=True, max_length=8)
 
     class Meta:
         model = ReceiptLine
         fields = [
             "product",
+            "hs_code",
             "quantity",
             "unit_price",
             "line_total",
             "tax_amount",
-            "tax_name",
+            "tax_id",
         ]
+
+    def validate_hs_code(self, value):
+        if not value:
+            return value
+        if not value.isdigit() or len(value) not in {4, 8}:
+            raise serializers.ValidationError("hs_code must be a 4-digit or 8-digit numeric code")
+        return value
 
 
 class BuyerSerializer(serializers.ModelSerializer):
@@ -178,7 +190,31 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         receipt_type = attrs.get("receipt_type", "").lower()
         total_amount = attrs.get("total_amount", 0)
+        lines = attrs.get("lines") or []
         reference, reason = self._resolve_note_fields(attrs)
+
+        if not lines:
+            raise serializers.ValidationError({"lines": "At least one receipt line is required"})
+
+        line_total_sum = sum((line["line_total"] for line in lines), Decimal("0"))
+        if line_total_sum != total_amount:
+            raise serializers.ValidationError(
+                {"total_amount": "Receipt total must equal the sum of line totals"}
+            )
+
+        if receipt_type == "fiscalinvoice":
+            missing_hs_codes = [
+                index for index, line in enumerate(lines, start=1) if not line.get("hs_code")
+            ]
+            if missing_hs_codes:
+                raise serializers.ValidationError(
+                    {
+                        "lines": (
+                            "hs_code is required for fiscal invoice lines: "
+                            f"{', '.join(str(index) for index in missing_hs_codes)}"
+                        )
+                    }
+                )
 
         if receipt_type in {"creditnote", "debitnote"}:
             if not reference:
@@ -250,22 +286,14 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
 
             for idx, line_data in enumerate(lines_data):
 
-                tax_name = line_data.pop("tax_name", None)
-
-                if tax_name:
-                    tax = (
-                        Taxes.objects.filter(device=device, name__iexact=tax_name.strip()).first()
-                        or Taxes.objects.filter(
-                            device=device, name__icontains=tax_name.strip()
-                        ).first()
+                tax_id = line_data.pop("tax_id")
+                tax = Taxes.objects.filter(device=device, tax_id=tax_id).first()
+                if not tax:
+                    raise serializers.ValidationError(
+                        {"lines": {idx: f"Tax with tax_id '{tax_id}' not found"}}
                     )
 
-                    if not tax:
-                        raise serializers.ValidationError(
-                            {"lines": {idx: f"Tax with name '{tax_name}' not found"}}
-                        )
-
-                    line_data["tax_type"] = tax
+                line_data["tax_type"] = tax
 
                 if receipt_type == "creditnote":
                     if line_data.get("unit_price", 0) > 0:

@@ -114,11 +114,12 @@ receipt = submit_receipt({
     "lines": [
         {
             "product": "Consulting Service",
+            "hs_code": "99001000",
+            "tax_id": 517,
             "quantity": "1",
             "unit_price": "115.00",
             "line_total": "115.00",
             "tax_amount": "15.00",
-            "tax_name": "standard rated 15.5%",
         }
     ],
 })
@@ -169,6 +170,49 @@ Typical user-facing messages are:
 For frontend integrations, call `POST /fiscguy/close-day/` once, then poll
 `GET /fiscguy/get-status/` until the fiscal day moves from `close_pending` to `closed` or
 `close_failed`.
+
+### HS Code Mapping
+
+FiscGuy supports `hs_code` on receipt lines and passes it through to FDMS as
+`receiptLineHSCode`.
+
+Firms should map their product and service catalogues to the correct FDMS-compatible HS codes
+before going live. In practice, this means:
+
+- Physical goods should use the applicable tariff / HS classification for that item
+- Services and intangible supplies should use the appropriate ZIMRA service classifications where applicable
+- HS codes should be maintained as product master data, not typed ad hoc at the point of sale
+
+Recommended approach:
+
+- Add `hs_code` to each product or service in your own catalogue
+- Copy that code into each receipt line when submitting receipts
+- Reuse the original receipt line HS code for credit notes and product-linked debit notes where possible
+
+Current behavior:
+
+- `fiscalinvoice` lines accept `hs_code` in the payload and send it to FDMS as `receiptLineHSCode`
+- `creditnote` lines can inherit `hs_code` from the referenced original receipt line when no
+  explicit line `hs_code` is provided
+- `debitnote` lines can inherit `hs_code` from the referenced original receipt line, or fall back
+  to the appropriate ZIMRA service code when the debit line is a service/intangible adjustment
+
+Example receipt line:
+
+```json
+{
+  "product": "Consulting Service",
+  "hs_code": "99001000",
+  "tax_id": 517,
+  "quantity": "1",
+  "unit_price": "115.00",
+  "line_total": "115.00",
+  "tax_amount": "15.00"
+}
+```
+
+Use `GET /fiscguy/taxes/` to fetch the active device tax table first, then submit the
+matching `tax_id` on each receipt line. Do not rely on tax-name strings in production payloads.
 
 ### Security
 
@@ -347,5 +391,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 <div align="center">
-Built for Zimbabwe 🇿🇼 by <a href="mailto:cassymyo@gmail.com">Casper Moyo</a>
+Developed by <a href="mailto:cassymyo@gmail.com">Casper Moyo</a>
 </div>

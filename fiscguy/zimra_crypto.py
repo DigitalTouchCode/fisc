@@ -1,6 +1,7 @@
 import base64
 import binascii
 import hashlib
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Tuple
 
 from cryptography import x509
@@ -183,22 +184,17 @@ class ZIMRACrypto:
         Returns:
             str: Signature string
         """
-        # Convert total to cents
-        receipt_total_cents = int(receipt_total * 100)
+        receipt_total_cents = self._decimal_to_cents(receipt_total)
 
         def format_tax_line(tax):
             """Format a single tax line for signature"""
             if tax.get("taxPercent") is not None:
-                if isinstance(tax["taxPercent"], int):
-                    tax_percent = f"{tax['taxPercent']}.00"
-                else:
-                    tax_percent = f"{tax['taxPercent']:.2f}"
+                tax_percent = f"{self._to_decimal(tax['taxPercent']).quantize(Decimal('0.01'))}"
             else:
                 tax_percent = 0
 
-            tax_amount_cents = round(tax["taxAmount"] * 100)
-            sales_amount_cents = round(tax["salesAmountWithTax"] * 100)
-            tax_amount_cents = round(tax["taxAmount"] * 100)
+            tax_amount_cents = self._decimal_to_cents(tax["taxAmount"])
+            sales_amount_cents = self._decimal_to_cents(tax["salesAmountWithTax"])
 
             if tax.get("taxPercent") is not None:
                 return f"{tax_percent}{tax_amount_cents}{sales_amount_cents}"
@@ -228,6 +224,21 @@ class ZIMRACrypto:
         signature_string = "".join(signature_components)
 
         return signature_string
+
+    @staticmethod
+    def _to_decimal(value) -> Decimal:
+        if isinstance(value, Decimal):
+            return value
+        return Decimal(str(value))
+
+    @classmethod
+    def _decimal_to_cents(cls, value) -> int:
+        decimal_value = cls._to_decimal(value)
+        cents = (decimal_value * Decimal("100")).quantize(
+            Decimal("1"),
+            rounding=ROUND_HALF_UP,
+        )
+        return int(cents)
 
     @staticmethod
     def generate_key_and_csr(device_sn: str, device_id: int, env: bool = True) -> Tuple:

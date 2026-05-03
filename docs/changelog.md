@@ -10,12 +10,20 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   and `closed` states alongside FDMS status reconciliation.
 - Background close-day polling when FDMS returns `FiscalDayCloseInitiated`, allowing the
   request thread to return immediately while final close status is resolved asynchronously.
+- `hs_code` support on receipt-line payloads, persisted locally and sent to FDMS as
+  `receiptLineHSCode`.
+- HS-code inheritance for credit notes and debit notes when the referenced original receipt
+  contains a matching product line.
+- Debit-note HS-code fallback to the ZIMRA service classifications when no matching original
+  line exists and the adjustment is treated as a service/intangible charge.
 - Regression tests covering close-day pending flow, background polling completion, encrypted
-  certificate-key storage, and temporary certificate cleanup.
+  certificate-key storage, temporary certificate cleanup, and receipt HS-code resolution.
 
 ### Changed
 - README documentation was updated to reflect the current close-day flow, security posture,
   dependency-audit guidance, and current sample data.
+- README and receipt-type documentation were updated to show `hs_code` explicitly in receipt
+  payloads and to explain invoice, credit-note, and debit-note HS-code handling.
 - Installation, receipt-type, and fiscal-counter examples were aligned to use `Cas Bz`
   and the 5-digit sample device ID `41872`.
 - Dependency baselines were raised to patched versions after a vulnerability audit,
@@ -27,6 +35,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 - Django admin no longer exposes raw certificate and private-key fields by default.
 - `CertTempManager` now correctly defines cleanup methods, applies restrictive file
   permissions, and reliably removes temporary PEM material after use.
+- Tax persistence and tax lookups are now scoped per device, preventing one device's FDMS
+  configuration sync from overwriting another device's tax set.
 - Documentation coherence issues were cleaned up across `README.md`, `docs/index.md`,
   and related setup/reference pages.
 

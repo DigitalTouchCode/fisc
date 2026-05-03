@@ -307,6 +307,7 @@ class ReceiptLine(models.Model):
 
     receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name="lines")
     product = models.CharField(max_length=255)
+    hs_code = models.CharField(max_length=8, blank=True, default="")
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2)
     line_total = models.DecimalField(max_digits=12, decimal_places=2)

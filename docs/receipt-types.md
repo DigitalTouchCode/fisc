@@ -19,11 +19,12 @@ receipt = submit_receipt({
     "lines": [
         {
             "product": "Product Name",
+            "hs_code": "22030000",
+            "tax_id": 517,
             "quantity": "1",
             "unit_price": "115.00",
             "line_total": "115.00",
             "tax_amount": "15.00",
-            "tax_name": "standard rated 15%",
         }
     ],
 })
@@ -59,11 +60,12 @@ receipt = submit_receipt({
     "lines": [
         {
             "product": "Product Name",
+            "hs_code": "22030000",      # Optional if inherited from original receipt line
+            "tax_id": 517,
             "quantity": "1",
             "unit_price": "-115.00",    # Must be < 0 for Sale lines
             "line_total": "-115.00",
             "tax_amount": "-15.00",
-            "tax_name": "standard rated 15%",
         }
     ],
 })
@@ -88,6 +90,7 @@ receipt = submit_receipt({
 - Currency must match the original invoice (RCPT043)
 - `receiptLinePrice` must be `< 0` for Sale lines
 - `paymentAmount` must be `<= 0`
+- If `hs_code` is omitted, FiscGuy can inherit it from the referenced original receipt line
 
 ---
 
@@ -106,11 +109,12 @@ receipt = submit_receipt({
     "lines": [
         {
             "product": "Delivery fee",
+            "hs_code": "99001000",      # Optional when inherited or resolved by fallback
+            "tax_id": 517,
             "quantity": "1",
             "unit_price": "23.00",
             "line_total": "23.00",
             "tax_amount": "3.00",
-            "tax_name": "standard rated 15%",
         }
     ],
 })
@@ -129,6 +133,9 @@ receipt = submit_receipt({
 - `receiptNotes` (reason) is mandatory
 - `creditDebitNote` reference to original invoice is mandatory
 - `paymentAmount` must be `>= 0`
+- If `hs_code` is omitted, FiscGuy first tries to inherit it from the referenced original
+  receipt line; if no matching product line is found, it falls back to the ZIMRA service HS
+  codes for service/intangible adjustments
 
 ---
 
@@ -163,9 +170,23 @@ Typical ZIMRA tax types:
 |--------|------|---------|
 | 1 | Exempt | 0% |
 | 2 | Zero Rated 0% | 0% |
-| 3+ | Standard Rated | 15% or 15.5% |
+| 517 | Standard Rated 15.5% | 15.5% |
 
-When building a receipt line, pass the `tax_name` exactly as it appears in `Taxes.name` so the correct `tax_id` and `tax_percent` are resolved.
+When building a receipt line, pass the FDMS `tax_id` from the synced `Taxes` table. The
+recommended flow is:
+
+1. Call `GET /fiscguy/taxes/`
+2. Choose the correct `tax_id` for the item being sold
+3. Send that `tax_id` on each receipt line
+
+### HS Code Guidance
+
+- `hs_code` should be included in receipt-line payloads for normal invoice flows
+- Firms should map their product and service catalogues to the correct FDMS-compatible HS codes
+- Credit notes can inherit `hs_code` from the referenced original receipt line
+- Debit notes can inherit `hs_code` from the referenced original receipt line or, for
+  service/intangible adjustments, fall back to the ZIMRA service codes:
+  `99001000`, `99002000`, `99003000`
 
 ---
 

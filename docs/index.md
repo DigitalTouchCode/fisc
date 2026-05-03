@@ -112,11 +112,12 @@ receipt = submit_receipt({
     "lines": [
         {
             "product": "Consulting Service",
+            "hs_code": "99001000",
+            "tax_id": 517,
             "quantity": "1",
             "unit_price": "115.00",
             "line_total": "115.00",
             "tax_amount": "15.00",
-            "tax_name": "standard rated 15%",
         }
     ],
 })
