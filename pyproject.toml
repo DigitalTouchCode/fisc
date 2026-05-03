@@ -61,10 +61,13 @@ dev = [
 Homepage = "https://github.com/digitaltouchcode/fisc"
 Documentation = "https://github.com/digitaltouchcode/fisc#readme"
 Repository = "https://github.com/digitaltouchcode/fisc.git"
-Issues = "https://github.com/digitaltouchcode/issues"
+Issues = "https://github.com/digitaltouchcode/fisc/issues"
 
 [tool.setuptools]
-packages = ["fiscguy"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["fiscguy*"]
 
 [tool.setuptools.package-data]
 fiscguy = [
