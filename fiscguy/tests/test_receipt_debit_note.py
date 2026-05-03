@@ -49,8 +49,9 @@ def certs(db, device):
 
 
 @pytest.fixture
-def tax(db):
+def tax(db, device):
     return Taxes.objects.create(
+        device=device,
         code="3",
         name="Standard Rated 15%",
         tax_id=3,

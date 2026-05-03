@@ -280,6 +280,42 @@ class TestClosingDayServiceBuildMethods:
         assert result is not None
         assert len(service.balance_by_money_payload) == 1
 
+    def test_build_balance_by_money_type_uses_fdms_money_type_order(
+        self, device, fiscal_day, tax_map, configuration, certs
+    ):
+        counters = [
+            FiscalCounter.objects.create(
+                fiscal_day=fiscal_day,
+                fiscal_counter_type="BalanceByMoneyType",
+                fiscal_counter_currency="USD",
+                fiscal_counter_money_type="BankTransfer",
+                fiscal_counter_value=Decimal("12.00"),
+            ),
+            FiscalCounter.objects.create(
+                fiscal_day=fiscal_day,
+                fiscal_counter_type="BalanceByMoneyType",
+                fiscal_counter_currency="USD",
+                fiscal_counter_money_type="Cash",
+                fiscal_counter_value=Decimal("10.00"),
+            ),
+            FiscalCounter.objects.create(
+                fiscal_day=fiscal_day,
+                fiscal_counter_type="BalanceByMoneyType",
+                fiscal_counter_currency="USD",
+                fiscal_counter_money_type="Card",
+                fiscal_counter_value=Decimal("11.00"),
+            ),
+        ]
+
+        service = ClosingDayService(device, fiscal_day, counters, tax_map)
+        result = service.build_balance_by_money_type()
+
+        assert result == (
+            "balancebymoneytypeUSDCash1000"
+            "balancebymoneytypeUSDCard1100"
+            "balancebymoneytypeUSDBankTransfer1200"
+        )
+
 
 @pytest.mark.django_db
 class TestClosingDayServiceCloseDay:

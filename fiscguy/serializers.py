@@ -216,6 +216,7 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
         buyer_data = validated_data.pop("buyer", None)
         lines_data = validated_data.pop("lines")
         receipt_type = validated_data.get("receipt_type", "").lower()
+        device = validated_data.get("device")
 
         with transaction.atomic():
 
@@ -253,8 +254,10 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
 
                 if tax_name:
                     tax = (
-                        Taxes.objects.filter(name__iexact=tax_name.strip()).first()
-                        or Taxes.objects.filter(name__icontains=tax_name.strip()).first()
+                        Taxes.objects.filter(device=device, name__iexact=tax_name.strip()).first()
+                        or Taxes.objects.filter(
+                            device=device, name__icontains=tax_name.strip()
+                        ).first()
                     )
 
                     if not tax:

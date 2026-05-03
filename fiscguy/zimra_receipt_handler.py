@@ -441,7 +441,7 @@ class ZIMRAReceiptHandler:
             tax_amount = Decimal(str(tax["taxAmount"]))
             sales_amount_with_tax = Decimal(str(tax["salesAmountWithTax"]))  # per-group amount
 
-            tax_obj = Taxes.objects.filter(tax_id=tax_id).first()
+            tax_obj = Taxes.objects.filter(device=self._device, tax_id=tax_id).first()
             tax_name = tax_obj.name.lower() if tax_obj else ""
             tax_percent = Decimal(str(tax["taxPercent"])) if tax_name not in ("exempt",) else None
 

@@ -36,8 +36,8 @@ def make_fiscal_day(device: Device, is_open: bool = True, **kwargs) -> FiscalDay
     return FiscalDay.objects.create(**defaults)
 
 
-def make_tax(**kwargs) -> Taxes:
-    defaults = dict(tax_id=1, name="Standard VAT 15%", percent=15)
+def make_tax(device=None, **kwargs) -> Taxes:
+    defaults = dict(device=device, tax_id=1, name="Standard VAT 15%", percent=15)
     defaults.update(kwargs)
     return Taxes.objects.create(**defaults)
 
@@ -169,15 +169,17 @@ class TaxViewTests(TestCase):
         self.assertEqual(response.data, [])
 
     def test_get_returns_taxes(self):
-        make_tax(tax_id=1, name="Standard VAT 15%", percent=15)
-        make_tax(tax_id=2, name="Zero Rated 0%", percent=0)
+        device = make_device()
+        make_tax(device=device, tax_id=1, name="Standard VAT 15%", percent=15)
+        make_tax(device=device, tax_id=2, name="Zero Rated 0%", percent=0)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
 
     def test_get_exception_propagates(self):
+        make_device()
         with patch("fiscguy.views.Taxes.objects") as MockManager:
-            MockManager.all.side_effect = Exception("db error")
+            MockManager.filter.side_effect = Exception("db error")
             with self.assertRaises(Exception):
                 self.client.get(self.url)
 
@@ -332,7 +334,7 @@ class CloseDayViewTests(TestCase):
     def test_post_success_returns_200(self, MockService):
         device = make_device()
         make_fiscal_day(device, is_open=True)
-        make_tax()
+        make_tax(device=device)
         MockService.return_value.close_day.return_value = {"fiscalDayStatus": "FiscalDayClosed"}
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -342,7 +344,7 @@ class CloseDayViewTests(TestCase):
     def test_post_close_day_error_returns_422(self, MockService):
         device = make_device()
         make_fiscal_day(device, is_open=True)
-        make_tax()
+        make_tax(device=device)
         MockService.return_value.close_day.side_effect = CloseDayError("CountersMismatch")
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -352,7 +354,7 @@ class CloseDayViewTests(TestCase):
     def test_post_unexpected_error_returns_500(self, MockService):
         device = make_device()
         make_fiscal_day(device, is_open=True)
-        make_tax()
+        make_tax(device=device)
         MockService.return_value.close_day.side_effect = Exception("unexpected")
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -362,8 +364,8 @@ class CloseDayViewTests(TestCase):
     def test_post_passes_correct_tax_map_to_service(self, MockService):
         device = make_device()
         make_fiscal_day(device, is_open=True)
-        make_tax(tax_id=1, name="Standard VAT 15%", percent=15)
-        make_tax(tax_id=2, name="Zero Rated 0%", percent=0)
+        make_tax(device=device, tax_id=1, name="Standard VAT 15%", percent=15)
+        make_tax(device=device, tax_id=2, name="Zero Rated 0%", percent=0)
         MockService.return_value.close_day.return_value = {}
         self.client.post(self.url)
         call_kwargs = MockService.call_args.kwargs

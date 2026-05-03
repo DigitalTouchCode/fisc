@@ -3,10 +3,36 @@
 All notable changes to Fiscguy are documented in this file.  
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/).
 
-## 0.1.8
+## [0.1.8] - 2026-05-03
+
 ### Added
-- close day life cycle
-- get_update taxes and config no deletes
+- Close-day lifecycle state tracking with local `open`, `close_pending`, `close_failed`,
+  and `closed` states alongside FDMS status reconciliation.
+- Background close-day polling when FDMS returns `FiscalDayCloseInitiated`, allowing the
+  request thread to return immediately while final close status is resolved asynchronously.
+- Regression tests covering close-day pending flow, background polling completion, encrypted
+  certificate-key storage, and temporary certificate cleanup.
+
+### Changed
+- README documentation was updated to reflect the current close-day flow, security posture,
+  dependency-audit guidance, and current sample data.
+- Installation, receipt-type, and fiscal-counter examples were aligned to use `Cas Bz`
+  and the 5-digit sample device ID `41872`.
+- Dependency baselines were raised to patched versions after a vulnerability audit,
+  including Django, cryptography, Pillow, Pygments, and pytest.
+
+### Fixed
+- Certificate private keys are now encrypted at rest instead of being stored as plaintext
+  in the `Certs` table.
+- Django admin no longer exposes raw certificate and private-key fields by default.
+- `CertTempManager` now correctly defines cleanup methods, applies restrictive file
+  permissions, and reliably removes temporary PEM material after use.
+- Documentation coherence issues were cleaned up across `README.md`, `docs/index.md`,
+  and related setup/reference pages.
+
+### Security
+- Ran a dependency vulnerability audit with `pip-audit` and updated vulnerable packages
+  to fixed versions. The updated dependency manifest reports no known vulnerabilities.
 
 ## 0.1.6 / 0.1.7
 ### Added

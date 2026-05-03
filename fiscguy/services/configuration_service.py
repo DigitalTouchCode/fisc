@@ -100,6 +100,7 @@ class ConfigurationService:
 
         tax_objects = [
             Taxes(
+                device=self.device,
                 code=str(tax.get("taxID") or 0)[:10],
                 name=tax.get("taxName", ""),
                 tax_id=int(tax.get("taxID") or 0),
@@ -108,7 +109,7 @@ class ConfigurationService:
             for tax in raw_taxes
         ]
 
-        Taxes.objects.all().delete()
+        Taxes.objects.filter(device=self.device).delete()
 
         try:
             Taxes.objects.bulk_create(tax_objects)

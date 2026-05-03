@@ -42,6 +42,7 @@ def configuration(db, device):
     )
     # Create at least one tax record for the delete() to work
     Taxes.objects.create(
+        device=device,
         code="1",
         name="Standard",
         tax_id=1,
@@ -307,7 +308,7 @@ class TestConfigurationService:
         config = service.config()
 
         assert config["taxPayerName"] == "Updated Taxpayer"
-        assert Taxes.objects.count() >= 1
+        assert Taxes.objects.filter(device=device).count() >= 1
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_persist_configuration_creates_new(self, mock_request, device, configuration, certs):
@@ -421,7 +422,7 @@ class TestConfigurationService:
         service = ConfigurationService(device)
         service.config()
 
-        assert Taxes.objects.count() == 3
+        assert Taxes.objects.filter(device=device).count() == 3
 
     @patch("fiscguy.zimra_base.requests.Session.request")
     def test_config_handles_missing_fields(self, mock_request, device, configuration, certs):
@@ -457,8 +458,8 @@ class TestConfigurationService:
     def test_format_address_helper(self, mock_request, device, configuration, certs):
         """Test address formatting."""
         # Ensure we have at least one tax record for the delete() call in _persist_taxes
-        if Taxes.objects.count() == 0:
-            Taxes.objects.create(code="1", name="Temp", tax_id=99, percent=0.0)
+        if Taxes.objects.filter(device=device).count() == 0:
+            Taxes.objects.create(device=device, code="1", name="Temp", tax_id=99, percent=0.0)
 
         config_response = {
             "taxPayerName": "Test",
@@ -543,4 +544,4 @@ class TestServiceEdgeCases:
         config = service.config()
 
         assert config is not None
-        assert Taxes.objects.count() == 0
+        assert Taxes.objects.filter(device=device).count() == 0

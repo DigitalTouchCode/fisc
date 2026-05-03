@@ -84,6 +84,9 @@ class Taxes(models.Model):
     Zimra taxes automatically update on every day opening
     """
 
+    device = models.ForeignKey(
+        Device, on_delete=models.CASCADE, related_name="taxes", null=True, blank=True
+    )
     code = models.CharField(max_length=10)
     name = models.CharField(max_length=100)
     tax_id = models.IntegerField()
@@ -94,6 +97,7 @@ class Taxes(models.Model):
         ordering = ["tax_id"]
         verbose_name_plural = "Taxes"
         indexes = [
+            models.Index(fields=["device", "tax_id"]),
             models.Index(fields=["tax_id"]),
         ]
 
@@ -171,7 +175,7 @@ class FiscalCounter(models.Model):
     CASH = "Cash"
     CARD = "Card"
     BANK_TRANSFER = "BankTransfer"
-    MOBILE_MONEY = "MobileMoney"
+    MOBILE_MONEY = "MobileWallet"
     COUPON = "Coupon"
     CREDIT = "Credit"
     OTHER_PAYMENT = "Other"
@@ -180,7 +184,7 @@ class FiscalCounter(models.Model):
         (CASH, "Cash"),
         (CARD, "Card"),
         (BANK_TRANSFER, "Bank Transfer"),
-        (MOBILE_MONEY, "Mobile Money"),
+        (MOBILE_MONEY, "Mobile Wallet"),
         (COUPON, "Coupon"),
         (CREDIT, "Credit"),
         (OTHER_PAYMENT, "Other"),

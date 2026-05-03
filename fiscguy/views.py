@@ -131,7 +131,10 @@ class TaxView(APIView):
 
     def get(self, request):
         try:
-            taxes = Taxes.objects.all()
+            device = Device.objects.first()
+            if not device:
+                return Response([], status=status.HTTP_200_OK)
+            taxes = Taxes.objects.filter(device=device)
             return Response(TaxSerializer(taxes, many=True).data, status=status.HTTP_200_OK)
         except Exception:
             logger.exception("Tax fetch failed")
@@ -264,7 +267,7 @@ class CloseDayView(APIView):
                     )
 
             fiscal_counters = fiscal_day.counters.all()
-            tax_map = {t.tax_id: t.name for t in Taxes.objects.all()}
+            tax_map = {t.tax_id: t.name for t in Taxes.objects.filter(device=device)}
 
             res = ClosingDayService(
                 device=device,

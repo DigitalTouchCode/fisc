@@ -18,6 +18,15 @@ CREDIT_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 CREDIT_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
 DEBIT_BY_TAX_ORDER: Tuple[str, ...] = ("exempt", "zero", "standard")
 DEBIT_TAX_BY_TAX_ORDER: Tuple[str, ...] = ("zero", "standard")
+BALANCE_BY_MONEY_TYPE_ORDER: Tuple[str, ...] = (
+    "Cash",
+    "Card",
+    "MobileWallet",
+    "Coupon",
+    "Credit",
+    "BankTransfer",
+    "Other",
+)
 
 
 class ClosingDayService:
@@ -72,6 +81,11 @@ class ClosingDayService:
                 c.fiscal_counter_tax_id if c.fiscal_counter_tax_id is not None else 0,
             ),
         )
+
+    def _money_type_order(self, money_type: str | None) -> int:
+        if money_type in BALANCE_BY_MONEY_TYPE_ORDER:
+            return BALANCE_BY_MONEY_TYPE_ORDER.index(money_type)
+        return len(BALANCE_BY_MONEY_TYPE_ORDER)
 
     def build_sale_by_tax(self) -> str:
         buckets: Dict[str, List[str]] = defaultdict(list)
@@ -244,7 +258,7 @@ class ClosingDayService:
             ],
             key=lambda c: (
                 (c.fiscal_counter_currency or "").upper(),
-                (c.fiscal_counter_money_type or "").upper(),
+                self._money_type_order(c.fiscal_counter_money_type),
             ),
         )
 
