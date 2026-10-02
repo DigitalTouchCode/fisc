@@ -9,6 +9,8 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+<a href="https://otene.co.zw/projects/pypi" target="_blank" rel="noopener"><img src="https://otene.co.zw/badge/pypi" alt="Fiscguy on Otene" width="206" height="54" /></a>
+
 **The Modern Python Library for ZIMRA Fiscal Device Integration**
 
 FiscGuy gives Django applications a simple, Pythonic interface for every fiscal operation required by the Zimbabwe Revenue Authority — receipt submission, fiscal day management, certificate handling, and more. Built on Django REST Framework, it drops into any Django project in minutes.
