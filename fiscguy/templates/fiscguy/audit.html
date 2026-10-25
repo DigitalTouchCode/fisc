@@ -1,0 +1,20 @@
+{% extends "fiscguy/base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+<table>
+  <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Device</th><th>Detail</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for entry in page %}
+    <tr><td>{{ entry.created_at|date:"Y-m-d H:i" }}</td><td>{{ entry.actor_name }}</td><td>{{ entry.action }}</td><td>{{ entry.device_ref }}</td><td>{{ entry.detail }}</td><td>{{ entry.ip_address|default:"" }}</td></tr>
+  {% empty %}
+    <tr><td colspan="6">Nothing recorded yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="pager">
+  {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">Previous</a>{% endif %}
+  Page {{ page.number }} of {{ page.paginator.num_pages }}
+  {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Next</a>{% endif %}
+</p>
+{% endblock %}

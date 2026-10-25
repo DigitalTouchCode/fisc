@@ -23,7 +23,12 @@ class OpenDayService:
         """
         try:
             with transaction.atomic():
-                return self._open_day_atomic()
+                result = self._open_day_atomic()
+            # Raised after commit so the FDMS status sync is kept.
+            blocked = result.get("blocked_reason")
+            if blocked:
+                raise FiscalDayError(blocked)
+            return result
         except FiscalDayError:
             raise
         except DatabaseError as exc:
@@ -38,6 +43,21 @@ class OpenDayService:
         active_day = (
             FiscalDay.objects.select_for_update().filter(device=self.device, is_open=True).first()
         )
+        if active_day and active_day.close_state in (
+            FiscalDay.CloseState.CLOSE_FAILED,
+            FiscalDay.CloseState.CLOSE_PENDING,
+        ):
+            logger.warning(
+                f"Fiscal day {active_day.day_no} for device {self.device} is "
+                f"{active_day.close_state}; refusing to open a day"
+            )
+            return {
+                "blocked_reason": (
+                    f"Fiscal day {active_day.day_no} has not been closed "
+                    f"({active_day.get_close_state_display().lower()}). "
+                    "Close it successfully before opening a new day."
+                )
+            }
         if active_day:
             logger.info(f"Fiscal day {active_day.day_no} already open for device {self.device}")
             return {
@@ -71,10 +91,16 @@ class OpenDayService:
         fdms_last_day_no = self._fetch_fdms_last_day_no()
         last_local_day = FiscalDay.objects.filter(device=self.device).order_by("-id").first()
 
-        if last_local_day is None or last_local_day.day_no != fdms_last_day_no:
+        if last_local_day is None:
+            if fdms_last_day_no != 0:
+                logger.warning(
+                    f"No local fiscal days for device {self.device} but FDMS reports "
+                    f"lastFiscalDayNo={fdms_last_day_no}. Deferring to FDMS."
+                )
+        elif last_local_day.day_no != fdms_last_day_no:
             logger.warning(
                 f"Local/FDMS day_no mismatch for device {self.device}: "
-                f"local={getattr(last_local_day, 'day_no', None)}, fdms={fdms_last_day_no}. "
+                f"local={last_local_day.day_no}, fdms={fdms_last_day_no}. "
                 f"Deferring to FDMS."
             )
 
@@ -89,9 +115,10 @@ class OpenDayService:
 
         raw = res.get("lastFiscalDayNo")
         if raw is None:
-            raise FiscalDayError(
-                f"FDMS status response missing 'lastFiscalDayNo' for device {self.device}"
+            logger.info(
+                f"FDMS has no 'lastFiscalDayNo' for device {self.device}; assuming a new device."
             )
+            return 0
 
         try:
             return int(raw)

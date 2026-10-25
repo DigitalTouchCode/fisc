@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from fiscguy.fields import EncryptedTextField
@@ -5,7 +6,7 @@ from fiscguy.fields import EncryptedTextField
 
 class Device(models.Model):
     org_name = models.CharField(max_length=255)
-    activation_key = models.CharField(max_length=255)
+    activation_key = EncryptedTextField()
     device_id = models.CharField(max_length=100, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     device_model_name = models.CharField(max_length=255, null=True, blank=True)
@@ -17,6 +18,11 @@ class Device(models.Model):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["device_id"]),
+        ]
+        permissions = [
+            ("manage_device", "Can register devices and manage certificates"),
+            ("close_day", "Can open and close fiscal days"),
+            ("view_receipts", "Can view receipts"),
         ]
 
     def __str__(self):
@@ -91,6 +97,8 @@ class Taxes(models.Model):
     name = models.CharField(max_length=100)
     tax_id = models.IntegerField()
     percent = models.DecimalField(max_digits=5, decimal_places=2)
+    # ZIMRA assigns taxID per taxpayer, so "standard rated" is resolved by name at sync.
+    is_standard = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -251,7 +259,7 @@ class Receipt(models.Model):
     device = models.ForeignKey(
         Device, on_delete=models.CASCADE, related_name="receipts", null=True, blank=True
     )
-    receipt_number = models.CharField(unique=True, max_length=255, null=True, blank=True)
+    receipt_number = models.CharField(max_length=255, null=True, blank=True)
     receipt_type = models.CharField(
         choices=ReceiptType, default=ReceiptType.FISCAL_INVOICE, max_length=255
     )
@@ -288,9 +296,17 @@ class Receipt(models.Model):
     is_credit_note = models.BooleanField(default=False, null=True)
     credit_note_reason = models.CharField(max_length=255, null=True, blank=True)
     credit_note_reference = models.CharField(max_length=255, null=True, blank=True)
+    fiscal_day_no = models.IntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["device", "receipt_number"],
+                name="unique_receipt_number_per_device",
+                condition=models.Q(receipt_number__isnull=False),
+            )
+        ]
         indexes = [
             models.Index(fields=["receipt_number"]),
             models.Index(fields=["device", "-created_at"]),
@@ -348,3 +364,25 @@ class Buyer(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class AuditLog(models.Model):
+    """Who did what to a fiscal device. Never holds certificates, keys or activation keys."""
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    actor_name = models.CharField(max_length=150, blank=True)
+    action = models.CharField(max_length=64)
+    device = models.ForeignKey(Device, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    device_ref = models.CharField(max_length=100, blank=True)
+    detail = models.CharField(max_length=255, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["action", "-created_at"], name="fiscguy_audit_action_idx")]
+
+    def __str__(self):
+        return f"{self.created_at:%Y-%m-%d %H:%M} {self.actor_name} {self.action} {self.device_ref}"

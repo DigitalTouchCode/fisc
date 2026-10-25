@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from fiscguy.models import (
+    AuditLog,
     Certs,
     Configuration,
     Device,
@@ -26,7 +27,26 @@ class CertsAdmin(admin.ModelAdmin):
 
 admin.site.register(Configuration)
 admin.site.register(Taxes)
-admin.site.register(Device)
+@admin.register(Device)
+class DeviceAdmin(admin.ModelAdmin):
+    list_display = ("device_id", "org_name", "production", "created_at")
+    exclude = ("activation_key",)
 admin.site.register(FiscalDay)
 admin.site.register(Receipt)
 admin.site.register(FiscalCounter)
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "actor_name", "action", "device_ref", "ip_address")
+    list_filter = ("action",)
+    readonly_fields = [f.name for f in AuditLog._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

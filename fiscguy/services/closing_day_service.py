@@ -6,6 +6,7 @@ from django.db import close_old_connections
 from django.utils import timezone
 from loguru import logger
 
+from fiscguy.conf import close_poll_mode
 from fiscguy.exceptions import CloseDayError
 from fiscguy.models import Device, FiscalCounter, FiscalDay
 from fiscguy.services.status_service import StatusService
@@ -69,6 +70,24 @@ class ClosingDayService:
             return ""
         return f"{float(tax_percent):.2f}"
 
+    def _by_tax_counter_payload(self, c: FiscalCounter) -> Dict[str, Any]:
+        """
+        One "by tax" counter for closeDay. `fiscalCounterTaxPercent` is always
+        present, and an explicit null for exempt: omitting the key made FDMS
+        close the day with BadCertificateSignature.
+        """
+        return {
+            "fiscalCounterType": c.fiscal_counter_type,
+            "fiscalCounterCurrency": c.fiscal_counter_currency,
+            "fiscalCounterTaxPercent": (
+                float(c.fiscal_counter_tax_percent)
+                if c.fiscal_counter_tax_percent is not None
+                else None
+            ),
+            "fiscalCounterTaxID": c.fiscal_counter_tax_id,
+            "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
+        }
+
     def _sort_by_tax_id(self, counters: List[FiscalCounter]) -> List[FiscalCounter]:
         """
         Sort counters by (currency ascending, tax_id ascending) as required
@@ -114,19 +133,7 @@ class ClosingDayService:
 
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
-            self.sale_by_tax_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterTaxPercent": (
-                        float(c.fiscal_counter_tax_percent)
-                        if c.fiscal_counter_tax_percent is not None
-                        else None
-                    ),
-                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
+            self.sale_by_tax_payload.append(self._by_tax_counter_payload(c))
 
         return "".join("".join(buckets[k]) for k in SALE_BY_TAX_ORDER)
 
@@ -150,19 +157,7 @@ class ClosingDayService:
 
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
-            self.sale_tax_by_tax_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterTaxPercent": (
-                        float(c.fiscal_counter_tax_percent)
-                        if c.fiscal_counter_tax_percent is not None
-                        else None
-                    ),
-                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
+            self.sale_tax_by_tax_payload.append(self._by_tax_counter_payload(c))
 
         return "".join("".join(buckets[k]) for k in SALE_TAX_BY_TAX_ORDER)
 
@@ -193,19 +188,7 @@ class ClosingDayService:
 
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
-            self.credit_by_tax_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterTaxPercent": (
-                        float(c.fiscal_counter_tax_percent)
-                        if c.fiscal_counter_tax_percent is not None
-                        else None
-                    ),
-                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
+            self.credit_by_tax_payload.append(self._by_tax_counter_payload(c))
 
         return "".join("".join(buckets[k]) for k in CREDIT_BY_TAX_ORDER)
 
@@ -230,19 +213,7 @@ class ClosingDayService:
 
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
-            self.credit_tax_by_tax_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterTaxPercent": (
-                        float(c.fiscal_counter_tax_percent)
-                        if c.fiscal_counter_tax_percent is not None
-                        else None
-                    ),
-                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
+            self.credit_tax_by_tax_payload.append(self._by_tax_counter_payload(c))
 
         return "".join("".join(buckets[k]) for k in CREDIT_TAX_BY_TAX_ORDER)
 
@@ -306,19 +277,7 @@ class ClosingDayService:
 
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
-            self.debit_by_tax_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterTaxPercent": (
-                        float(c.fiscal_counter_tax_percent)
-                        if c.fiscal_counter_tax_percent is not None
-                        else None
-                    ),
-                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
+            self.debit_by_tax_payload.append(self._by_tax_counter_payload(c))
 
         return "".join("".join(buckets[k]) for k in DEBIT_BY_TAX_ORDER)
 
@@ -343,19 +302,7 @@ class ClosingDayService:
 
             buckets[key].append(f"{base}{tax_part}{self._money_value(c.fiscal_counter_value)}")
 
-            self.debit_tax_by_tax_payload.append(
-                {
-                    "fiscalCounterType": c.fiscal_counter_type,
-                    "fiscalCounterCurrency": c.fiscal_counter_currency,
-                    "fiscalCounterTaxPercent": (
-                        float(c.fiscal_counter_tax_percent)
-                        if c.fiscal_counter_tax_percent is not None
-                        else None
-                    ),
-                    "fiscalCounterTaxID": c.fiscal_counter_tax_id,
-                    "fiscalCounterValue": float(round(c.fiscal_counter_value, 2)),
-                }
-            )
+            self.debit_tax_by_tax_payload.append(self._by_tax_counter_payload(c))
 
         return "".join("".join(buckets[k]) for k in DEBIT_TAX_BY_TAX_ORDER)
 
@@ -434,11 +381,12 @@ class ClosingDayService:
             raise CloseDayError(f"FDMS rejected the close day request (errorCode={error_code})")
 
         if fiscal_day_status == "FiscalDayCloseInitiated":
-            self._schedule_close_status_poll()
-            return {
-                **status,
-                "message": "Close request accepted by FDMS; background status polling started",
-            }
+            if close_poll_mode() == "background":
+                self._schedule_close_status_poll()
+                message = "Close request accepted by FDMS; background status polling started"
+            else:
+                message = "Close request accepted by FDMS; poll get-status until the day closes"
+            return {**status, "message": message}
 
         logger.warning(f"Unexpected fiscalDayStatus from FDMS: {status}")
         raise CloseDayError(f"Unexpected FDMS status: {fiscal_day_status!r}")

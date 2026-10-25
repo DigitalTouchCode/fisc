@@ -9,6 +9,8 @@ recursive-include fiscguy *.sql
 recursive-include fiscguy/migrations *.py
 recursive-include fiscguy/management *.py
 recursive-include fiscguy/tests *.py
+recursive-include fiscguy/templates *.html
+recursive-include fiscguy/static *
 
 global-exclude __pycache__
 global-exclude *.pyc

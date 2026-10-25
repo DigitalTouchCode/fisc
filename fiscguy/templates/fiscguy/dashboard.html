@@ -1,0 +1,23 @@
+{% extends "fiscguy/base.html" %}
+{% block title %}Devices{% endblock %}
+{% block content %}
+<h1>Fiscal devices</h1>
+{% if devices %}
+<table>
+  <thead><tr><th>Device</th><th>Organisation</th><th>Environment</th><th>Certificate expires</th><th>Fiscal day</th></tr></thead>
+  <tbody>
+  {% for row in devices %}
+    <tr>
+      <td><a href="{% url 'fiscguy_web:device' row.device.pk %}">{{ row.device.device_id }}</a></td>
+      <td>{{ row.device.org_name }}</td>
+      <td>{% if row.device.production %}Production{% else %}Test{% endif %}</td>
+      <td>{% if row.certificate %}{{ row.certificate.valid_till|slice:":10" }}{% else %}No certificate{% endif %}</td>
+      <td>{% if row.day %}#{{ row.day.day_no }} &middot; {{ row.day.get_close_state_display }}{% else %}None yet{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No devices registered yet. <a href="{% url 'fiscguy_web:register' %}">Register one</a>.</p>
+{% endif %}
+{% endblock %}

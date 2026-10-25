@@ -1,0 +1,12 @@
+{% extends "fiscguy/base.html" %}
+{% block title %}Confirm your password{% endblock %}
+{% block content %}
+<h1>Confirm your password</h1>
+<p>This action changes certificates or devices, so please confirm it's you.</p>
+<form method="post" class="card">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}">
+  {% include "fiscguy/_form.html" %}
+  <button>Continue</button>
+</form>
+{% endblock %}

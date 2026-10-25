@@ -1,0 +1,29 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}Fiscalisation{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'fiscguy/fiscguy.css' %}">
+  <script src="{% static 'fiscguy/fiscguy.js' %}" defer></script>
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="{% url 'fiscguy_web:dashboard' %}">Fiscalisation</a>
+    <nav>
+      <a href="{% url 'fiscguy_web:dashboard' %}">Devices</a>
+      <a href="{% url 'fiscguy_web:register' %}">Register device</a>
+      <a href="{% url 'fiscguy_web:audit' %}">Audit log</a>
+    </nav>
+  </header>
+  <main>
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}<li class="msg {{ message.tags }}">{{ message }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

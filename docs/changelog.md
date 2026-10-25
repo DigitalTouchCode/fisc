@@ -3,6 +3,68 @@
 All notable changes to Fiscguy are documented in this file.  
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-10-22
+
+### Added
+- Optional web UI (`fiscguy.web.urls`): device list, registration with an activation key,
+  registration with an uploaded certificate and key, fiscal day open/close with status polling,
+  certificate renewal, configuration sync and receipt browsing. Off unless `FISCGUY_UI_ENABLED`.
+  See `docs/web-ui.md`.
+- Permissions `manage_device`, `close_day` and `view_receipts`.
+- `AuditLog` model (read-only in admin) recording registrations, certificate changes and day open/close.
+- Services `DeviceRegistrationService`, `ManualDeviceRegistrationService` and `cert_bundle`
+  (certificate and key parsing, validation, expiry and key-match checks).
+- `FISCGUY_PERMISSION_CLASSES`, `FISCGUY_ACCESS_CHECK`, `FISCGUY_DEVICE_QUERYSET`,
+  `FISCGUY_CLOSE_POLL`, `FISCGUY_LOG_FDMS_PAYLOADS` and `FISCGUY_REAUTH_MAX_AGE` settings.
+- System checks `fiscguy.W001` (no dedicated encryption key) and `fiscguy.W002` (UI without secure cookies).
+- Optional `?device_id=` selection on the JSON endpoints.
+- Migrations `0015` and `0016`.
+
+### Changed
+- **Breaking:** JSON endpoints now require staff by default instead of being open. Set
+  `FISCGUY_PERMISSION_CLASSES` to your own classes to change this.
+- Device activation keys are encrypted at rest (existing values are encrypted by migration `0016`)
+  and hidden from the Django admin.
+- FDMS request and response bodies are no longer logged by default; error responses are logged
+  truncated. Enable `FISCGUY_LOG_FDMS_PAYLOADS` to log bodies at DEBUG.
+- `FISCGUY_CLOSE_POLL = "client"` skips the background close-day thread. The default is unchanged.
+- Open day, close day and certificate renewal through the API are audited.
+
+## [0.1.9] - 2026-10-22
+
+### Added
+- `ZIMRA_PROXY` environment variable to route FDMS traffic through a proxy.
+- `Taxes.is_standard`, set at config sync by matching the tax name (ZIMRA taxIDs are per
+  taxpayer), falling back to the highest non-withholding rate.
+- `Receipt.fiscal_day_no`, stamped at submission and exposed in the receipt serializer.
+- `qr_code_data` (base64 PNG data URI) on receipt responses.
+- Nested `tax_type` (code, name, percent) on receipt lines in receipt responses.
+- `has_validation_errors` in the submit result when FDMS returns red validation errors; the
+  receipt is kept and the errors are logged.
+- `GET /fiscguy/receipts/{id}/` is now routed.
+- Tests for by-tax close-day payloads, standard-tax detection, proxy opt-in and device-scoped signing.
+- Migration `0014`.
+
+### Changed
+- Receipt numbers and `invoiceNo` are now `<device_id>-<global_no>` instead of `R-<global_no>`.
+  `receipt_number` is unique per device rather than globally.
+- `ZIMRACrypto` signs with the certificate of the given `device`, and raises `CryptoError`
+  without a device or `private_key_path` instead of using any stored certificate.
+- Credit and debit note references resolve against the same device only.
+- Opening a fiscal day is refused while the open day is `close_pending` or `close_failed`.
+- A new device with no `lastFiscalDayNo` or `lastReceiptGlobalNo` from FDMS is treated as 0.
+- `hs_code` is no longer required on fiscal invoice lines.
+- `DevicePing` returns `online: true`, or `online: false` with 503 when FDMS is unreachable.
+  Pings time out after 8 seconds.
+- FDMS requests and responses are logged in full, including the response body on errors.
+- `DeviceSerializer.activation_key` is write-only.
+- `init_device` looks up the certificate by the device being registered.
+
+### Fixed
+- `ReceiptDetailView` queried a non-existent `receipt_lines` relation.
+- Creating a buyer with only a name and TIN raised `KeyError`.
+- The buyer router was registered as `buyer/`, producing a broken URL pattern.
+
 ## [0.1.8] - 2026-05-03
 
 ### Added

@@ -29,7 +29,7 @@ class ZIMRAReceiptHandler:
     def __init__(self, device: Device):
         self._device = device
         self._client: ZIMRAClient | None = None
-        self.crypto = ZIMRACrypto()
+        self.crypto = ZIMRACrypto(device=device)
 
     @property
     def client(self) -> ZIMRAClient | None:
@@ -62,6 +62,7 @@ class ZIMRAReceiptHandler:
             ReceiptSubmissionError: for any unrecoverable processing error.
         """
         fiscal_day = self._ensure_fiscal_day_open()
+        receipt.fiscal_day_no = fiscal_day.day_no
 
         receipt_items = receipt.lines.all()
 
@@ -72,7 +73,7 @@ class ZIMRAReceiptHandler:
         receipt.hash_value = hash_sig["hash"]
         receipt.signature = hash_sig["signature"]
         receipt.global_number = receipt_data["receipt_data"]["receiptGlobalNo"]
-        receipt.receipt_number = f"R-{receipt.global_number:08d}"
+        receipt.receipt_number = f"{self._device.device_id}-{receipt.global_number:08d}"
 
         self._generate_qr_code(receipt, receipt_data["receipt_data"], hash_sig["signature"])
         self._update_fiscal_counters(receipt, receipt_data["receipt_data"])
@@ -81,11 +82,31 @@ class ZIMRAReceiptHandler:
             hash_sig["hash"], hash_sig["signature"], receipt_data["receipt_data"]
         )
 
+        fatal_errors = [
+            err
+            for err in (submission_res.get("validationErrors") or [])
+            if (err.get("validationErrorColor") or "").lower() == "red"
+        ]
+        if fatal_errors:
+            details = "; ".join(
+                f"{err.get('validationErrorCode')}: {err.get('validationErrorDescription')}"
+                for err in fatal_errors
+            )
+            logger.error(
+                f"FDMS red validation errors for receipt {receipt.receipt_number} "
+                f"on device {self._device} (kept, not rolled back): {details}"
+            )
+
         receipt.submitted = True
         receipt.zimra_inv_id = submission_res.get("receiptID", "")
         receipt.save()
 
-        return {"submitted": True, "queued": False, **submission_res}
+        return {
+            "submitted": True,
+            "queued": False,
+            "has_validation_errors": bool(fatal_errors),
+            **submission_res,
+        }
 
     def _ensure_fiscal_day_open(self) -> FiscalDay:
         """
@@ -144,9 +165,11 @@ class ZIMRAReceiptHandler:
 
         raw = res.get("lastReceiptGlobalNo")
         if raw is None:
-            raise ReceiptSubmissionError(
-                f"FDMS status response missing 'lastReceiptGlobalNo' for device {self._device}"
+            logger.info(
+                f"FDMS omitted 'lastReceiptGlobalNo' for device {self._device}; "
+                "treating as a new device with no receipts."
             )
+            raw = 0
 
         try:
             fdms_last = int(raw)
@@ -288,7 +311,7 @@ class ZIMRAReceiptHandler:
             "receiptCurrency": receipt.currency.upper(),
             "receiptCounter": fiscal_day.receipt_counter + 1,
             "receiptGlobalNo": global_no,
-            "invoiceNo": f"R-{global_no:08d}",
+            "invoiceNo": f"{self._device.device_id}-{global_no:08d}",
             "receiptNotes": (
                 receipt.credit_note_reason
                 if (is_credit_note or is_debit_note)
@@ -337,7 +360,9 @@ class ZIMRAReceiptHandler:
 
     def _get_original_receipt(self, receipt: Receipt) -> Receipt:
         try:
-            return Receipt.objects.get(receipt_number=receipt.credit_note_reference)
+            return Receipt.objects.get(
+                receipt_number=receipt.credit_note_reference, device=self._device
+            )
         except Receipt.DoesNotExist as exc:
             note_kind = "Credit" if receipt.receipt_type.lower() == "creditnote" else "Debit"
             raise ReceiptSubmissionError(

@@ -1,0 +1,11 @@
+{% extends "fiscguy/base.html" %}
+{% block title %}Register device{% endblock %}
+{% block content %}
+<h1>Register a device</h1>
+<p>Registers the device with ZIMRA using its activation key. Have the certificate already? <a href="{% url 'fiscguy_web:register-manual' %}">Upload it instead</a>.</p>
+<form method="post" class="card" autocomplete="off">
+  {% csrf_token %}
+  {% include "fiscguy/_form.html" %}
+  <button>Register</button>
+</form>
+{% endblock %}

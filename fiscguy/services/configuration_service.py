@@ -97,6 +97,7 @@ class ConfigurationService:
 
     def _persist_taxes(self, res: dict) -> None:
         raw_taxes = res.get("applicableTaxes") or []
+        standard_idx = self._standard_tax_index(raw_taxes)
 
         tax_objects = [
             Taxes(
@@ -105,8 +106,9 @@ class ConfigurationService:
                 name=tax.get("taxName", ""),
                 tax_id=int(tax.get("taxID") or 0),
                 percent=float(tax.get("taxPercent") or 0.0),
+                is_standard=(idx == standard_idx),
             )
-            for tax in raw_taxes
+            for idx, tax in enumerate(raw_taxes)
         ]
 
         Taxes.objects.filter(device=self.device).delete()
@@ -114,11 +116,37 @@ class ConfigurationService:
         try:
             Taxes.objects.bulk_create(tax_objects)
             logger.info(f"Persisted {len(tax_objects)} tax record(s)")
+            if standard_idx is None:
+                logger.warning(
+                    f"No standard-rated tax identified for device {self.device.device_id}"
+                )
         except DatabaseError as exc:
             logger.exception(
                 f"Failed to bulk create {len(tax_objects)} tax record(s) due to database error"
             )
             raise ConfigurationError("Failed to persist tax records") from exc
+
+    @staticmethod
+    def _standard_tax_index(raw_taxes: list[dict]) -> int | None:
+        """Index of the standard-rated tax, matched by name (taxID is per taxpayer).
+
+        Falls back to the highest-percent non-withholding tax.
+        """
+        named = [
+            i for i, t in enumerate(raw_taxes) if "standard" in (t.get("taxName") or "").lower()
+        ]
+        if named:
+            return max(named, key=lambda i: float(raw_taxes[i].get("taxPercent") or 0.0))
+
+        candidates = [
+            i
+            for i, t in enumerate(raw_taxes)
+            if float(t.get("taxPercent") or 0.0) > 0
+            and "withholding" not in (t.get("taxName") or "").lower()
+        ]
+        if candidates:
+            return max(candidates, key=lambda i: float(raw_taxes[i].get("taxPercent") or 0.0))
+        return None
 
     @staticmethod
     def _format_address(branch_addr: dict) -> str:

@@ -147,7 +147,7 @@ def test_debit_note_serializer_rejects_negative_total(device, original_receipt):
 
 
 @pytest.mark.django_db
-def test_fiscal_invoice_serializer_requires_hs_code(device):
+def test_fiscal_invoice_serializer_does_not_require_hs_code(device):
     serializer = ReceiptCreateSerializer(
         data={
             "device": device.id,
@@ -169,8 +169,8 @@ def test_fiscal_invoice_serializer_requires_hs_code(device):
         }
     )
 
-    assert not serializer.is_valid()
-    assert "lines" in serializer.errors
+    serializer.is_valid()
+    assert "hs_code" not in str(serializer.errors)
 
 
 @pytest.mark.django_db

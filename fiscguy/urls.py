@@ -9,13 +9,14 @@ from .views import (
     GetStatusView,
     IssueCertificateView,
     OpenDayView,
+    ReceiptDetailView,
     ReceiptView,
     SyncConfigurationView,
     TaxView,
 )
 
 router = DefaultRouter()
-router.register(r"buyer/", BuyerViewset, basename="buyer")
+router.register(r"buyer", BuyerViewset, basename="buyer")
 
 app_name = "fiscguy"
 
@@ -26,6 +27,7 @@ urlpatterns = [
     path("close-day/", CloseDayView.as_view(), name="close"),
     path("get-status/", GetStatusView.as_view(), name="status"),
     path("receipts/", ReceiptView.as_view(), name="receipts"),
+    path("receipts/<int:id>/", ReceiptDetailView.as_view(), name="receipt-detail"),
     path("configuration/", ConfigurationView.as_view(), name="configuration"),
     path("sync-config/", SyncConfigurationView.as_view(), name="sync-config"),
     path("issue-certificate/", IssueCertificateView.as_view(), name="issue-certificate"),

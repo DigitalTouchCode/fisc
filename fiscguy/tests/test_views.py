@@ -150,8 +150,7 @@ class ConfigurationViewTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_get_exception_returns_400(self):
-        with patch("fiscguy.views.Device.objects") as MockManager:
-            MockManager.first.side_effect = Exception("db error")
+        with patch("fiscguy.views.get_device", side_effect=Exception("db error")):
             response = self.client.get(self.url)
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.data)

@@ -1,0 +1,55 @@
+{% extends "fiscguy/base.html" %}
+{% block title %}Device {{ device.device_id }}{% endblock %}
+{% block content %}
+<h1>Device {{ device.device_id }} <span class="pill {% if device.production %}prod{% else %}test{% endif %}">{% if device.production %}Production{% else %}Test{% endif %}</span></h1>
+<p>
+  {{ device.org_name }} &middot;
+  <span id="ping" class="pill" data-ping-url="{% url 'fiscguy_web:ping' device.pk %}">checking connection</span>
+</p>
+
+<section class="card">
+  <h2>Fiscal day</h2>
+  <p id="day-state"
+     {% if poll_status %}data-poll-url="{% url 'fiscguy_web:status' device.pk %}"{% endif %}>
+    {% if day %}Day #{{ day.day_no }} &middot; <strong>{{ day.get_close_state_display }}</strong>{% else %}No fiscal day yet.{% endif %}
+  </p>
+  {% if can_close %}
+  <div class="actions">
+    <form method="post" action="{% url 'fiscguy_web:open-day' device.pk %}">{% csrf_token %}<button>Open day</button></form>
+    <form method="post" action="{% url 'fiscguy_web:close-day' device.pk %}" data-confirm="Close the fiscal day now? Receipts can't be issued until a new day is opened.">{% csrf_token %}<button class="danger">Close day</button></form>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Certificate</h2>
+  {% if certificate %}
+    <p>{{ certificate.subject_cn }} &middot; expires {{ certificate.valid_till|slice:":10" }}</p>
+  {% else %}
+    <p>No certificate stored.</p>
+  {% endif %}
+  {% if can_manage %}
+  <div class="actions">
+    <form method="post" action="{% url 'fiscguy_web:renew-certificate' device.pk %}" data-confirm="Request a new certificate from ZIMRA?">{% csrf_token %}<button>Renew certificate</button></form>
+    <form method="post" action="{% url 'fiscguy_web:sync-config' device.pk %}">{% csrf_token %}<button>Sync configuration</button></form>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Taxpayer</h2>
+  {% if configuration %}
+    <p>{{ configuration.tax_payer_name }}</p>
+  {% else %}
+    <p>No configuration synced yet.</p>
+  {% endif %}
+  {% if taxes %}
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Rate</th></tr></thead>
+      <tbody>{% for tax in taxes %}<tr><td>{{ tax.tax_id }}</td><td>{{ tax.name }}{% if tax.is_standard %} <span class="pill">standard</span>{% endif %}</td><td>{{ tax.percent }}%</td></tr>{% endfor %}</tbody>
+    </table>
+  {% endif %}
+</section>
+
+<p><a href="{% url 'fiscguy_web:receipts' device.pk %}">View receipts</a></p>
+{% endblock %}

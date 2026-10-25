@@ -9,8 +9,6 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-<a href="https://otene.co.zw/projects/pypi" target="_blank" rel="noopener"><img src="https://otene.co.zw/badge/pypi" alt="Fiscguy on Otene" width="206" height="54" /></a>
-
 **The Modern Python Library for ZIMRA Fiscal Device Integration**
 
 FiscGuy gives Django applications a simple, Pythonic interface for every fiscal operation required by the Zimbabwe Revenue Authority — receipt submission, fiscal day management, certificate handling, and more. Built on Django REST Framework, it drops into any Django project in minutes.
@@ -173,10 +171,17 @@ For frontend integrations, call `POST /fiscguy/close-day/` once, then poll
 `GET /fiscguy/get-status/` until the fiscal day moves from `close_pending` to `closed` or
 `close_failed`.
 
+### Web UI
+
+Optional pages for registration, certificate upload, fiscal day control and receipts, protected by
+login, permissions, password re-confirmation, CSRF, throttling and an audit log. Off by default;
+see [docs/web-ui.md](docs/web-ui.md). The JSON endpoints are staff-only unless you set
+`FISCGUY_PERMISSION_CLASSES`.
+
 ### HS Code Mapping
 
 FiscGuy supports `hs_code` on receipt lines and passes it through to FDMS as
-`receiptLineHSCode`.
+`receiptLineHSCode`. It is optional; a blank code is sent as-is.
 
 Firms should map their product and service catalogues to the correct FDMS-compatible HS codes
 before going live. In practice, this means:

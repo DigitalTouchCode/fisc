@@ -14,7 +14,7 @@ class CertificateService:
 
     def __init__(self, device: Device) -> None:
         self.device = device
-        self.crypto = ZIMRACrypto()
+        self.crypto = ZIMRACrypto(device=device)
         self.client = ZIMRAClient(device)
 
     def issue_certificate(self) -> Tuple[str, str]:

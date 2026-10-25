@@ -25,14 +25,17 @@ class ZIMRACrypto:
     Handles all cryptographic operations for ZIMRA receipt signing.
     """
 
-    def __init__(self, private_key_path=None, password=None):
+    def __init__(self, private_key_path=None, password=None, device=None):
         """
         Initialize crypto utilities.
 
         Args:
             private_key_path (str): Path to private key file
             password (str): Password for private key (if encrypted)
+            device (Device): Device whose stored certificate signs. Required
+                unless private_key_path is given.
         """
+        self._device = device
         self._cert_manager = None
         self._private_key_path_provided = private_key_path
         self.password = password
@@ -41,7 +44,15 @@ class ZIMRACrypto:
     @property
     def private_key_path(self):
         if self._cert_manager is None:
-            c = Certs.objects.filter(device__isnull=False).first()
+            if self._device is not None:
+                c = Certs.objects.filter(device=self._device).first()
+            elif self._private_key_path_provided is None:
+                raise CryptoError(
+                    "ZIMRACrypto requires a device or an explicit private_key_path."
+                )
+            else:
+                c = None
+
             if c:
                 self._cert_manager = CertTempManager(c.certificate, c.certificate_key)
             elif self._private_key_path_provided:

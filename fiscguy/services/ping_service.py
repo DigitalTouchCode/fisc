@@ -7,12 +7,15 @@ from fiscguy.zimra_base import ZIMRAClient
 
 
 class PingService:
+    PING_TIMEOUT = 8
+
     def __init__(self, device: Device):
         self.device = device
 
     def ping(self) -> dict:
         try:
             with ZIMRAClient(self.device) as client:
+                client.TIMEOUT = self.PING_TIMEOUT
                 return client.ping()
         except requests.RequestException as exc:
             logger.exception(f"Failed to ping device {self.device}")

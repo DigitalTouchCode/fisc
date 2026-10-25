@@ -1,3 +1,4 @@
+import base64
 from decimal import Decimal
 
 from django.db import transaction
@@ -21,6 +22,7 @@ class DeviceSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+        extra_kwargs = {"activation_key": {"write_only": True}}
 
 
 class ConfigurationSerializer(serializers.ModelSerializer):
@@ -64,6 +66,8 @@ class ReceiptLineSerializer(serializers.ModelSerializer):
     """
     Receipt lines
     """
+
+    tax_type = TaxSerializer(read_only=True)
 
     class Meta:
         model = ReceiptLine
@@ -132,6 +136,21 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     lines = ReceiptLineSerializer(many=True, read_only=True)
     buyer = BuyerSerializer(read_only=True)
+    qr_code_data = serializers.SerializerMethodField()
+
+    def get_qr_code_data(self, obj):
+        image = obj.qr_code
+        if not image:
+            return ""
+        try:
+            image.open("rb")
+            try:
+                raw = image.read()
+            finally:
+                image.close()
+        except Exception:
+            return ""
+        return "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
 
     class Meta:
         model = Receipt
@@ -142,6 +161,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
             "receipt_type",
             "total_amount",
             "qr_code",
+            "qr_code_data",
             "code",
             "currency",
             "global_number",
@@ -154,6 +174,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
             "is_credit_note",
             "credit_note_reason",
             "credit_note_reference",
+            "fiscal_day_no",
             "lines",
             "created_at",
             "updated_at",
@@ -201,20 +222,6 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"total_amount": "Receipt total must equal the sum of line totals"}
             )
-
-        if receipt_type == "fiscalinvoice":
-            missing_hs_codes = [
-                index for index, line in enumerate(lines, start=1) if not line.get("hs_code")
-            ]
-            if missing_hs_codes:
-                raise serializers.ValidationError(
-                    {
-                        "lines": (
-                            "hs_code is required for fiscal invoice lines: "
-                            f"{', '.join(str(index) for index in missing_hs_codes)}"
-                        )
-                    }
-                )
 
         if receipt_type in {"creditnote", "debitnote"}:
             if not reference:
@@ -269,12 +276,10 @@ class ReceiptCreateSerializer(serializers.ModelSerializer):
                     tin_number=buyer_data["tin_number"].strip(),
                     defaults={
                         "name": buyer_data["name"].strip(),  # business registered name
-                        "email": buyer_data["email"].strip(),
-                        "trade_name": buyer_data[
-                            "trade_name"
-                        ].strip(),  # trade name e.g branch name
-                        "phonenumber": buyer_data["phonenumber"].strip(),
-                        "address": buyer_data["address"].strip(),
+                        "email": buyer_data.get("email", "").strip(),
+                        "trade_name": buyer_data.get("trade_name", "").strip(),
+                        "phonenumber": buyer_data.get("phonenumber", "").strip(),
+                        "address": buyer_data.get("address", "").strip(),
                     },
                 )
 

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
+from fiscguy import audit, conf
 from fiscguy.exceptions import (
     CertificateError,
     CloseDayError,
@@ -30,6 +31,23 @@ from fiscguy.services.receipt_service import ReceiptService
 from fiscguy.services.status_service import StatusService
 
 
+class FiscguyAccessMixin:
+    """Applies FISCGUY_PERMISSION_CLASSES (admin-only by default) to every view."""
+
+    def get_permissions(self):
+        return [permission() for permission in conf.permission_classes()]
+
+
+def get_device(request):
+    """The device this request acts on, or None. Honours ?device_id= / body device_id."""
+    devices = conf.device_queryset(request)
+    data = request.data if isinstance(request.data, dict) else {}
+    device_id = request.query_params.get("device_id") or data.get("device_id")
+    if device_id:
+        return devices.filter(device_id=str(device_id)).first()
+    return devices.first()
+
+
 class ReceiptCursorPagination(CursorPagination):
     """
     Cursor-based pagination for receipts.
@@ -42,7 +60,7 @@ class ReceiptCursorPagination(CursorPagination):
     ordering = "-created_at"
 
 
-class ReceiptView(APIView):
+class ReceiptView(FiscguyAccessMixin, APIView):
     """REST endpoint to list and submit receipts.
 
     GET: List all receipts with cursor pagination
@@ -56,7 +74,10 @@ class ReceiptView(APIView):
     def get(self, request):
         """List receipts with cursor pagination, including receipt lines."""
         queryset = (
-            self.queryset.select_related("buyer").prefetch_related("lines").order_by("-created_at")
+            conf.scope_to_devices(request, self.queryset)
+            .select_related("buyer")
+            .prefetch_related("lines")
+            .order_by("-created_at")
         )
 
         paginator = self.pagination_class()
@@ -66,7 +87,7 @@ class ReceiptView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
-        device = Device.objects.first()
+        device = get_device(request)
 
         try:
             receipt, submission_res = ReceiptService(device).create_and_submit_receipt(request.data)
@@ -88,22 +109,25 @@ class ReceiptView(APIView):
             )
 
 
-class ReceiptDetailView(generics.RetrieveAPIView):
+class ReceiptDetailView(FiscguyAccessMixin, generics.RetrieveAPIView):
     """REST endpoint to retrieve a single receipt by ID."""
 
-    queryset = Receipt.objects.all().select_related("receipt_lines", "buyer")
+    queryset = Receipt.objects.all().select_related("buyer").prefetch_related("lines")
     serializer_class = ReceiptSerializer
     lookup_field = "id"
 
+    def get_queryset(self):
+        return conf.scope_to_devices(self.request, super().get_queryset())
 
-class BuyerViewset(ModelViewSet):
+
+class BuyerViewset(FiscguyAccessMixin, ModelViewSet):
     """Buyer crud endpoint"""
 
     queryset = Buyer.objects.all()
     serializer_class = BuyerSerializer
 
 
-class ConfigurationView(APIView):
+class ConfigurationView(FiscguyAccessMixin, APIView):
     """
     REST endpoint to get device configuration.
     GET: Fetch stored taxpayer configuration
@@ -111,7 +135,7 @@ class ConfigurationView(APIView):
 
     def get(self, request):
         try:
-            device = Device.objects.first()
+            device = get_device(request)
             if not device:
                 return Response({}, status=status.HTTP_200_OK)
             config = Configuration.objects.filter(device=device).first()
@@ -123,7 +147,7 @@ class ConfigurationView(APIView):
             return Response({"error": str(e)}, status=400)
 
 
-class TaxView(APIView):
+class TaxView(FiscguyAccessMixin, APIView):
     """
     REST endpoint to list available taxes.
     GET: Fetch all configured tax types
@@ -131,7 +155,7 @@ class TaxView(APIView):
 
     def get(self, request):
         try:
-            device = Device.objects.first()
+            device = get_device(request)
             if not device:
                 return Response([], status=status.HTTP_200_OK)
             taxes = Taxes.objects.filter(device=device)
@@ -141,14 +165,14 @@ class TaxView(APIView):
             raise
 
 
-class GetStatusView(APIView):
+class GetStatusView(FiscguyAccessMixin, APIView):
     """
     REST endpoint to get device and fiscal day status.
     GET: Fetch status from ZIMRA FDMS
     """
 
     def get(self, request):
-        device = Device.objects.first()
+        device = get_device(request)
         if not device:
             return Response(
                 {"error": "No device registered"},
@@ -168,14 +192,14 @@ class GetStatusView(APIView):
             return Response({"error": str(e)}, status=400)
 
 
-class DevicePing(APIView):
+class DevicePing(FiscguyAccessMixin, APIView):
     """
     End point for device ping
     POST: Ping the device to check/report connectivity with ZIMRA FDMS
     """
 
     def post(self, request):
-        device = Device.objects.first()
+        device = get_device(request)
         if not device:
             return Response(
                 {"error": "No device registered"},
@@ -183,25 +207,28 @@ class DevicePing(APIView):
             )
         try:
             response = PingService(device).ping()
-            return Response(response, status=status.HTTP_200_OK)
+            body = {"online": True}
+            if isinstance(response, dict):
+                body.update(response)
+            return Response(body, status=status.HTTP_200_OK)
         except DevicePingError as e:
             logger.exception("Ping failed")
             return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"online": False, "error": str(e)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
             logger.exception("Ping failed")
-            return Response({"error": str(e)}, status=400)
+            return Response({"online": False, "error": str(e)}, status=400)
 
 
-class OpenDayView(APIView):
+class OpenDayView(FiscguyAccessMixin, APIView):
     """
     POST: Open a new fiscal day for the registered device.
     """
 
     def post(self, request):
-        device = Device.objects.first()
+        device = get_device(request)
         if not device:
             return Response(
                 {"error": "No device registered"},
@@ -211,6 +238,7 @@ class OpenDayView(APIView):
         try:
             result = OpenDayService(device).open_day()
             ConfigurationService(device).config()
+            audit.record(request, "open_day", device)
             return Response(result, status=status.HTTP_200_OK)
 
         except FiscalDayError as exc:
@@ -237,14 +265,14 @@ class OpenDayView(APIView):
             )
 
 
-class CloseDayView(APIView):
+class CloseDayView(FiscguyAccessMixin, APIView):
     """
     POST: Close the open fiscal day (build counters, sign, submit).
     """
 
     def post(self, request):
         try:
-            device = Device.objects.first()
+            device = get_device(request)
             if not device:
                 return Response(
                     {"error": "No device registered"},
@@ -276,6 +304,7 @@ class CloseDayView(APIView):
                 tax_map=tax_map,
             ).close_day()
 
+            audit.record(request, "close_day", device, f"day {fiscal_day.day_no}")
             return Response(res)
         except CloseDayError as exc:
             logger.error(f"Close day failed: {exc}")
@@ -287,13 +316,13 @@ class CloseDayView(APIView):
             )
 
 
-class SyncConfigurationView(APIView):
+class SyncConfigurationView(FiscguyAccessMixin, APIView):
     """
     POST: Manually sync configuration from ZIMRA FDMS to local database.
     """
 
     def post(self, request):
-        device = Device.objects.first()
+        device = get_device(request)
         if not device:
             return Response({"error": "No device registered"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -314,17 +343,18 @@ class SyncConfigurationView(APIView):
             )
 
 
-class IssueCertificateView(APIView):
+class IssueCertificateView(FiscguyAccessMixin, APIView):
     """
     POST: Certificate Renewal if cert is expired
     """
 
     def post(self, request):
-        device = Device.objects.first()
+        device = get_device(request)
         if not device:
             return Response({"error": "No device registered"}, status=status.HTTP_404_NOT_FOUND)
         try:
             CertificateService(device).issue_certificate()
+            audit.record(request, "issue_certificate", device)
             return Response(
                 {"message": "Certificate issued successfully"}, status=status.HTTP_200_OK
             )

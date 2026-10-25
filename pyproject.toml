@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fiscguy"
-version = "v0.1.8"
+version = "v0.2.0"
 description = "Fiscalisation Device Integration Library - Simple and Pythonic API for ZIMRA fiscal device operations"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -77,6 +77,8 @@ fiscguy = [
     "utils/*.py",
     "services/*.py",
     "tests/*.py",
+    "templates/fiscguy/*.html",
+    "static/fiscguy/*",
 ]
 
 [tool.black]

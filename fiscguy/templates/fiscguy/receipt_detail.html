@@ -1,0 +1,19 @@
+{% extends "fiscguy/base.html" %}
+{% block title %}Receipt {{ receipt.receipt_number }}{% endblock %}
+{% block content %}
+<h1>Receipt {{ receipt.receipt_number|default:"pending" }}</h1>
+<p>{{ receipt.receipt_type }} &middot; {{ receipt.created_at|date:"Y-m-d H:i" }} &middot; fiscal day {{ receipt.fiscal_day_no|default:"-" }} &middot; device {{ receipt.device.device_id }}</p>
+{% if receipt.buyer %}<p>Buyer: {{ receipt.buyer.name }} (TIN {{ receipt.buyer.tin_number }})</p>{% endif %}
+<table>
+  <thead><tr><th>Product</th><th>HS code</th><th>Qty</th><th>Unit price</th><th>Tax</th><th>Total</th></tr></thead>
+  <tbody>
+  {% for line in receipt.lines.all %}
+    <tr><td>{{ line.product }}</td><td>{{ line.hs_code }}</td><td>{{ line.quantity }}</td><td>{{ line.unit_price }}</td><td>{{ line.tax_type.name }}</td><td>{{ line.line_total }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p><strong>Total: {{ receipt.total_amount }} {{ receipt.currency }}</strong> ({{ receipt.get_payment_terms_display }})</p>
+{% if receipt.zimra_inv_id %}<p>FDMS receipt ID: {{ receipt.zimra_inv_id }}</p>{% endif %}
+{% if qr %}<img class="qr" src="{{ qr }}" alt="Verification QR code">{% endif %}
+<p><a href="{% url 'fiscguy_web:receipts' receipt.device.pk %}">Back to receipts</a></p>
+{% endblock %}

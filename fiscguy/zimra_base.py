@@ -1,13 +1,27 @@
+import os
 import shutil
 import tempfile
 import threading
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 from loguru import logger
 
+from fiscguy.conf import log_fdms_payloads
 from fiscguy.exceptions import DeviceRegistrationError
 from fiscguy.models import Certs, Configuration, Device
+
+
+def zimra_proxies():
+    """Outbound proxy for FDMS traffic only, from the ZIMRA_PROXY env var."""
+    proxy = os.environ.get("ZIMRA_PROXY", "").strip()
+    return {"http": proxy, "https": proxy} if proxy else None
+
+
+def _proxy_label(proxies) -> str:
+    parsed = urlparse(proxies["https"])
+    return f"{parsed.hostname}:{parsed.port}"
 
 
 class ZIMRAClient:
@@ -55,6 +69,10 @@ class ZIMRAClient:
 
         # session
         self.session = requests.Session()
+        proxies = zimra_proxies()
+        if proxies:
+            self.session.proxies.update(proxies)
+            logger.warning(f"ZIMRA traffic routed via proxy {_proxy_label(proxies)}")
         if self.certs:
             self.session.cert = str(self._pem_path)
         self.session.headers.update(
@@ -69,12 +87,21 @@ class ZIMRAClient:
 
     def _request(self, method: str, endpoint: str, **kwargs):
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        logger.info(f"FDMS request [{method} {url}]")
+        if log_fdms_payloads():
+            logger.debug(f"FDMS payload: {kwargs.get('json', kwargs.get('data', ''))}")
         try:
             response = self.session.request(method, url, timeout=self.TIMEOUT, **kwargs)
+            logger.info(f"FDMS response [{method} {url}] {response.status_code}")
+            if log_fdms_payloads():
+                logger.debug(f"FDMS response body: {response.text}")
             response.raise_for_status()
             return response
         except requests.RequestException as exc:
-            logger.error(f"FDMS error [{method} {url}]: {exc}")
+            resp = getattr(exc, "response", None)
+            body = resp.text[:2000] if resp is not None else "<no response>"
+            code = resp.status_code if resp is not None else "?"
+            logger.error(f"FDMS error [{method} {url}] status={code}: {exc} - body: {body}")
             raise
 
     def register_device(self, payload: dict) -> dict:
@@ -97,6 +124,7 @@ class ZIMRAClient:
                 url,
                 timeout=self.TIMEOUT,
                 json=payload,
+                proxies=zimra_proxies(),
                 headers={
                     "Content-Type": "application/json",
                     "DeviceModelName": self.device.device_model_name,

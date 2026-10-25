@@ -56,7 +56,7 @@ receipt = submit_receipt({
     "total_amount": "-115.00",          # Must be <= 0
     "payment_terms": "Cash",
     "credit_note_reason": "Customer returned goods — defective",
-    "credit_note_reference": "R-00000142",  # Original receipt number
+    "credit_note_reference": "41872-00000142",  # Original receipt number
     "lines": [
         {
             "product": "Product Name",
@@ -105,7 +105,7 @@ receipt = submit_receipt({
     "total_amount": "23.00",
     "payment_terms": "Card",
     "debit_note_reason": "Additional delivery charge",
-    "debit_note_reference": "R-00000142",
+    "debit_note_reference": "41872-00000142",
     "lines": [
         {
             "product": "Delivery fee",
@@ -181,7 +181,8 @@ recommended flow is:
 
 ### HS Code Guidance
 
-- `hs_code` should be included in receipt-line payloads for normal invoice flows
+- `hs_code` should be included in receipt-line payloads for normal invoice flows; it is optional
+  and a blank code is sent through rather than rejecting the sale
 - Firms should map their product and service catalogues to the correct FDMS-compatible HS codes
 - Credit notes can inherit `hs_code` from the referenced original receipt line
 - Debit notes can inherit `hs_code` from the referenced original receipt line or, for

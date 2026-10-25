@@ -142,6 +142,11 @@ To switch environments, re-run `init_device`.
 
 ---
 
+## Routing FDMS traffic through a proxy
+
+Set `ZIMRA_PROXY` (for example `http://host:8889`) to send FDMS calls through a proxy. It is
+read only for ZIMRA traffic and is not the same as `HTTPS_PROXY`. Leave it unset to connect directly.
+
 ## Development Dependencies
 
 ```bash

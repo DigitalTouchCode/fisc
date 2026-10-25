@@ -84,6 +84,7 @@ class Command(BaseCommand):
         device = self._upsert_device(inputs)
         if device is None:
             return  # environment switch cancelled
+        self._device = device
 
         cert_key, csr = self._crypto.generate_key_and_csr(
             inputs["device_sn"],
@@ -394,7 +395,7 @@ class Command(BaseCommand):
 
         logger.info("Fetching config for device {} from {}", device_id, url)
 
-        cert = Certs.objects.first()
+        cert = Certs.objects.filter(device__device_id=device_id).first()
         if not cert:
             logger.error("No certificate found in DB — cannot fetch config.")
             self.stdout.write(self.style.ERROR("No certificate found. Register the device first."))
@@ -461,5 +462,5 @@ class Command(BaseCommand):
     @property
     def _crypto(self) -> ZIMRACrypto:
         if not hasattr(self, "_crypto_instance"):
-            self._crypto_instance = ZIMRACrypto()
+            self._crypto_instance = ZIMRACrypto(device=getattr(self, "_device", None))
         return self._crypto_instance

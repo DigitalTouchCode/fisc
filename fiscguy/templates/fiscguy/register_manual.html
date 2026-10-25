@@ -1,0 +1,12 @@
+{% extends "fiscguy/base.html" %}
+{% block title %}Upload certificate{% endblock %}
+{% block content %}
+<h1>Register with a certificate</h1>
+<p>Upload the certificate and private key issued for this device. They are checked, encrypted and stored; the key is never shown again. Passphrase-protected keys are not supported.</p>
+<form method="post" enctype="multipart/form-data" class="card" autocomplete="off">
+  {% csrf_token %}
+  {% include "fiscguy/_form.html" %}
+  <button>Save device</button>
+</form>
+<p><a href="{% url 'fiscguy_web:register' %}">Register with an activation key instead</a></p>
+{% endblock %}
